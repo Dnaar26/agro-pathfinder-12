@@ -14,16 +14,353 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activities: {
+        Row: {
+          created_at: string
+          crop_id: string
+          id: string
+          kind: Database["public"]["Enums"]["activity_kind"]
+          notes: string | null
+          performed_at: string
+          photo_urls: string[]
+          responsible_id: string
+        }
+        Insert: {
+          created_at?: string
+          crop_id: string
+          id?: string
+          kind: Database["public"]["Enums"]["activity_kind"]
+          notes?: string | null
+          performed_at?: string
+          photo_urls?: string[]
+          responsible_id: string
+        }
+        Update: {
+          created_at?: string
+          crop_id?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["activity_kind"]
+          notes?: string | null
+          performed_at?: string
+          photo_urls?: string[]
+          responsible_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alerts: {
+        Row: {
+          body: string | null
+          created_at: string
+          crop_id: string | null
+          id: string
+          kind: Database["public"]["Enums"]["alert_kind"]
+          scheduled_at: string
+          status: Database["public"]["Enums"]["alert_status"]
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          crop_id?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["alert_kind"]
+          scheduled_at?: string
+          status?: Database["public"]["Enums"]["alert_status"]
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          crop_id?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["alert_kind"]
+          scheduled_at?: string
+          status?: Database["public"]["Enums"]["alert_status"]
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_events: {
+        Row: {
+          created_at: string
+          crop_id: string | null
+          description: string | null
+          done: boolean
+          ends_at: string | null
+          id: string
+          kind: Database["public"]["Enums"]["activity_kind"] | null
+          starts_at: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          crop_id?: string | null
+          description?: string | null
+          done?: boolean
+          ends_at?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["activity_kind"] | null
+          starts_at: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          crop_id?: string | null
+          description?: string | null
+          done?: boolean
+          ends_at?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["activity_kind"] | null
+          starts_at?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crop_catalog: {
+        Row: {
+          code: string
+          cycle_days: number
+          id: number
+          name: string
+        }
+        Insert: {
+          code: string
+          cycle_days: number
+          id?: number
+          name: string
+        }
+        Update: {
+          code?: string
+          cycle_days?: number
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
+      crops: {
+        Row: {
+          catalog_id: number
+          created_at: string
+          estimated_harvest_date: string
+          id: string
+          notes: string | null
+          parcel_id: string
+          planting_date: string
+          status: Database["public"]["Enums"]["crop_status"]
+          updated_at: string
+        }
+        Insert: {
+          catalog_id: number
+          created_at?: string
+          estimated_harvest_date: string
+          id?: string
+          notes?: string | null
+          parcel_id: string
+          planting_date: string
+          status?: Database["public"]["Enums"]["crop_status"]
+          updated_at?: string
+        }
+        Update: {
+          catalog_id?: number
+          created_at?: string
+          estimated_harvest_date?: string
+          id?: string
+          notes?: string | null
+          parcel_id?: string
+          planting_date?: string
+          status?: Database["public"]["Enums"]["crop_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crops_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "crop_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crops_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "parcels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parcels: {
+        Row: {
+          area_m2: number
+          created_at: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          name: string
+          notes: string | null
+          owner_id: string
+          soil_type_id: number | null
+          updated_at: string
+        }
+        Insert: {
+          area_m2: number
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          notes?: string | null
+          owner_id: string
+          soil_type_id?: number | null
+          updated_at?: string
+        }
+        Update: {
+          area_m2?: number
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          notes?: string | null
+          owner_id?: string
+          soil_type_id?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parcels_soil_type_id_fkey"
+            columns: ["soil_type_id"]
+            isOneToOne: false
+            referencedRelation: "soil_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      soil_types: {
+        Row: {
+          code: string
+          id: number
+          name: string
+        }
+        Insert: {
+          code: string
+          id?: number
+          name: string
+        }
+        Update: {
+          code?: string
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      activity_kind:
+        | "RIEGO"
+        | "FERTILIZACION"
+        | "CONTROL_PLAGAS"
+        | "PODA"
+        | "INSUMOS"
+        | "COSECHA"
+        | "MONITOREO"
+      alert_kind: "RIEGO" | "FERTILIZACION" | "COSECHA" | "CLIMA" | "VENCIDA"
+      alert_status: "PENDIENTE" | "ATENDIDA" | "DESCARTADA"
+      app_role: "agricultor" | "tecnico" | "admin"
+      crop_status:
+        | "PLANEADO"
+        | "SEMBRADO"
+        | "CRECIMIENTO"
+        | "MANTENIMIENTO"
+        | "COSECHA"
+        | "POSTCOSECHA"
+        | "FINALIZADO"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +487,28 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      activity_kind: [
+        "RIEGO",
+        "FERTILIZACION",
+        "CONTROL_PLAGAS",
+        "PODA",
+        "INSUMOS",
+        "COSECHA",
+        "MONITOREO",
+      ],
+      alert_kind: ["RIEGO", "FERTILIZACION", "COSECHA", "CLIMA", "VENCIDA"],
+      alert_status: ["PENDIENTE", "ATENDIDA", "DESCARTADA"],
+      app_role: ["agricultor", "tecnico", "admin"],
+      crop_status: [
+        "PLANEADO",
+        "SEMBRADO",
+        "CRECIMIENTO",
+        "MANTENIMIENTO",
+        "COSECHA",
+        "POSTCOSECHA",
+        "FINALIZADO",
+      ],
+    },
   },
 } as const

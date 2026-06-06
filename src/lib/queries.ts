@@ -17,11 +17,12 @@ export async function getMyRoles(): Promise<string[]> {
 export async function listParcels() {
   const { data, error } = await supabase
     .from("parcels")
-    .select("*, soil_types(name)")
+    .select("*, soil_types(name), crops(id, status)")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
+
 
 export async function getParcel(id: string) {
   const { data, error } = await supabase
@@ -121,4 +122,70 @@ export async function revokeRole(userId: string, role: "agricultor" | "tecnico" 
   const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
   if (error) throw error;
 }
+
+export type AdminMetrics = {
+  users: number;
+  parcels: number;
+  crops: number;
+  activities: number;
+  pendingAlerts: number;
+  totalAreaM2: number;
+  activeCrops: number;
+};
+
+export async function getAdminMetrics(): Promise<AdminMetrics> {
+  const [users, parcelsRes, cropsRes, activities, alerts, activeCrops] = await Promise.all([
+    supabase.from("profiles").select("id", { count: "exact", head: true }),
+    supabase.from("parcels").select("area_m2"),
+    supabase.from("crops").select("id", { count: "exact", head: true }),
+    supabase.from("activities").select("id", { count: "exact", head: true }),
+    supabase.from("alerts").select("id", { count: "exact", head: true }).eq("status", "PENDIENTE"),
+    supabase.from("crops").select("id", { count: "exact", head: true }).in("status", ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO"]),
+  ]);
+  const totalAreaM2 = (parcelsRes.data ?? []).reduce((s, p: any) => s + Number(p.area_m2 || 0), 0);
+  return {
+    users: users.count ?? 0,
+    parcels: (parcelsRes.data ?? []).length,
+    crops: cropsRes.count ?? 0,
+    activities: activities.count ?? 0,
+    pendingAlerts: alerts.count ?? 0,
+    totalAreaM2,
+    activeCrops: activeCrops.count ?? 0,
+  };
+}
+
+export type FarmerSummary = {
+  id: string;
+  full_name: string;
+  parcels: number;
+  area_m2: number;
+  crops: number;
+};
+
+export async function listFarmerSummaries(): Promise<FarmerSummary[]> {
+  const { data: profiles } = await supabase.from("profiles").select("id, full_name").order("full_name");
+  const { data: parcels } = await supabase.from("parcels").select("id, owner_id, area_m2");
+  const { data: crops } = await supabase.from("crops").select("parcel_id");
+  const parcelByOwner = new Map<string, { count: number; area: number; ids: string[] }>();
+  for (const p of parcels ?? []) {
+    const cur = parcelByOwner.get(p.owner_id) ?? { count: 0, area: 0, ids: [] };
+    cur.count++;
+    cur.area += Number(p.area_m2 || 0);
+    cur.ids.push(p.id);
+    parcelByOwner.set(p.owner_id, cur);
+  }
+  const cropsByParcel = new Map<string, number>();
+  for (const c of crops ?? []) cropsByParcel.set(c.parcel_id, (cropsByParcel.get(c.parcel_id) ?? 0) + 1);
+  return (profiles ?? []).map((p) => {
+    const info = parcelByOwner.get(p.id);
+    const cropCount = (info?.ids ?? []).reduce((s, id) => s + (cropsByParcel.get(id) ?? 0), 0);
+    return { id: p.id, full_name: p.full_name, parcels: info?.count ?? 0, area_m2: info?.area ?? 0, crops: cropCount };
+  });
+}
+
+export async function runGenerateAlerts() {
+  const { error } = await supabase.rpc("generate_automatic_alerts" as any);
+  if (error) throw error;
+}
+
 

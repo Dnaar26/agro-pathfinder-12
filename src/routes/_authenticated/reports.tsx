@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/select";
 import { Download, FileBarChart, FileText, Filter } from "lucide-react";
 import { format } from "date-fns";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { generatePdfReport, type PdfReportTemplate } from "@/lib/pdf-report";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({ meta: [{ title: "Reportes — SGIC" }] }),
@@ -25,21 +25,19 @@ export const Route = createFileRoute("/_authenticated/reports")({
 function toCSV(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return "";
   const headers = Object.keys(rows[0]);
-  const escape = (v: unknown) => {
+  const esc = (v: unknown) => {
     if (v == null) return "";
     const s = String(v).replace(/"/g, '""');
     return /[",\n]/.test(s) ? `"${s}"` : s;
   };
-  return [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");
+  return [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join("\n");
 }
 
 function download(filename: string, content: BlobPart, mime: string) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -50,6 +48,7 @@ function ReportsPage() {
   const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
   const catalog = useQuery({ queryKey: ["catalog"], queryFn: listCatalog });
 
+  const [template, setTemplate] = useState<PdfReportTemplate>("actividades");
   const [parcelFilter, setParcelFilter] = useState<string>(ALL);
   const [cropFilter, setCropFilter] = useState<string>(ALL);
   const [from, setFrom] = useState<string>("");
@@ -75,7 +74,12 @@ function ReportsPage() {
     return acc;
   }, {});
 
-  const rows = filtered.map((a: any) => ({
+  const filteredParcels = useMemo(() => {
+    const list = (parcels.data ?? []) as any[];
+    return parcelFilter === ALL ? list : list.filter((p) => p.name === parcelFilter);
+  }, [parcels.data, parcelFilter]);
+
+  const actRows = filtered.map((a: any) => ({
     fecha: format(new Date(a.performed_at), "yyyy-MM-dd HH:mm"),
     tipo: a.kind,
     cultivo: a.crops?.crop_catalog?.name ?? "",
@@ -84,70 +88,109 @@ function ReportsPage() {
   }));
 
   function exportCSV() {
-    download(`actividades-${format(new Date(), "yyyyMMdd")}.csv`, toCSV(rows), "text/csv;charset=utf-8");
+    download(`actividades-${format(new Date(), "yyyyMMdd")}.csv`, toCSV(actRows), "text/csv;charset=utf-8");
   }
 
-  function exportPDF() {
-    const doc = new jsPDF({ orientation: "landscape" });
-    const title = "SGIC — Reporte de Actividades";
-    doc.setFontSize(16);
-    doc.text(title, 14, 16);
-    doc.setFontSize(10);
-    const meta: string[] = [
-      `Generado: ${format(new Date(), "yyyy-MM-dd HH:mm")}`,
-      `Parcela: ${parcelFilter === ALL ? "Todas" : parcelFilter}`,
-      `Cultivo: ${cropFilter === ALL ? "Todos" : cropFilter}`,
-      `Rango: ${from || "—"} a ${to || "—"}`,
-      `Total: ${totalAct}`,
-    ];
-    doc.text(meta.join("   |   "), 14, 23);
+  async function exportPDF() {
+    const { data: u } = await supabase.auth.getUser();
+    const author = u.user?.email ?? undefined;
+    const filters = {
+      Parcela: parcelFilter === ALL ? "Todas" : parcelFilter,
+      Cultivo: cropFilter === ALL ? "Todos" : cropFilter,
+      Desde: from || "—",
+      Hasta: to || "—",
+    };
 
-    autoTable(doc, {
-      startY: 28,
-      head: [["Fecha", "Tipo", "Cultivo", "Parcela", "Notas"]],
-      body: rows.map((r) => [r.fecha, r.tipo, r.cultivo, r.parcela, r.notas]),
-      styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: [34, 113, 56] },
-      columnStyles: { 4: { cellWidth: 90 } },
-    });
+    let doc;
+    if (template === "actividades") {
+      doc = await generatePdfReport({
+        template, author,
+        title: "Bitácora de Actividades Agrícolas",
+        subtitle: `${totalAct} registros encontrados`,
+        filters,
+        sections: [
+          {
+            title: "Detalle de actividades",
+            head: ["Fecha", "Tipo", "Cultivo", "Parcela", "Notas"],
+            body: actRows.map((r) => [r.fecha, r.tipo, r.cultivo, r.parcela, r.notas]),
+            columnStyles: { 4: { cellWidth: 90 } },
+          },
+          {
+            title: "Resumen por tipo",
+            head: ["Tipo", "Cantidad"],
+            body: Object.entries(byKind).map(([k, v]) => [k, v]),
+          },
+        ],
+      });
+    } else if (template === "parcelas") {
+      doc = await generatePdfReport({
+        template, author,
+        title: "Inventario de Parcelas",
+        subtitle: `${filteredParcels.length} parcelas`,
+        filters: { Parcela: filters.Parcela },
+        orientation: "portrait",
+        sections: [
+          {
+            title: "Listado",
+            head: ["Nombre", "Área (m²)", "Suelo", "Latitud", "Longitud"],
+            body: filteredParcels.map((p: any) => [
+              p.name, p.area_m2, p.soil_types?.name ?? "—",
+              p.latitude ?? "—", p.longitude ?? "—",
+            ]),
+          },
+        ],
+      });
+    } else {
+      doc = await generatePdfReport({
+        template, author,
+        title: "Resumen Ejecutivo",
+        subtitle: "Indicadores generales del periodo",
+        filters,
+        orientation: "portrait",
+        sections: [
+          {
+            title: "Indicadores",
+            head: ["Indicador", "Valor"],
+            body: [
+              ["Parcelas totales", parcels.data?.length ?? 0],
+              ["Parcelas filtradas", filteredParcels.length],
+              ["Actividades en periodo", totalAct],
+              ["Tipos de actividad distintos", Object.keys(byKind).length],
+            ],
+          },
+          {
+            title: "Distribución por tipo de actividad",
+            head: ["Tipo", "Cantidad"],
+            body: Object.entries(byKind).map(([k, v]) => [k, v]),
+          },
+        ],
+      });
+    }
 
-    let y = (doc as any).lastAutoTable.finalY + 8;
-    if (y > 180) { doc.addPage(); y = 16; }
-    doc.setFontSize(12);
-    doc.text("Resumen por tipo", 14, y);
-    autoTable(doc, {
-      startY: y + 3,
-      head: [["Tipo", "Cantidad"]],
-      body: Object.entries(byKind).map(([k, v]) => [k, String(v)]),
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [34, 113, 56] },
-      tableWidth: 80,
-    });
-
-    doc.save(`reporte-${format(new Date(), "yyyyMMdd-HHmm")}.pdf`);
-  }
-
-  function exportParcelsCSV() {
-    const data = (parcels.data ?? []).map((p: any) => ({
-      nombre: p.name,
-      area_m2: p.area_m2,
-      suelo: p.soil_types?.name ?? "",
-      latitud: p.latitude ?? "",
-      longitud: p.longitude ?? "",
-    }));
-    download(`parcelas-${format(new Date(), "yyyyMMdd")}.csv`, toCSV(data), "text/csv;charset=utf-8");
+    doc.save(`sgic-${template}-${format(new Date(), "yyyyMMdd-HHmm")}.pdf`);
   }
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-3xl font-bold">Reportes</h1>
-        <p className="text-sm text-muted-foreground">Indicadores y exportación de datos.</p>
+        <p className="text-sm text-muted-foreground">Plantillas configurables con logo, encabezado y pie de página.</p>
       </header>
 
       <section className="p-5 rounded-xl border border-border bg-card space-y-4">
-        <h2 className="text-sm font-semibold flex items-center gap-2"><Filter className="size-4 text-primary" /> Filtros</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <h2 className="text-sm font-semibold flex items-center gap-2"><Filter className="size-4 text-primary" /> Configuración del reporte</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div>
+            <Label className="text-xs">Plantilla</Label>
+            <Select value={template} onValueChange={(v) => setTemplate(v as PdfReportTemplate)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="actividades">Bitácora de actividades</SelectItem>
+                <SelectItem value="parcelas">Inventario de parcelas</SelectItem>
+                <SelectItem value="resumen">Resumen ejecutivo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div>
             <Label className="text-xs">Parcela</Label>
             <Select value={parcelFilter} onValueChange={setParcelFilter}>
@@ -162,7 +205,7 @@ function ReportsPage() {
           </div>
           <div>
             <Label className="text-xs">Tipo de cultivo</Label>
-            <Select value={cropFilter} onValueChange={setCropFilter}>
+            <Select value={cropFilter} onValueChange={setCropFilter} disabled={template === "parcelas"}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Todos</SelectItem>
@@ -174,17 +217,21 @@ function ReportsPage() {
           </div>
           <div>
             <Label className="text-xs">Desde</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} disabled={template === "parcelas"} />
           </div>
           <div>
             <Label className="text-xs">Hasta</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} disabled={template === "parcelas"} />
           </div>
         </div>
         <div className="flex flex-wrap gap-3 pt-2">
-          <Button onClick={exportPDF}><FileText className="size-4 mr-1" /> Exportar PDF</Button>
-          <Button variant="outline" onClick={exportCSV}><Download className="size-4 mr-1" /> Exportar CSV</Button>
-          <Button variant="ghost" onClick={() => { setParcelFilter(ALL); setCropFilter(ALL); setFrom(""); setTo(""); }}>Limpiar filtros</Button>
+          <Button onClick={exportPDF}><FileText className="size-4 mr-1" /> Generar PDF</Button>
+          <Button variant="outline" onClick={exportCSV} disabled={template !== "actividades"}>
+            <Download className="size-4 mr-1" /> Exportar CSV
+          </Button>
+          <Button variant="ghost" onClick={() => { setParcelFilter(ALL); setCropFilter(ALL); setFrom(""); setTo(""); }}>
+            Limpiar filtros
+          </Button>
         </div>
       </section>
 
@@ -217,11 +264,6 @@ function ReportsPage() {
           ))}
           {Object.keys(byKind).length === 0 && <p className="text-sm text-muted-foreground">Sin datos para los filtros seleccionados.</p>}
         </div>
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Otros exportes</h2>
-        <Button variant="outline" onClick={exportParcelsCSV}><Download className="size-4 mr-1" /> Parcelas (CSV)</Button>
       </section>
     </div>
   );

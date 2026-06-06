@@ -17,11 +17,12 @@ export async function getMyRoles(): Promise<string[]> {
 export async function listParcels() {
   const { data, error } = await supabase
     .from("parcels")
-    .select("*, soil_types(name)")
+    .select("*, soil_types(name), crops(id, status)")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
+
 
 export async function getParcel(id: string) {
   const { data, error } = await supabase

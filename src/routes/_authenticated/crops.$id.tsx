@@ -226,7 +226,7 @@ function EvidenceGallery({ paths }: { paths: string[] }) {
     (async () => {
       const { data, error } = await supabase.storage.from("evidences").createSignedUrls(paths, 3600);
       if (cancelled || error) return;
-      setUrls((data ?? []).map((d) => d.signedUrl).filter(Boolean));
+      setUrls((data ?? []).map((d) => d.signedUrl).filter((u): u is string => !!u));
     })();
     return () => { cancelled = true; };
   }, [paths]);

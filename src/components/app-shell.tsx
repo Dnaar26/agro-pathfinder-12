@@ -1,12 +1,13 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { Sprout, MapPin, Calendar, Bell, FileBarChart, LogOut, LayoutDashboard, Menu } from "lucide-react";
+import { Sprout, MapPin, Calendar, Bell, FileBarChart, LogOut, LayoutDashboard, Menu, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { getMyRoles } from "@/lib/queries";
 
-const nav = [
+const baseNav = [
   { to: "/dashboard", label: "Inicio", icon: LayoutDashboard },
   { to: "/parcels", label: "Parcelas", icon: MapPin },
   { to: "/calendar", label: "Calendario", icon: Calendar },
@@ -19,6 +20,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const roles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
+
+  const isStaff = (roles.data ?? []).some((r) => r === "tecnico" || r === "admin");
+  const isAdmin = (roles.data ?? []).includes("admin");
+  const nav = isAdmin
+    ? [...baseNav, { to: "/admin", label: "Administración", icon: Shield } as const]
+    : baseNav;
 
   async function handleSignOut() {
     await qc.cancelQueries();
@@ -26,6 +34,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
+
+  const roleBadge = isAdmin ? "Administrador" : isStaff ? "Técnico" : "Agricultor";
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background">
@@ -46,7 +56,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div>
             <div className="font-display font-bold leading-none">SGIC</div>
-            <div className="text-xs text-muted-foreground mt-0.5">Gestión de cultivos</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{roleBadge}</div>
           </div>
         </div>
         <nav className="flex-1 p-3 flex flex-col gap-1">

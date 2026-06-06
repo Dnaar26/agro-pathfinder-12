@@ -82,3 +82,43 @@ export async function listAllActivitiesForReport() {
   if (error) throw error;
   return data ?? [];
 }
+
+export type AdminUserRow = {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  roles: string[];
+};
+
+export async function listAllUsersWithRoles(): Promise<AdminUserRow[]> {
+  const { data: profiles, error: pErr } = await supabase
+    .from("profiles")
+    .select("id, full_name, phone")
+    .order("full_name");
+  if (pErr) throw pErr;
+  const ids = (profiles ?? []).map((p) => p.id);
+  if (ids.length === 0) return [];
+  const { data: roles, error: rErr } = await supabase
+    .from("user_roles")
+    .select("user_id, role")
+    .in("user_id", ids);
+  if (rErr) throw rErr;
+  const map = new Map<string, string[]>();
+  for (const r of roles ?? []) {
+    const arr = map.get(r.user_id) ?? [];
+    arr.push(r.role as string);
+    map.set(r.user_id, arr);
+  }
+  return (profiles ?? []).map((p) => ({ ...p, roles: map.get(p.id) ?? [] }));
+}
+
+export async function assignRole(userId: string, role: "agricultor" | "tecnico" | "admin") {
+  const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
+  if (error) throw error;
+}
+
+export async function revokeRole(userId: string, role: "agricultor" | "tecnico" | "admin") {
+  const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
+  if (error) throw error;
+}
+

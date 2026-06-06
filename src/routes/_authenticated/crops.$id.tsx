@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { getCrop } from "@/lib/queries";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Droplet, Sprout, Bug, Scissors, Package, Wheat, Eye } from "lucide-react";
+import { ArrowLeft, Plus, Droplet, Sprout, Bug, Scissors, Package, Wheat, Eye, ImagePlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -37,22 +37,43 @@ const activitySchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
+async function uploadEvidences(files: File[], cropId: string): Promise<string[]> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) throw new Error("Sesión expirada");
+  const paths: string[] = [];
+  for (const file of files) {
+    if (file.size > 5 * 1024 * 1024) throw new Error(`${file.name} supera 5 MB`);
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+    const path = `${u.user.id}/${cropId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from("evidences").upload(path, file, {
+      contentType: file.type || "image/jpeg",
+      upsert: false,
+    });
+    if (error) throw error;
+    paths.push(path);
+  }
+  return paths;
+}
+
 function CropDetail() {
   const { id } = useParams({ from: "/_authenticated/crops/$id" });
   const crop = useQuery({ queryKey: ["crop", id], queryFn: () => getCrop(id) });
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
 
   const addActivity = useMutation({
     mutationFn: async (data: z.infer<typeof activitySchema>) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Sesión expirada");
+      const photo_urls = files.length > 0 ? await uploadEvidences(files, id) : [];
       const { error } = await supabase.from("activities").insert({
         crop_id: id,
         responsible_id: u.user.id,
         kind: data.kind,
         performed_at: new Date(data.performed_at).toISOString(),
         notes: data.notes ?? null,
+        photo_urls,
       });
       if (error) throw error;
     },
@@ -60,6 +81,7 @@ function CropDetail() {
       toast.success("Actividad registrada");
       qc.invalidateQueries({ queryKey: ["crop", id] });
       setOpen(false);
+      setFiles([]);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -92,8 +114,6 @@ function CropDetail() {
   if (!crop.data) return <p>Cultivo no encontrado</p>;
 
   const activities = (crop.data as any).activities ?? [];
-  const parcelId = (crop.data as any).parcels?.owner_id ? null : null; // unused; nav back below
-  void parcelId;
 
   return (
     <div className="space-y-6">
@@ -115,7 +135,7 @@ function CropDetail() {
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFiles([]); }}>
             <DialogTrigger asChild><Button><Plus className="size-4 mr-1" /> Actividad</Button></DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Registrar actividad</DialogTitle></DialogHeader>
@@ -137,8 +157,23 @@ function CropDetail() {
                   <Label htmlFor="notes">Observaciones</Label>
                   <Textarea id="notes" name="notes" rows={3} />
                 </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><ImagePlus className="size-4" /> Foto-evidencias</Label>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    capture="environment"
+                    onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                  />
+                  {files.length > 0 && (
+                    <p className="text-xs text-muted-foreground">{files.length} archivo(s) seleccionados (máx 5 MB c/u)</p>
+                  )}
+                </div>
                 <DialogFooter>
-                  <Button type="submit" disabled={addActivity.isPending}>Guardar</Button>
+                  <Button type="submit" disabled={addActivity.isPending}>
+                    {addActivity.isPending ? "Guardando…" : "Guardar"}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -168,6 +203,9 @@ function CropDetail() {
                       <span className="text-xs text-muted-foreground">{format(new Date(a.performed_at), "dd MMM yyyy HH:mm")}</span>
                     </div>
                     {a.notes && <p className="text-sm text-muted-foreground mt-1">{a.notes}</p>}
+                    {Array.isArray(a.photo_urls) && a.photo_urls.length > 0 && (
+                      <EvidenceGallery paths={a.photo_urls} />
+                    )}
                   </div>
                 </li>
               );
@@ -176,5 +214,47 @@ function CropDetail() {
         )}
       </section>
     </div>
+  );
+}
+
+function EvidenceGallery({ paths }: { paths: string[] }) {
+  const [urls, setUrls] = useState<string[]>([]);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.storage.from("evidences").createSignedUrls(paths, 3600);
+      if (cancelled || error) return;
+      setUrls((data ?? []).map((d) => d.signedUrl).filter((u): u is string => !!u));
+    })();
+    return () => { cancelled = true; };
+  }, [paths]);
+
+  if (urls.length === 0) return null;
+
+  return (
+    <>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {urls.map((u, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => setPreview(u)}
+            className="size-16 rounded-md overflow-hidden border border-border hover:ring-2 hover:ring-primary transition"
+          >
+            <img src={u} alt={`Evidencia ${i + 1}`} className="size-full object-cover" loading="lazy" />
+          </button>
+        ))}
+      </div>
+      <Dialog open={!!preview} onOpenChange={(v) => !v && setPreview(null)}>
+        <DialogContent className="max-w-3xl p-2">
+          <button onClick={() => setPreview(null)} className="absolute right-3 top-3 z-10 rounded-full bg-background/80 p-1">
+            <X className="size-4" />
+          </button>
+          {preview && <img src={preview} alt="Evidencia ampliada" className="w-full h-auto rounded" />}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

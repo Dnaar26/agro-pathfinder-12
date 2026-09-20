@@ -1,0 +1,138 @@
+{
+  "common": {
+    "app_name": "SGIC",
+    "loading": "Apthapiña…",
+    "save": "Imt'aña",
+    "cancel": "Jaysu",
+    "delete": "Q'umpt'ayaña",
+    "edit": "Mayjt'ayaña",
+    "create": "Kamayaña",
+    "search": "Thaqhaña…",
+    "no_data": "Janikuna utjki",
+    "back": "Kutjaña",
+    "next": "Qhipampi",
+    "close": "Jist'antaña"
+  },
+  "nav": {
+    "dashboard": "Qallta",
+    "parcels": "Yapuchakuna",
+    "calendar": "Pacha",
+    "alerts": "Willta",
+    "reports": "Kununa",
+    "admin": "Kamachi",
+    "inventory": "Imilla",
+    "map": "Mapa",
+    "crops": "Cultivos",
+    "chat": "Yanapa IA",
+    "sign_out": "Mistuña"
+  },
+  "parcels": {
+    "title": "Yapuchakuna",
+    "new": "Machaqa yapu",
+    "name": "Suti",
+    "area_m2": "Uraqi (m²)",
+    "soil_type": "Uraqi laya",
+    "latitude": "Kimsa tupu",
+    "longitude": "Saya tupu",
+    "notes": "Kununa",
+    "use_gps": "Uñjata apana",
+    "draw_polygon": "Poligono lurana",
+    "polygon_area": "Uraqi: {{area}} ha",
+    "total_area": "Taqi uraqi",
+    "crops": "Yapuchawinaka",
+    "active_crops": "Jakaski yapuchawi",
+    "no_parcels": "Jan yapuchakuna utjki",
+    "created": "Yapu kamayasïwa",
+    "map_view": "Mapa uñjaña"
+  },
+  "weather": {
+    "title": "Jallu pacha",
+    "forecast": "Yatxatawi",
+    "temperature": "Junt'u kayu",
+    "precipitation": "Jallu",
+    "humidity": "Jallu katu",
+    "wind": "Thaya",
+    "frost_alert": "❄️ Thaya ch'iji: {{date}}",
+    "rain_alert": "🌧️ Jallu: {{date}}",
+    "no_forecast": "Jan yatxatawi utjki"
+  },
+  "ndvi": {
+    "title": "NDVI — Yapu qhana",
+    "healthy": "K'umaraki",
+    "moderate": "Chika",
+    "stressed": "Ususiski",
+    "no_data": "Jan NDVI utjki",
+    "last_update": "Qhipa: {{date}}"
+  },
+  "costs": {
+    "title": "Qullqi & Imilla",
+    "cost_per_ha": "Qullqi/ha",
+    "total_cost": "Taqi qullqi",
+    "total_revenue": "Taqi katu",
+    "margin": "Puchu",
+    "costs": "Qullqinaka",
+    "harvests": "Achu",
+    "kind": "Laya",
+    "description": "Kununa",
+    "qty": "Jakhu",
+    "unit_cost": "Sapa qullqi",
+    "total": "Taqi",
+    "add_cost": "Qullqi yapxana",
+    "add_harvest": "Achu yapxana"
+  },
+  "inventory": {
+    "title": "Imilla",
+    "item_name": "Imilla suti",
+    "stock": "Imilla",
+    "min_stock": "Jak'atki",
+    "unit": "Tupu",
+    "unit_cost": "Sapa qullqi",
+    "add_item": "Imilla yapxana",
+    "entry": "Manta",
+    "exit": "Mista",
+    "adjust": "Mayjt'ayaña",
+    "low_stock_alert": "⚠️ Jak'atki: {{name}} ({{stock}} {{unit}})",
+    "restock_alert": "{{name}} apthapiña"
+  },
+  "traceability": {
+    "title": "Uñjaña",
+    "batch_code": "Lote jakhu",
+    "qr": "QR jakhu",
+    "harvest_date": "Achu uru",
+    "qty": "Jakhu",
+    "globalgap": "GLOBALG.A.P.",
+    "create_batch": "Lote kamayaña",
+    "print_qr": "QR uñjaña",
+    "scan_qr": "QR uñakipaña"
+  },
+  "chat": {
+    "title": "Yanapa IA",
+    "placeholder": "Jiskhiña usu, qhuramanta…",
+    "upload_photo": "Laphichata apana",
+    "analyzing": "Uñakiña…",
+    "error": "Janiw atkiti"
+  },
+  "reports": {
+    "title": "Kununa",
+    "export_excel": "Excel apana",
+    "schedule_email": "Email kamayaña",
+    "daily": "Sapa uru",
+    "weekly": "Sapa sema",
+    "monthly": "Sapa phaxsi",
+    "recipients": "Katusirinaka",
+    "template": "Plantilla"
+  },
+  "audit": {
+    "title": "Uñjaña",
+    "action": "Lura",
+    "table": "Tabla",
+    "user": "Luri",
+    "date": "Uru",
+    "details": "Kununa"
+  },
+  "alerts": {
+    "frost": "Thaya ch'iji",
+    "rain": "Jallu",
+    "stock": "Imilla willa"
+  }
+}

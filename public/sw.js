@@ -1,0 +1,100 @@
+const CACHE = "sgic-v2";
+const APP_SHELL = [
+  "/",
+  "/dashboard",
+  "/parcels",
+  "/calendar",
+  "/alerts",
+  "/reports",
+  "/inventory",
+  "/mapa",
+  "/chat",
+  "/offline",
+  "/manifest.webmanifest",
+  "/icon-192.png",
+  "/icon-512.png",
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => clients.claim())
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // API and Supabase requests: network-only (fallback to cache if offline)
+  if (url.pathname.startsWith("/api/") || url.hostname.includes("supabase")) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match("/offline"))
+    );
+    return;
+  }
+
+  // Navigation requests: serve from cache first (app shell)
+  if (request.mode === "navigate") {
+    event.respondWith(
+      caches.match("/offline").then((offline) =>
+        fetch(request).catch(() => offline || caches.match("/"))
+      )
+    );
+    return;
+  }
+
+  // Static assets: cache-first, network fallback
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const fetchPromise = fetch(request).then((res) => {
+        if (res.ok && res.type === "basic") {
+          const clone = res.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, clone));
+        }
+        return res;
+      }).catch(() => cached);
+      return cached || fetchPromise;
+    })
+  );
+});
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  try {
+    const data = event.data.json();
+    event.waitUntil(
+      self.registration.showNotification(data.title || "SGIC", {
+        body: data.body || "Nueva alerta",
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        data: { url: data.url || "/dashboard" },
+        vibrate: [200, 100, 200],
+        requireInteraction: true,
+        tag: data.tag || "default",
+      })
+    );
+  } catch {
+    self.registration.showNotification("SGIC", { body: event.data.text(), icon: "/icon-192.png" });
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/dashboard";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      const client = clientList.find((c) => c.url === url);
+      if (client) return client.focus();
+      return clients.openWindow(url);
+    })
+  );
+});

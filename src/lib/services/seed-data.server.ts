@@ -25,7 +25,8 @@ async function requireAdmin(): Promise<string> {
   return user.id;
 }
 
-const PASSWORD = "Demo123!";
+const TEST_PASSWORD_ENV = "SEED_TEST_PASSWORD";
+const ADMIN_PASSWORD_ENV = "SEED_ADMIN_PASSWORD";
 
 const FARMERS = [
   { name: "Carlos Mamani", phone: "999111001", email: "carlos.mamani@test.sgic" },
@@ -230,6 +231,11 @@ export const deleteUser = createServerFn({ method: "POST" }).handler(async ({ da
 
 export const seedTestData = createServerFn({ method: "POST" }).handler(async () => {
   await requireAdmin();
+  const testPassword = process.env[TEST_PASSWORD_ENV];
+  const adminPassword = process.env[ADMIN_PASSWORD_ENV];
+  if (!testPassword || !adminPassword) {
+    throw new Error(`Configura ${TEST_PASSWORD_ENV} y ${ADMIN_PASSWORD_ENV} solo en el entorno de desarrollo antes de generar datos de prueba`);
+  }
   const results: string[] = [];
   const credentials: { email: string; password: string; name: string }[] = [];
 
@@ -237,7 +243,7 @@ export const seedTestData = createServerFn({ method: "POST" }).handler(async () 
     // Crear admin (solo admin, no genera datos agrícolas)
     const { data: adminUser } = await supabaseAdmin.auth.admin.createUser({
       email: ADMIN_SEED.email,
-      password: "Admin123!",
+      password: adminPassword,
       email_confirm: true,
       user_metadata: { full_name: ADMIN_SEED.name },
     });
@@ -245,21 +251,21 @@ export const seedTestData = createServerFn({ method: "POST" }).handler(async () 
       const uid = adminUser.user.id;
       await supabaseAdmin.from("profiles").upsert({ id: uid, full_name: ADMIN_SEED.name, phone: ADMIN_SEED.phone }).maybeSingle();
       await supabaseAdmin.from("user_roles").upsert({ user_id: uid, role: "admin" }).maybeSingle();
-      credentials.push({ email: ADMIN_SEED.email, password: "Admin123!", name: ADMIN_SEED.name });
+      credentials.push({ email: ADMIN_SEED.email, password: adminPassword, name: ADMIN_SEED.name });
       results.push(`✅ Admin: ${ADMIN_SEED.name} (${ADMIN_SEED.email})`);
     }
 
     for (const f of FARMERS) {
       const { data: user, error: uErr } = await supabaseAdmin.auth.admin.createUser({
         email: f.email,
-        password: PASSWORD,
+        password: testPassword,
         email_confirm: true,
         user_metadata: { full_name: f.name },
       });
       if (uErr) { results.push(`Error creando ${f.name}: ${uErr.message}`); continue; }
       if (!user?.user) continue;
       const uid = user.user.id;
-      credentials.push({ email: f.email, password: PASSWORD, name: f.name });
+      credentials.push({ email: f.email, password: testPassword, name: f.name });
 
       await supabaseAdmin.from("profiles").upsert({ id: uid, full_name: f.name, phone: f.phone }).maybeSingle();
       await supabaseAdmin.from("user_roles").upsert({ user_id: uid, role: "agricultor" }).maybeSingle();
@@ -502,7 +508,7 @@ export const seedTestData = createServerFn({ method: "POST" }).handler(async () 
     for (const t of TECNICOS) {
       const { data: user, error: uErr } = await supabaseAdmin.auth.admin.createUser({
         email: t.email,
-        password: PASSWORD,
+        password: testPassword,
         email_confirm: true,
         user_metadata: { full_name: t.name },
       });

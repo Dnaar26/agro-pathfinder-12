@@ -4,8 +4,7 @@
 
 > Seguridad obligatoria: si alguna clave real fue incluida en `.env`, historial Git, capturas o despliegues previos, debe rotarse inmediatamente en Supabase y Groq antes de publicar el sitio.
 
-> 🌐 **Despliegue Web Público Activo:** [https://occupation-suppliers-attribute-superintendent.trycloudflare.com](https://occupation-suppliers-attribute-superintendent.trycloudflare.com)  
-> *Aplicación compilada y publicada mediante túnel HTTPS seguro Cloudflare Edge, accesible públicamente desde cualquier dispositivo conectado a internet.*
+> El despliegue de producción debe usar un dominio estable con HTTPS. No se considera producción un túnel temporal de Cloudflare ni una URL de desarrollo.
 
 Este documento proporciona una guía exhaustiva y detallada para la instalación, configuración, ejecución y despliegue del Sistema de Información de Gestión Integral y Control (SIGIC). El manual está diseñado para desarrolladores, ingenieros de sistemas, administradores de bases de datos y personal de operaciones de TI que necesiten configurar el entorno local de desarrollo o desplegar el sistema en un entorno de producción seguro y escalable.
 
@@ -17,11 +16,12 @@ Este documento proporciona una guía exhaustiva y detallada para la instalación
 4. [Variables de entorno](#4-variables-de-entorno)
 5. [Base de datos](#5-base-de-datos)
 6. [Pruebas](#6-pruebas)
-7. [Despliegue en producción — Opción A: Netlify + Supabase Cloud (GRATUITO)](#7-despliegue-en-producción--opción-a-netlify--supabase-cloud-gratuito)
-8. [Despliegue — Opción B: Render.com (SSR Node.js)](#8-despliegue--opción-b-rendercom-ssr-nodejs)
+7. [Despliegue recomendado — Render + Supabase Cloud](#7-despliegue-recomendado--render--supabase-cloud)
+8. [Dominio, HTTPS y operación transnacional](#8-dominio-https-y-operación-transnacional)
 9. [Configuración de correo electrónico (Supabase SMTP)](#9-configuración-de-correo-electrónico-supabase-smtp)
 10. [Solución de problemas comunes de instalación](#10-solución-de-problemas-comunes-de-instalación)
 11. [Guía de actualización](#11-guía-de-actualización)
+12. [Checklist de despliegue seguro](#12-checklist-de-despliegue-seguro)
 
 ---
 
@@ -104,11 +104,8 @@ Siga cuidadosamente estos pasos en orden secuencial para establecer un entorno d
 Abra una terminal (en Windows se recomienda Git Bash, PowerShell o la terminal de WSL2; en macOS/Linux la terminal por defecto) y ejecute:
 
 ```bash
-# Clonar el repositorio
-git clone https://github.com/tu-organizacion/agro-pathfinder-12-main.git
-
-# Ingresar al directorio del proyecto principal
-cd agro-pathfinder-12-main/agro-pathfinder-12-main
+git clone https://github.com/Dnaar26/agro-pathfinder-12.git
+cd agro-pathfinder-12
 ```
 
 ### 3.2. Instalar dependencias
@@ -163,7 +160,7 @@ VITE_SUPABASE_URL=http://127.0.0.1:54321
 VITE_SUPABASE_PUBLISHABLE_KEY=ey... (tu anon key local generada por supabase start)
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key-solo-servidor>
 GROQ_API_KEY=<groq-api-key-solo-servidor>
-APP_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+APP_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
 
 ### 3.5. Ejecutar migraciones SQL
@@ -204,7 +201,7 @@ npm run dev
 
 ### 3.8. Verificar la instalación
 
-1.  Abra su navegador web y navegue a `http://localhost:3000` (o el puerto que le indique la terminal, frecuentemente 5173 o 3000).
+1.  Abra `http://localhost:3000`. Si Vite informa otro puerto disponible, use el puerto mostrado en la terminal.
 2.  Debería observar la pantalla de inicio de sesión o panel de SIGIC sin errores en la consola del navegador.
 3.  Intente iniciar sesión con la cuenta creada en el paso 3.6.
 4.  Si configuró el registro por correo electrónico, los correos de confirmación son interceptados localmente. Puede verlos ingresando a Inbucket en `http://127.0.0.1:54324`.
@@ -308,90 +305,48 @@ Las pruebas End-to-End simulan el comportamiento de un usuario real utilizando u
 
 ---
 
-## 7. Despliegue en producción — Opción A: Netlify + Supabase Cloud (GRATUITO)
+## 7. Despliegue recomendado — Render + Supabase Cloud
 
-Esta es la opción más sencilla, recomendada para despliegues iniciales, pruebas de usuario (UAT) o entornos de staging, aprovechando los generosos planes gratuitos (Free Tiers) de Supabase Cloud y Netlify.
+El proyecto usa SSR de TanStack Start/Nitro y debe ejecutarse como un servicio Node.js. El archivo `render.yaml` de la raíz automatiza esta configuración.
 
-### Paso 1: Crear cuenta Supabase Cloud
-1.  Navegue a [https://supabase.com/](https://supabase.com/).
-2.  Regístrese usando su cuenta de GitHub o correo electrónico.
+### 7.1. Crear y preparar Supabase Cloud
 
-### Paso 2: Crear proyecto Supabase y obtener credenciales
-1.  En el panel de control de Supabase, haga clic en "New Project".
-2.  Seleccione su organización, elija un nombre para el proyecto (ej. "sigic-prod") y configure una contraseña de base de datos **extremadamente fuerte** (guárdela en un gestor de contraseñas, no se podrá recuperar de nuevo en texto plano).
-3.  Seleccione la región de servidor más cercana a sus usuarios (ej. US East o São Paulo).
-4.  Espere a que la base de datos se aprovisione (puede tardar un par de minutos).
-5.  Vaya a **Project Settings -> API** para obtener la `URL` y las claves (`anon`, `service_role`).
-
-### Paso 3: Aplicar migraciones en producción
-Debe replicar su esquema de base de datos local en la nube de forma automatizada mediante la CLI.
+1. Cree un proyecto en [Supabase](https://supabase.com/) y guarde la contraseña de PostgreSQL en un gestor seguro.
+2. En **Project Settings > API**, copie la URL, la publishable/anon key y la service role key.
+3. En la raíz del proyecto ejecute:
 
 ```bash
-# 1. Autenticar la CLI de Supabase (requiere token personal de acceso desde la web)
 npx supabase login
-
-# 2. Vincular su proyecto local con el proyecto en la nube
-# (Encuentre el Reference ID en la URL de su proyecto en Supabase, ej. supabase.com/dashboard/project/abcdefghijk)
-npx supabase link --project-ref <SU_REFERENCE_ID>
-
-# Ingresará la contraseña de base de datos que creó en el Paso 2
-
-# 3. Aplicar (push) todas las migraciones SQL al proyecto en la nube
+npx supabase link --project-ref <PROJECT_REF>
 npx supabase db push
 ```
-La base de datos de producción ahora está estructurada correctamente.
 
-### Paso 4: Configurar Auth (URL del sitio)
-Para que los enlaces de autenticación, confirmación de correo y redirecciones funcionen:
-1.  En Supabase Dashboard, vaya a **Authentication -> URL Configuration**.
-2.  Defina la **Site URL** a la URL base de su frontend en producción (ej. `https://sigic.netlify.app`).
-3.  Agregue comodines u otras URLs a los **Redirect URLs** si es necesario (ej. `https://sigic.netlify.app/**` y `http://localhost:3000/**` para permitir login desde desarrollo al entorno en la nube, aunque no es recomendado cruzar entornos).
+4. En **Authentication > URL Configuration**, configure temporalmente la URL de Render como `Site URL`. Después de conectar el dominio definitivo, reemplácela por el dominio canónico HTTPS.
 
-### Paso 5: Crear cuenta Netlify
-Navegue a [https://netlify.com/](https://netlify.com/) y regístrese con la misma cuenta de GitHub que aloja el código fuente de SIGIC.
+### 7.2. Crear el servicio Node en Render
 
-### Paso 6: Conectar repositorio GitHub a Netlify
-1.  En el panel de Netlify, haga clic en "Add new site" -> "Import an existing project".
-2.  Seleccione "GitHub" y autorice el acceso.
-3.  Busque el repositorio `agro-pathfinder-12-main` y selecciónelo.
+1. Abra [Render](https://render.com/) y seleccione **New > Blueprint**.
+2. Conecte el repositorio `https://github.com/Dnaar26/agro-pathfinder-12.git`.
+3. Seleccione el archivo `render.yaml`. No configure `Root Directory`: el `package.json` está en la raíz del repositorio.
+4. Render ejecutará `npm ci && npm run build` y arrancará con `npm start`.
+5. Complete en Render todas las variables marcadas como `sync: false` en `render.yaml`. Nunca exponga `SUPABASE_SERVICE_ROLE_KEY` ni `GROQ_API_KEY` con prefijo `VITE_`.
+6. Configure `APP_ALLOWED_ORIGINS` con la URL HTTPS de Render y, después, con el dominio definitivo separado por comas.
 
-### Paso 7: Configurar build settings en Netlify
-Netlify detectará automáticamente que es un proyecto Node.js, pero debe especificar comandos precisos. Asegúrese de configurar:
-*   **Base directory:** El directorio donde está su `package.json` principal (si el repo tiene múltiples carpetas, ponga `agro-pathfinder-12-main/agro-pathfinder-12-main`).
-*   **Build command:** `npm run build`
-*   **Publish directory:** El directorio estático generado por Nitro (usualmente `.output/public` o `dist` dependiendo de la configuración final de Vite/Nitro en este stack). *Revise su archivo de configuración de compilación local para verificar la ruta exacta. Si usa el preset de Netlify de Nitro, la salida suele ser directamente compatible sin configurar un Publish Dir explícito.*
+### 7.3. Verificación de producción
 
-### Paso 8: Configurar variables de entorno en Netlify
-En la misma pantalla de configuración de despliegue, haga clic en "Add environment variables" e ingrese los datos obtenidos en el Paso 2 y sus claves privadas.
-*   `VITE_SUPABASE_URL` = Su URL de proyecto de Supabase.
-*   `VITE_SUPABASE_PUBLISHABLE_KEY` = Su anon key.
-*   `SUPABASE_SERVICE_ROLE_KEY` = Su service_role key.
-*   `GROQ_API_KEY` = Su clave de Groq.
-*   `NODE_VERSION` = `20` (Variable interna de Netlify para forzar la versión de Node).
+```bash
+npm ci
+npm run build
+npm start
+```
 
-### Paso 9: Verificar despliegue
-Haga clic en **Deploy site**.
-Netlify iniciará el proceso de compilación (`npm install`, seguido de `npm run build`). Puede observar los logs en tiempo real.
-Si es exitoso, Netlify le asignará una URL aleatoria que usted puede personalizar o apuntar a un dominio personalizado. Visite la URL y verifique el funcionamiento del sistema contra la base de datos de producción.
+Compruebe la URL pública, el registro/login, recuperación de contraseña, lectura/escritura de parcelas, carga de evidencias, reportes, IA y cambio de idioma. El health check de Render usa `/`.
 
----
+## 8. Dominio, HTTPS y operación transnacional
 
-## 8. Despliegue — Opción B: Render.com (SSR Node.js)
+En Render agregue el dominio personalizado y cree en su proveedor DNS el registro indicado por Render. Espere a que Render emita el certificado TLS antes de publicar la URL. En Supabase Auth agregue el dominio canónico y cada subdominio regional autorizado en **Additional Redirect URLs**.
 
-Para implementaciones que requieran un control más exhaustivo del proceso de ejecución del servidor Node.js (por ejemplo, si usa características extensas de SSR, WebSockets intensivos, o procesamiento prolongado que choca con los límites de tiempo de funciones Serverless en Netlify), Render es una excelente alternativa.
-
-### Pasos resumidos:
-1.  Configure Supabase Cloud idéntico a la Opción A (Pasos 1 al 4).
-2.  Cree cuenta en [Render.com](https://render.com/).
-3.  Cree un nuevo **Web Service**.
-4.  Conecte el repositorio de GitHub.
-5.  Configuración del Web Service:
-    *   **Root Directory:** `agro-pathfinder-12-main/agro-pathfinder-12-main`
-    *   **Environment:** `Node`
-    *   **Build Command:** `npm install && npm run build`
-    *   **Start Command:** Dependiendo de Nitro. Generalmente es: `node .output/server/index.mjs` o `npm start` si existe en los scripts de su package.
-6.  Agregue todas las variables de entorno detalladas en la Sección 4.
-7.  Haga clic en **Create Web Service**. Render instalará, compilará y levantará el servidor Node.js exponiéndolo en el puerto necesario.
+Para cada dominio permitido, actualice `APP_ALLOWED_ORIGINS` y pruebe login, logout, recuperación de contraseña, carga de archivos y funciones de IA. Configure SMTP propio, backups automáticos de Supabase, monitoreo de errores, rate limiting y una política de rotación de secretos.
 
 ---
 

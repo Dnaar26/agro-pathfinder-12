@@ -21,53 +21,24 @@ function authClient() {
   );
 }
 
-export function getCookieAccessToken() {
-  return getCookie(ACCESS_COOKIE);
-}
-
-export function setAuthCookies(session: { access_token: string; refresh_token: string; expires_in?: number }) {
-  setCookie(ACCESS_COOKIE, session.access_token, {
-    ...cookieOptions,
-    maxAge: session.expires_in ?? 3600,
-  });
-  setCookie(REFRESH_COOKIE, session.refresh_token, {
-    ...cookieOptions,
-    maxAge: 60 * 60 * 24 * 30,
-  });
-}
-
-export function clearAuthCookies() {
-  deleteCookie(ACCESS_COOKIE, cookieOptions);
-  deleteCookie(REFRESH_COOKIE, cookieOptions);
-}
-
-export async function refreshCookieSession() {
-  const refreshToken = getCookie(REFRESH_COOKIE);
-  if (!refreshToken) return null;
-  const { data, error } = await authClient().auth.refreshSession({ refresh_token: refreshToken });
-  if (error || !data.session) {
-    clearAuthCookies();
-    return null;
-  }
-  setAuthCookies(data.session);
-  return data.session;
-}
-
 export async function requireCookieUser(): Promise<User> {
-  let accessToken = getCookieAccessToken();
+  let accessToken = getCookie(ACCESS_COOKIE);
   if (!accessToken) {
-    const session = await refreshCookieSession();
-    accessToken = session?.access_token;
+    const refreshToken = getCookie(REFRESH_COOKIE);
+    if (!refreshToken) throw new Error("No autorizado");
+    const { data, error } = await authClient().auth.refreshSession({ refresh_token: refreshToken });
+    if (error || !data.session) {
+      deleteCookie(ACCESS_COOKIE, cookieOptions);
+      deleteCookie(REFRESH_COOKIE, cookieOptions);
+      throw new Error("No autorizado");
+    }
+    setCookie(ACCESS_COOKIE, data.session.access_token, { ...cookieOptions, maxAge: data.session.expires_in ?? 3600 });
+    setCookie(REFRESH_COOKIE, data.session.refresh_token, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
+    accessToken = data.session.access_token;
   }
-  if (!accessToken) throw new Error("No autorizado");
+
   const { data, error } = await authClient().auth.getUser(accessToken);
-  if (error || !data.user) {
-    const session = await refreshCookieSession();
-    if (!session) throw new Error("No autorizado");
-    const refreshed = await authClient().auth.getUser(session.access_token);
-    if (refreshed.error || !refreshed.data.user) throw new Error("No autorizado");
-    return refreshed.data.user;
-  }
+  if (error || !data.user) throw new Error("No autorizado");
   return data.user;
 }
 
@@ -79,7 +50,8 @@ export const signInWithHttpOnlyCookie = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { data: auth, error } = await authClient().auth.signInWithPassword(data);
     if (error || !auth.session) throw new Error(error?.message ?? "No se pudo iniciar sesion");
-    setAuthCookies(auth.session);
+    setCookie(ACCESS_COOKIE, auth.session.access_token, { ...cookieOptions, maxAge: auth.session.expires_in ?? 3600 });
+    setCookie(REFRESH_COOKIE, auth.session.refresh_token, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
     return { user: auth.user };
   });
 
@@ -92,14 +64,18 @@ export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
       options: { emailRedirectTo: data.redirectTo, data: { full_name: data.fullName } },
     });
     if (error) throw new Error(error.message);
-    if (auth.session) setAuthCookies(auth.session);
+    if (auth.session) {
+      setCookie(ACCESS_COOKIE, auth.session.access_token, { ...cookieOptions, maxAge: auth.session.expires_in ?? 3600 });
+      setCookie(REFRESH_COOKIE, auth.session.refresh_token, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
+    }
     return { user: auth.user, needsEmailConfirmation: !auth.session };
   });
 
 export const signOutHttpOnlyCookie = createServerFn({ method: "POST" }).handler(async () => {
-  const accessToken = getCookieAccessToken();
+  const accessToken = getCookie(ACCESS_COOKIE);
   if (accessToken) await authClient().auth.admin.signOut(accessToken).catch(() => undefined);
-  clearAuthCookies();
+  deleteCookie(ACCESS_COOKIE, cookieOptions);
+  deleteCookie(REFRESH_COOKIE, cookieOptions);
   return { ok: true };
 });
 

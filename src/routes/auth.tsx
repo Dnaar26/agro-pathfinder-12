@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { signInWithHttpOnlyCookie, signUpWithHttpOnlyCookie } from "@/lib/auth/session.server";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,15 +58,12 @@ function AuthPage() {
     if (!email.success) return toast.error(email.error.issues[0].message);
     if (!password.success) return toast.error(password.error.issues[0].message);
     setLoading(true);
-    try {
-      await signInWithHttpOnlyCookie({ data: { email: email.data, password: password.data } });
-      toast.success("¡Bienvenido!");
-      navigate({ to: "/dashboard", replace: true });
-    } catch (err: any) {
-      toast.error(err?.message ?? "Error al iniciar sesión");
-    } finally {
-      setLoading(false);
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email: email.data, password: password.data }).catch((err) => {
+      return { error: { message: "Error de conexión." } };
+    });
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    navigate({ to: "/dashboard", replace: true });
   }
 
   async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
@@ -79,15 +76,20 @@ function AuthPage() {
     if (!email.success) return toast.error(email.error.issues[0].message);
     if (!password.success) return toast.error(password.error.issues[0].message);
     setLoading(true);
-    try {
-      await signUpWithHttpOnlyCookie({ data: { email: email.data, password: password.data, fullName: name.data, redirectTo: `${window.location.origin}/dashboard` } });
-      toast.success("Cuenta creada exitosamente.");
-      navigate({ to: "/dashboard", replace: true });
-    } catch (err: any) {
-      toast.error(err?.message ?? "Error al registrarse");
-    } finally {
-      setLoading(false);
-    }
+    const { error } = await supabase.auth.signUp({
+      email: email.data,
+      password: password.data,
+      options: {
+        emailRedirectTo: `${window.location.origin}/dashboard`,
+        data: { full_name: name.data },
+      },
+    }).catch((err) => {
+      return { error: { message: "Error de conexión." } };
+    });
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    toast.success("Cuenta creada. Revisa tu correo si requiere confirmación.");
+    navigate({ to: "/dashboard", replace: true });
   }
 
   return (

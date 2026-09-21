@@ -1,1 +1,0 @@
-REVOKE EXECUTE ON FUNCTION public.generate_automatic_alerts() FROM PUBLIC, anon, authenticated;

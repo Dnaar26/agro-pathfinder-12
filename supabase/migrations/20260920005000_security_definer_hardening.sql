@@ -27,7 +27,7 @@ CREATE OR REPLACE FUNCTION public.apply_inventory_movement(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   effective_delta numeric;

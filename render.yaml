@@ -26,9 +26,9 @@ services:
         sync: false
       - key: APP_ALLOWED_ORIGINS
         sync: false
-      - key: VITE_SENTINEL_INSTANCE_ID
+      - key: SENTINEL_INSTANCE_ID
         sync: false
-      - key: VITE_SENTINEL_API_KEY
+      - key: SENTINEL_API_KEY
         sync: false
       - key: VITE_VAPID_PUBLIC_KEY
         sync: false

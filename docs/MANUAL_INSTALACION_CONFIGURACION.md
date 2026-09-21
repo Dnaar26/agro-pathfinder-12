@@ -219,6 +219,9 @@ El sistema utiliza variables de entorno para gestionar la configuración que dif
 | `SUPABASE_SERVICE_ROLE_KEY` | No | Si | Solo Servidor | Clave de acceso completo a la BD (omite RLS). **NUNCA DEBE LLEVAR EL PREFIJO VITE_**. Uso exclusivo en funciones SSR y API backend. | `<service-role-key>` |
 | `GROQ_API_KEY` | No | Si | Solo Servidor | Credencial para el consumo de la API de LLMs de Groq. Debe permanecer secreta. | `<groq-api-key>` |
 | `APP_ALLOWED_ORIGINS` | No | Si | Solo Servidor | Lista separada por comas de dominios autorizados para server functions sensibles. | `https://sigic.example.com` |
+| `SENTINEL_INSTANCE_ID` | No | No | Solo Servidor | Identificador de configuración Sentinel Hub para NDVI. Nunca usar prefijo `VITE_`. | `<sentinel-instance>` |
+| `SENTINEL_API_KEY` | No | No | Solo Servidor | Credencial Sentinel Hub para NDVI. Se consume exclusivamente desde SSR. | `<sentinel-api-key>` |
+| `VITE_VAPID_PUBLIC_KEY` | No | No | Cliente | Clave pública para notificaciones push. No es un secreto privado. | `<vapid-public-key>` |
 | `NODE_ENV` | No | No | Servidor | Define el entorno de ejecución (`development`, `production`, `test`). Automático en la mayoría de hosts. | `production` |
 | `PORT` | No | No | Servidor | Puerto donde escuchará el servidor Node.js en producción. | `3000` |
 
@@ -401,6 +404,19 @@ Configure `APP_ALLOWED_ORIGINS` con el dominio publico real. Las funciones que u
 8. Operacion del servidor
 
 Use HTTPS obligatorio, variables secretas del proveedor, logs sin tokens, backups de PostgreSQL, monitoreo de errores, actualizaciones periodicas de dependencias y revision de auditoria despues de cada despliegue.
+
+9. Aplicar hardening de base de datos
+
+Las migraciones `20260920002000_production_db_hardening.sql` y `20260920003000_rls_performance_and_external_secrets.sql` fijan `search_path`, restringen las funciones `SECURITY DEFINER`, optimizan las políticas RLS y mantienen `apply_inventory_movement` disponible para usuarios autenticados. Aplíquelas en staging antes de producción:
+
+```bash
+npx supabase link --project-ref <PROJECT_REF>
+npx supabase db push
+```
+
+10. Validar perfiles de autorización
+
+En staging, pruebe con cuentas `anon`, agricultor, técnico y administrador que cada perfil solo lea y modifique sus filas permitidas. No ejecute pruebas de acceso indebido con datos reales.
 
 ---
 

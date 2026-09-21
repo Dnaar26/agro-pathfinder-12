@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Leaf } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { getNdvi } from "@/lib/api/ndvi.server";
 
 type NdviEntry = { ndvi: number; date: string };
 
@@ -16,20 +17,8 @@ export function NdviViewer({ parcelId, lat, lng }: { parcelId: string; lat?: num
       const { data: cached } = await supabase.from("ndvi_cache").select("ndvi, date").eq("parcel_id", parcelId).order("date", { ascending: false }).limit(1).maybeSingle();
       if (cached) return cached as NdviEntry;
 
-      if (!lat || !lng) return null;
-
-      try {
-        const url = `https://services.sentinel-hub.com/ogc/wms/${import.meta.env.VITE_SENTINEL_INSTANCE_ID || "INSTANCE"}?service=WMS&request=GetFeatureInfo&layers=NDVI&bbox=${lng - 0.01},${lat - 0.01},${lng + 0.01},${lat + 0.01}&width=1&height=1&query_layers=NDVI&info_format=application/json&i=0&j=0`;
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${import.meta.env.VITE_SENTINEL_API_KEY || ""}` } });
-        if (!res.ok) return null;
-        const info = await res.json();
-        const ndvi = info?.features?.[0]?.properties?.NDVI ?? null;
-        if (ndvi != null) {
-          await supabase.from("ndvi_cache").upsert({ parcel_id: parcelId, ndvi: Math.round(ndvi * 1000) / 1000, date: new Date().toISOString().split("T")[0] }).maybeSingle();
-          return { ndvi, date: new Date().toISOString().split("T")[0] };
-        }
-        return null;
-      } catch { return null; }
+      if (lat == null || lng == null) return null;
+      return getNdvi({ data: { parcelId, latitude: lat, longitude: lng } });
     },
     refetchOnWindowFocus: false,
     staleTime: 1000 * 60 * 60,

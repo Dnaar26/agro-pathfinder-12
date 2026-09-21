@@ -50,20 +50,30 @@ SELECT ok(
   ),
   'set_updated_at has a fixed search_path'
 );
+
+-- PostgreSQL serializes an explicitly empty search_path as search_path="".
+-- Check the setting name and normalized value rather than relying on an
+-- unquoted array literal such as search_path=.
 SELECT ok(
   EXISTS (
-    SELECT 1 FROM pg_proc
-    WHERE oid = 'public.apply_inventory_movement(uuid,text,numeric,text,numeric)'::regprocedure
-      AND proconfig @> ARRAY['search_path=']
+    SELECT 1
+    FROM pg_proc p
+    CROSS JOIN LATERAL unnest(COALESCE(p.proconfig, ARRAY[]::text[])) AS config(setting)
+    WHERE p.oid = 'public.apply_inventory_movement(uuid,text,numeric,text,numeric)'::regprocedure
+      AND split_part(config.setting, '=', 1) = 'search_path'
+      AND btrim(split_part(config.setting, '=', 2), '"') = ''
   ),
   'inventory RPC has an empty search_path'
 );
 
 SELECT ok(
   EXISTS (
-    SELECT 1 FROM pg_proc
-    WHERE oid = 'public.has_role(uuid,public.app_role)'::regprocedure
-      AND proconfig @> ARRAY['search_path=']
+    SELECT 1
+    FROM pg_proc p
+    CROSS JOIN LATERAL unnest(COALESCE(p.proconfig, ARRAY[]::text[])) AS config(setting)
+    WHERE p.oid = 'public.has_role(uuid,public.app_role)'::regprocedure
+      AND split_part(config.setting, '=', 1) = 'search_path'
+      AND btrim(split_part(config.setting, '=', 2), '"') = ''
   ),
   'has_role has an empty search_path'
 );

@@ -97,7 +97,7 @@ function ParcelsPage() {
     create.mutate(parsed.data);
   }
 
-  function useGPS(setter: (lat: number, lng: number) => void) {
+  function requestGps(setter: (lat: number, lng: number) => void) {
     setGpsLoading(true);
     if (!navigator.geolocation) { setGpsLoading(false); return toast.error("GPS no disponible"); }
     navigator.geolocation.getCurrentPosition(
@@ -109,7 +109,7 @@ function ParcelsPage() {
 
   useEffect(() => {
     if (!open) return;
-    useGPS((lat, lng) => {
+    requestGps((lat, lng) => {
       const latEl = document.getElementById("latitude") as HTMLInputElement;
       const lngEl = document.getElementById("longitude") as HTMLInputElement;
       if (latEl && lngEl) { latEl.value = String(lat.toFixed(6)); lngEl.value = String(lng.toFixed(6)); }
@@ -160,7 +160,7 @@ function ParcelsPage() {
                   <Input id="longitude" name="longitude" type="number" step="any" inputMode="decimal" placeholder="-68.0 a -69.0 (aprox.)" />
                 </div>
               </div>
-              <Button type="button" variant="outline" size="sm" disabled={gpsLoading} onClick={() => useGPS((lat, lng) => {
+              <Button type="button" variant="outline" size="sm" disabled={gpsLoading} onClick={() => requestGps((lat, lng) => {
                 const lats = document.getElementById("latitude") as HTMLInputElement;
                 const lngs = document.getElementById("longitude") as HTMLInputElement;
                 if (lats && lngs) { lats.value = String(lat.toFixed(6)); lngs.value = String(lng.toFixed(6)); }

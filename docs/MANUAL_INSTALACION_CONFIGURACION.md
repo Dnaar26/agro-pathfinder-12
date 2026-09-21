@@ -432,6 +432,20 @@ npm start
 
 Compruebe la URL pública, el registro/login, recuperación de contraseña, lectura/escritura de parcelas, carga de evidencias, reportes, IA y cambio de idioma. El health check de Render usa `/`.
 
+### 7.4. Si despliega en Vercel
+
+SIGIC no es un Vite estático: Nitro no genera `dist`. El error *No Output Directory named "dist"* aparece cuando el proyecto está marcado como Vite.
+
+1. En **Project Settings > General**:
+   - Framework Preset: **Other**
+   - Build Command: `npm run build`
+   - Output Directory: **vacío** (no ponga `dist`)
+   - Install Command: `npm ci`
+2. En **Environment Variables**, las mismas que Render (`VITE_*` incluidas). `VERCEL=1` ya existe y el build usa el preset Nitro `vercel`.
+3. Redeploy. Nitro escribe `.vercel/output` (Build Output API), no `dist`.
+
+Si el dashboard deja `dist` como Output Directory, gana sobre `vercel.json` y el deploy vuelve a fallar.
+
 ## 8. Dominio, HTTPS y operación transnacional
 
 En Render agregue el dominio personalizado y cree en su proveedor DNS el registro indicado por Render. Espere a que Render emita el certificado TLS antes de publicar la URL. En Supabase Auth agregue el dominio canónico y cada subdominio regional autorizado en **Additional Redirect URLs**.

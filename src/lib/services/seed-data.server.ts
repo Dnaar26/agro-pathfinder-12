@@ -515,7 +515,7 @@ export const seedTestData = createServerFn({ method: "POST" }).handler(async () 
       if (uErr) { results.push(`Error creando técnico ${t.name}: ${uErr.message}`); continue; }
       if (!user?.user) continue;
       const uid = user.user.id;
-      credentials.push({ email: t.email, password: PASSWORD, name: t.name });
+      credentials.push({ email: t.email, password: testPassword, name: t.name });
       await supabaseAdmin.from("profiles").upsert({ id: uid, full_name: t.name, phone: t.phone }).maybeSingle();
       await supabaseAdmin.from("user_roles").upsert({ user_id: uid, role: "tecnico" }).maybeSingle();
       results.push(`✅ Técnico: ${t.name} (${t.email})`);

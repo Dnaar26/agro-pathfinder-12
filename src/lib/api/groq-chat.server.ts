@@ -3,18 +3,22 @@ import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-const allowedOrigins = (process.env.APP_ALLOWED_ORIGINS ?? "http://localhost:5173,http://127.0.0.1:5173")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+function allowedOrigins() {
+  return (process.env.APP_ALLOWED_ORIGINS ?? "http://localhost:8080,http://127.0.0.1:8080")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
 
 function verifySameOriginRequest() {
   const request = getRequest();
   const origin = request?.headers?.get("origin");
+  if (!origin) return;
   const host = request?.headers?.get("host");
-  const forwardedProto = request?.headers?.get("x-forwarded-proto") ?? "https";
-  const sameHostOrigin = host ? `${forwardedProto}://${host}` : undefined;
-  if (origin && origin !== sameHostOrigin && !allowedOrigins.includes(origin)) {
+  const forwardedProto = request?.headers?.get("x-forwarded-proto");
+  const proto = forwardedProto ?? (process.env.NODE_ENV === "production" ? "https" : "http");
+  const sameHostOrigin = host ? `${proto}://${host}` : undefined;
+  if (origin !== sameHostOrigin && !allowedOrigins().includes(origin)) {
     throw new Error("Solicitud rechazada por política CSRF");
   }
 }

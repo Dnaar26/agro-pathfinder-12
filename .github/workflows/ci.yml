@@ -35,10 +35,13 @@ jobs:
 
       - name: Prepare local E2E authentication
         run: |
-          supabase status -o env >> "$GITHUB_ENV"
+          supabase_env="$(supabase status -o env)"
+          printf '%s\n' "$supabase_env" >> "$GITHUB_ENV"
+          api_url="$(printf '%s\n' "$supabase_env" | sed -n 's/^API_URL=//p' | sed 's/^"//; s/"$//')"
+          anon_key="$(printf '%s\n' "$supabase_env" | sed -n 's/^ANON_KEY=//p' | sed 's/^"//; s/"$//')"
           echo "E2E_AUTH_EMAIL=e2e-ci@example.test" >> "$GITHUB_ENV"
-          echo "VITE_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
-          echo "VITE_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          echo "VITE_SUPABASE_URL=$api_url" >> "$GITHUB_ENV"
+          echo "VITE_SUPABASE_PUBLISHABLE_KEY=$anon_key" >> "$GITHUB_ENV"
 
       - name: Rebuild local database
         run: supabase db reset

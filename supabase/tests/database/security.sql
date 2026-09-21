@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 
 BEGIN;
 
-SELECT plan(12);
+SELECT plan(13);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.profiles'::regclass),
@@ -54,9 +54,18 @@ SELECT ok(
   EXISTS (
     SELECT 1 FROM pg_proc
     WHERE oid = 'public.apply_inventory_movement(uuid,text,numeric,text,numeric)'::regprocedure
-      AND proconfig @> ARRAY['search_path=public']
+      AND proconfig @> ARRAY['search_path=']
   ),
-  'inventory RPC has a fixed search_path'
+  'inventory RPC has an empty search_path'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE oid = 'public.has_role(uuid,public.app_role)'::regprocedure
+      AND proconfig @> ARRAY['search_path=']
+  ),
+  'has_role has an empty search_path'
 );
 
 SELECT ok(

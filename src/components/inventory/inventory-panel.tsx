@@ -84,7 +84,7 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
         p_kind: input.kind,
         p_qty: input.qty,
         p_notes: input.notes || null,
-        p_delta: 0,
+        p_delta: input.kind === "SALIDA" ? -input.qty : input.qty,
       });
       if (error) throw error;
     },

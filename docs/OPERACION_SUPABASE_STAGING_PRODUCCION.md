@@ -72,7 +72,8 @@ Las migraciones se revierten con una nueva migración compensatoria, no editando
 
 ## Estado actual de esta revisión
 
-- Migraciones locales versionadas: 22.
+- Migraciones locales versionadas: 23.
+- La migración `20260920004000_secure_inventory_rpc.sql` valida autenticación, propietario/administrador, tipo, cantidad, delta y stock no negativo antes de registrar movimientos.
 - Edge Functions en el repositorio: ninguna.
 - CLI Supabase local: 2.117.0.
 - Acceso remoto: pendiente de sesión autenticada; no se ejecutaron `db pull`, Advisors, logs ni `db push` desde este entorno.

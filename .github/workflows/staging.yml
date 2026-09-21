@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
+  SUPABASE_PROJECT_REF: bgpihkenhnqcxltrnhul
 
 jobs:
   migrate-and-test:

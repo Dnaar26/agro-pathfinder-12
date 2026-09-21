@@ -4,7 +4,7 @@
 
 El proyecto usa migraciones versionadas en `supabase/migrations`. No se modifican filas de `supabase_migrations` manualmente y no se ejecutan `DROP`, `TRUNCATE` ni borrados masivos como parte del despliegue.
 
-El proyecto de produccion configurado es `xgacqkakfaormeqaagkc`. El proyecto de staging debe ser independiente y no debe recibir una copia de datos personales reales.
+El proyecto de produccion configurado es `xgacqkakfaormeqaagkc`. El proyecto de staging es `bgpihkenhnqcxltrnhul` ([dashboard](https://supabase.com/dashboard/project/bgpihkenhnqcxltrnhul)) y no debe recibir una copia de datos personales reales.
 
 ## Primera inspeccion autenticada
 
@@ -12,7 +12,7 @@ La CLI debe autenticarse localmente o en CI mediante un token administrado por e
 
 ```bash
 npx supabase login
-npx supabase link --project-ref xgacqkakfaormeqaagkc
+npx supabase link --project-ref bgpihkenhnqcxltrnhul
 npx supabase db pull
 npx supabase migration list
 ```
@@ -38,7 +38,6 @@ La prueba pgTAP está en `supabase/tests/database/security.sql`. Comprueba RLS, 
 Crear un proyecto Supabase separado y configurar en GitHub Actions el environment `staging` con estos secretos, sin escribir sus valores en archivos:
 
 - `SUPABASE_ACCESS_TOKEN`
-- `SUPABASE_STAGING_PROJECT_REF`
 - `SUPABASE_STAGING_DB_PASSWORD`
 - `STAGING_APP_URL`
 

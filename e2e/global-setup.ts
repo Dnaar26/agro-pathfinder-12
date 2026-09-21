@@ -3,6 +3,35 @@ import { createClient } from "@supabase/supabase-js";
 import { mkdir } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 
+function cleanEnvValue(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const cleaned = value.trim();
+  if (cleaned.length >= 2 && cleaned.startsWith('"') && cleaned.endsWith('"')) {
+    return cleaned.slice(1, -1);
+  }
+  if (cleaned.length >= 2 && cleaned.startsWith("'") && cleaned.endsWith("'")) {
+    return cleaned.slice(1, -1);
+  }
+  return cleaned;
+}
+
+function requireHttpUrl(value: string | undefined, name: string): string {
+  const cleaned = cleanEnvValue(value);
+  if (!cleaned) throw new Error(`${name} es obligatorio para la suite E2E`);
+
+  let parsed: URL;
+  try {
+    parsed = new URL(cleaned);
+  } catch {
+    throw new Error(`${name} debe ser una URL HTTP/HTTPS válida`);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${name} debe usar HTTP o HTTPS`);
+  }
+  return parsed.toString().replace(/\/$/, "");
+}
+
 export default async function globalSetup(config: FullConfig) {
   try {
     process.loadEnvFile?.(".env");
@@ -11,10 +40,14 @@ export default async function globalSetup(config: FullConfig) {
   }
 
   const baseURL = config.projects[0]?.use.baseURL;
-  const configuredPassword = process.env.E2E_AUTH_PASSWORD;
-  const apiURL = process.env.API_URL ?? process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const email = process.env.E2E_AUTH_EMAIL ?? (serviceRoleKey && apiURL ? "e2e-ci@example.test" : undefined);
+  const configuredPassword = cleanEnvValue(process.env.E2E_AUTH_PASSWORD);
+  const configuredApiURL = process.env.API_URL ?? process.env.SUPABASE_URL;
+  const apiURL = configuredApiURL ? requireHttpUrl(configuredApiURL, "API_URL/SUPABASE_URL") : undefined;
+  const serviceRoleKey = cleanEnvValue(
+    process.env.SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
+  );
+  const email = cleanEnvValue(process.env.E2E_AUTH_EMAIL) ??
+    (serviceRoleKey && apiURL ? "e2e-ci@example.test" : undefined);
 
   if (!baseURL || !email) {
     throw new Error("E2E_AUTH_EMAIL y la baseURL son obligatorios para la suite autenticada");

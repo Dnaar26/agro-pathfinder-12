@@ -32,11 +32,7 @@ function AuthPage() {
 
   const [resetEmail, setResetEmail] = useState("");
 
-  function handleDemoLogin() {
-    localStorage.setItem("sigic_demo_mode", "true");
-    toast.success("¡Acceso en Modo Demostración exitoso!");
-    navigate({ to: "/dashboard", replace: true });
-  }
+
 
   async function handleResetPassword(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -166,14 +162,7 @@ function AuthPage() {
             </TabsContent>
           </Tabs>
 
-          <div className="mt-6 pt-6 border-t border-border text-center">
-            <Button variant="outline" className="w-full border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary font-medium" onClick={handleDemoLogin}>
-              🚀 Acceso Rápido / Modo Demostración
-            </Button>
-            <p className="text-xs text-muted-foreground mt-2">
-              Usa este botón si estás evaluando la aplicación y no cuentas con conexión a base de datos local.
-            </p>
-          </div>
+
 
         </div>
       </div>

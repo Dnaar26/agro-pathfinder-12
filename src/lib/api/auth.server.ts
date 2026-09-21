@@ -72,8 +72,6 @@ export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
   });
 
 export const signOutHttpOnlyCookie = createServerFn({ method: "POST" }).handler(async () => {
-  const accessToken = getCookie(ACCESS_COOKIE);
-  if (accessToken) await authClient().auth.admin.signOut(accessToken).catch(() => undefined);
   deleteCookie(ACCESS_COOKIE, cookieOptions);
   deleteCookie(REFRESH_COOKIE, cookieOptions);
   return { ok: true };

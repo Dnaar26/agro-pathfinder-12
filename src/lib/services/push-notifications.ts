@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "BLwVZ7GkRqQ0KpYX-jK8XnJpQm3Vd3QqQ0KpYX-jK8X";
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
 
 export async function requestNotificationPermission(): Promise<boolean> {
   if (!("Notification" in window)) return false;
@@ -11,6 +11,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 export async function subscribeToPush() {
+  if (!VAPID_PUBLIC_KEY) return;
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
 
   const reg = await navigator.serviceWorker.ready;

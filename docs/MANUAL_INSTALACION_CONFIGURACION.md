@@ -10,6 +10,7 @@ Este documento proporciona una guía exhaustiva y detallada para la instalación
 
 ## Tabla de contenido
 
+0. [Paso a paso de producción (Render + Supabase)](#0-paso-a-paso-de-producción-render--supabase)
 1. [Arquitectura del sistema](#1-arquitectura-del-sistema)
 2. [Prerrequisitos de instalación](#2-prerrequisitos-de-instalación)
 3. [Instalación en entorno local (desarrollo)](#3-instalación-en-entorno-local-desarrollo)
@@ -22,6 +23,88 @@ Este documento proporciona una guía exhaustiva y detallada para la instalación
 10. [Solución de problemas comunes de instalación](#10-solución-de-problemas-comunes-de-instalación)
 11. [Guía de actualización](#11-guía-de-actualización)
 12. [Checklist de despliegue seguro](#12-checklist-de-despliegue-seguro)
+
+---
+
+## 0. Paso a paso de producción (Render + Supabase)
+
+Siga este orden. El sitio no arranca si faltan las variables `VITE_*` **en el momento del build**.
+
+### Paso 1 — Cuenta y proyecto Supabase
+
+1. Cree un proyecto en [supabase.com](https://supabase.com/).
+2. Guarde la contraseña de PostgreSQL.
+3. En **Project Settings > API** copie:
+   - Project URL → `VITE_SUPABASE_URL` y `SUPABASE_URL`
+   - anon / publishable key → `VITE_SUPABASE_PUBLISHABLE_KEY` y `SUPABASE_PUBLISHABLE_KEY`
+   - service_role key → `SUPABASE_SERVICE_ROLE_KEY` (solo servidor, nunca con prefijo `VITE_`)
+4. En **Authentication > Providers** deje Email habilitado. En producción active **Confirm email**.
+5. En **Authentication > URL Configuration**:
+   - `Site URL`: la URL HTTPS de Render, por ejemplo `https://sigic.onrender.com`
+   - `Redirect URLs`: `https://sigic.onrender.com/**` y, si tiene dominio propio, `https://su-dominio.com/**`
+
+### Paso 2 — Migraciones y almacenamiento
+
+En su máquina, con Node 20+ y el repositorio clonado:
+
+```bash
+npx supabase login
+npx supabase link --project-ref <PROJECT_REF>
+npx supabase db push
+```
+
+En **Storage** del panel de Supabase cree (si no existe) el bucket `evidences`:
+- privado
+- límite 5 MiB
+- MIME: `image/png`, `image/jpeg`, `image/webp`, `image/gif`
+
+### Paso 3 — Correo (obligatorio para registro real)
+
+En **Project Settings > Authentication > SMTP** configure SendGrid, Resend, Mailgun o SES. Sin SMTP propio, los correos de confirmación se limitan o no llegan.
+
+### Paso 4 — Groq (asistente IA)
+
+Cree una API key en [console.groq.com](https://console.groq.com) y úsela solo como `GROQ_API_KEY` (sin `VITE_`).
+
+### Paso 5 — Render
+
+1. Suba este repositorio a GitHub (`https://github.com/Dnaar26/agro-pathfinder-12`).
+2. En [render.com](https://render.com/) → **New > Blueprint** y seleccione `render.yaml`.
+3. Complete las variables (`sync: false`):
+
+| Variable | Valor |
+| :--- | :--- |
+| `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | anon key |
+| `SUPABASE_URL` | igual que `VITE_SUPABASE_URL` |
+| `SUPABASE_PUBLISHABLE_KEY` | igual que la anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role |
+| `GROQ_API_KEY` | key de Groq |
+| `APP_ALLOWED_ORIGINS` | `https://sigic.onrender.com` (y el dominio propio, separados por coma) |
+
+Deje vacíos Sentinel, VAPID y Google si no los usa. **No** defina `SEED_TEST_PASSWORD` ni `SEED_ADMIN_PASSWORD` en producción.
+
+4. Tras el primer deploy, copie la URL `https://<servicio>.onrender.com` y actualice Site URL, Redirect URLs y `APP_ALLOWED_ORIGINS`. Redeploy si cambió variables `VITE_*`.
+
+### Paso 6 — Primer administrador
+
+1. Cree una cuenta en `/auth` (contraseña: mínimo 8 caracteres, mayúscula, minúscula y número).
+2. Confirme el correo.
+3. En Supabase → **SQL Editor**:
+
+```sql
+INSERT INTO public.user_roles (user_id, role)
+SELECT id, 'admin'::public.app_role
+FROM auth.users
+WHERE email = 'su-correo@dominio.com'
+ON CONFLICT DO NOTHING;
+```
+
+Si el tipo de rol no es `app_role`, inspeccione la columna `role` en `public.user_roles` y use ese tipo.
+
+### Paso 7 — Verificar
+
+Abra la URL HTTPS y compruebe: landing, registro, login, parcelas, evidencias, reportes, chat IA e idiomas. El plan Free de Render se duerme; el primer request puede tardar unos segundos.
 
 ---
 
@@ -160,7 +243,7 @@ VITE_SUPABASE_URL=http://127.0.0.1:54321
 VITE_SUPABASE_PUBLISHABLE_KEY=ey... (tu anon key local generada por supabase start)
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key-solo-servidor>
 GROQ_API_KEY=<groq-api-key-solo-servidor>
-APP_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+APP_ALLOWED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
 ```
 
 ### 3.5. Ejecutar migraciones SQL
@@ -180,15 +263,19 @@ Para poder acceder al sistema con privilegios administrativos, deberá registrar
 
 Opción recomendada:
 1.  Inicie el servidor de desarrollo (paso siguiente).
-2.  Navegue a la pantalla de registro (`/register` o `/auth/signup`) y cree una cuenta nueva con su correo electrónico (ej. `admin@sigic.local`).
-3.  Abra el panel de Supabase Studio local (`http://127.0.0.1:54323`).
-4.  Navegue a la sección **Table Editor**, seleccione la tabla de usuarios (ej. `public.users` o la tabla de perfiles correspondiente a su esquema).
-5.  Modifique la fila de su usuario recién creado y asigne el rol o bandera de administrador (ej. cambiando `role` a `'ADMIN'`).
+2.  Navegue a `/auth` y cree una cuenta (contraseña de 8+ caracteres con mayúscula, minúscula y número).
+3.  Abra Supabase Studio local (`http://127.0.0.1:54323`).
+4.  En **SQL Editor** asigne el rol admin:
 
-Alternativamente, puede ejecutar una consulta SQL directa en Supabase Studio:
 ```sql
-UPDATE public.perfiles SET rol = 'admin' WHERE email = 'admin@sigic.local';
+INSERT INTO public.user_roles (user_id, role)
+SELECT id, 'admin'
+FROM auth.users
+WHERE email = 'admin@sgic.local'
+ON CONFLICT DO NOTHING;
 ```
+
+En Windows también puede usar `.\create-admin.ps1 -Password $env:SIGIC_ADMIN_PASSWORD` con `SUPABASE_PUBLISHABLE_KEY` definida.
 
 ### 3.7. Iniciar el servidor de desarrollo
 
@@ -201,7 +288,7 @@ npm run dev
 
 ### 3.8. Verificar la instalación
 
-1.  Abra `http://localhost:3000`. Si Vite informa otro puerto disponible, use el puerto mostrado en la terminal.
+1.  Abra `http://localhost:8080`. Si Vite informa otro puerto, use el de la terminal.
 2.  Debería observar la pantalla de inicio de sesión o panel de SIGIC sin errores en la consola del navegador.
 3.  Intente iniciar sesión con la cuenta creada en el paso 3.6.
 4.  Si configuró el registro por correo electrónico, los correos de confirmación son interceptados localmente. Puede verlos ingresando a Inbucket en `http://127.0.0.1:54324`.
@@ -218,7 +305,7 @@ El sistema utiliza variables de entorno para gestionar la configuración que dif
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Sí | Sí | Cliente/Servidor | Clave "anon" (anónima) pública de Supabase. Segura de exponer en el navegador. | `eyJhbGciOiJIUzI1NiIsInR5...` |
 | `SUPABASE_SERVICE_ROLE_KEY` | No | Si | Solo Servidor | Clave de acceso completo a la BD (omite RLS). **NUNCA DEBE LLEVAR EL PREFIJO VITE_**. Uso exclusivo en funciones SSR y API backend. | `<service-role-key>` |
 | `GROQ_API_KEY` | No | Si | Solo Servidor | Credencial para el consumo de la API de LLMs de Groq. Debe permanecer secreta. | `<groq-api-key>` |
-| `APP_ALLOWED_ORIGINS` | No | Si | Solo Servidor | Lista separada por comas de dominios autorizados para server functions sensibles. | `https://sigic.example.com` |
+| `APP_ALLOWED_ORIGINS` | No | Si | Solo Servidor | Orígenes autorizados para el chat IA, separados por coma. En local use el puerto 8080. | `https://sigic.example.com` |
 | `SENTINEL_INSTANCE_ID` | No | No | Solo Servidor | Identificador de configuración Sentinel Hub para NDVI. Nunca usar prefijo `VITE_`. | `<sentinel-instance>` |
 | `SENTINEL_API_KEY` | No | No | Solo Servidor | Credencial Sentinel Hub para NDVI. Se consume exclusivamente desde SSR. | `<sentinel-api-key>` |
 | `VITE_VAPID_PUBLIC_KEY` | No | No | Cliente | Clave pública para notificaciones push. No es un secreto privado. | `<vapid-public-key>` |
@@ -310,7 +397,7 @@ Las pruebas End-to-End simulan el comportamiento de un usuario real utilizando u
 
 ## 7. Despliegue recomendado — Render + Supabase Cloud
 
-El proyecto usa SSR de TanStack Start/Nitro y debe ejecutarse como un servicio Node.js. El archivo `render.yaml` de la raíz automatiza esta configuración.
+El proyecto usa SSR de TanStack Start/Nitro con preset `node-server`. El archivo `render.yaml` de la raíz automatiza esta configuración. Las variables `VITE_*` se incrustan en el cliente durante `npm run build`; si las cambia, debe redeployar.
 
 ### 7.1. Crear y preparar Supabase Cloud
 
@@ -344,6 +431,20 @@ npm start
 ```
 
 Compruebe la URL pública, el registro/login, recuperación de contraseña, lectura/escritura de parcelas, carga de evidencias, reportes, IA y cambio de idioma. El health check de Render usa `/`.
+
+### 7.4. Si despliega en Vercel
+
+SIGIC no es un Vite estático: Nitro no genera `dist`. El error *No Output Directory named "dist"* aparece cuando el proyecto está marcado como Vite.
+
+1. En **Project Settings > General**:
+   - Framework Preset: **Other**
+   - Build Command: `npm run build`
+   - Output Directory: **vacío** (no ponga `dist`)
+   - Install Command: `npm ci`
+2. En **Environment Variables**, las mismas que Render (`VITE_*` incluidas). `VERCEL=1` ya existe y el build usa el preset Nitro `vercel`.
+3. Redeploy. Nitro escribe `.vercel/output` (Build Output API), no `dist`.
+
+Si el dashboard deja `dist` como Output Directory, gana sobre `vercel.json` y el deploy vuelve a fallar.
 
 ## 8. Dominio, HTTPS y operación transnacional
 

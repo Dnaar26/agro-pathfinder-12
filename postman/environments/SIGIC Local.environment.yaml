@@ -1,0 +1,22 @@
+name: SIGIC Local
+values:
+  - key: base_url
+    value: 'http://localhost:8080'
+    enabled: true
+    type: default
+  - key: supabase_url
+    value: 'http://127.0.0.1:54321'
+    enabled: true
+    type: default
+  - key: supabase_anon_key
+    value: ''
+    enabled: true
+    type: default
+  - key: access_token
+    value: ''
+    enabled: true
+    type: secret
+  - key: refresh_token
+    value: ''
+    enabled: true
+    type: secret

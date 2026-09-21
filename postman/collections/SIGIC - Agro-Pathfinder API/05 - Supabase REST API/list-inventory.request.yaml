@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Inventory Items
+order: 8000
+method: GET
+url: '{{supabase_url}}/rest/v1/inventory_items?select=*&order=name'
+description: List all inventory items.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

@@ -1,0 +1,16 @@
+$kind: http-request
+name: Generate Automatic Alerts (RPC)
+order: 17000
+method: POST
+url: '{{supabase_url}}/rest/v1/rpc/generate_automatic_alerts'
+description: Trigger the generate_automatic_alerts stored procedure.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: '{}'

@@ -1,0 +1,6 @@
+$kind: http-request
+name: 'Market Prices (DANE)'
+order: 2000
+method: GET
+url: 'https://www.dane.gov.co/api/precios-agricolas'
+description: 'Fetch agricultural market prices from DANE Colombia. Falls back to reference prices if unavailable.'

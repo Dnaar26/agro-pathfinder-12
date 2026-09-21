@@ -1,0 +1,11 @@
+$kind: http-request
+name: Get Parcel by ID
+order: 3000
+method: GET
+url: '{{supabase_url}}/rest/v1/parcels?select=*,soil_types(name),crops(*,crop_catalog(name,cycle_days)),profiles!owner_id(full_name)&id=eq.{{parcel_id}}'
+description: Get a single parcel with full crop and soil details.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

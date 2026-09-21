@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Parcels
+order: 2000
+method: GET
+url: '{{supabase_url}}/rest/v1/parcels?select=*,soil_types(name),crops(id,status),profiles!owner_id(full_name)&order=created_at.desc'
+description: 'List all parcels with soil type, crops, and owner info.'
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

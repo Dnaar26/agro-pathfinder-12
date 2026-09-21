@@ -1,0 +1,17 @@
+$kind: http-request
+name: Weather Forecast
+order: 1000
+method: GET
+url: 'https://api.open-meteo.com/v1/forecast'
+description: 'Get 7-day weather forecast from Open-Meteo (free, no auth required). Used for frost and heavy rain alerts.'
+queryParams:
+  - key: latitude
+    value: '4.7110'
+  - key: longitude
+    value: '-74.0721'
+  - key: daily
+    value: 'temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max'
+  - key: timezone
+    value: auto
+  - key: forecast_days
+    value: '7'

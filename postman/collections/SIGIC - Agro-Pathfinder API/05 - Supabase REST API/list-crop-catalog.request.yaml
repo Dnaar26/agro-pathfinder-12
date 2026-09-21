@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Crop Catalog
+order: 9000
+method: GET
+url: '{{supabase_url}}/rest/v1/crop_catalog?select=*&order=name'
+description: List all available crop types from the catalog.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

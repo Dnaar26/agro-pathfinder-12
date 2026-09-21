@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Scheduled Reports
+order: 15000
+method: GET
+url: '{{supabase_url}}/rest/v1/scheduled_reports?select=*&order=created_at.desc'
+description: List scheduled reports.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

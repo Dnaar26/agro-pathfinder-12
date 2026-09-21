@@ -1,0 +1,9 @@
+$kind: http-request
+name: List Parcels (Secure)
+order: 1000
+method: GET
+url: '{{base_url}}/_server/fn/getSecureUserParcels'
+description: 'Get all parcels for the authenticated user (Bearer token required). Returns id, name, area_m2, latitude, longitude, geometry, soil type, and owner.'
+headers:
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

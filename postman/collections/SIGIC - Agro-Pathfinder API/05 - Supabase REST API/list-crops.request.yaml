@@ -1,0 +1,11 @@
+$kind: http-request
+name: List All Crops
+order: 4000
+method: GET
+url: '{{supabase_url}}/rest/v1/crops?select=*,crop_catalog(name,cycle_days),parcels!inner(name,owner_id,profiles!owner_id(full_name))&order=planting_date.desc'
+description: List all crops with catalog info and parcel/owner details.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

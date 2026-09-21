@@ -1,0 +1,16 @@
+$kind: http-request
+name: Sign In
+order: 1000
+method: POST
+url: '{{base_url}}/_server/fn/signInWithHttpOnlyCookie'
+description: 'Sign in with email and password. Sets httpOnly cookies (sigic_access_token, sigic_refresh_token).'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "user@example.com",
+      "password": "password123"
+    }

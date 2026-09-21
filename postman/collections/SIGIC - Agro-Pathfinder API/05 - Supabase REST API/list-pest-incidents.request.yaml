@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Pest Incidents
+order: 12000
+method: GET
+url: '{{supabase_url}}/rest/v1/pest_incidents?select=*&crop_id=eq.{{crop_id}}&order=date.desc'
+description: List pest incidents for a specific crop.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

@@ -1,0 +1,11 @@
+$kind: http-request
+name: List User Roles
+order: 16000
+method: GET
+url: '{{supabase_url}}/rest/v1/user_roles?select=user_id,role'
+description: List user roles (admin only).
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

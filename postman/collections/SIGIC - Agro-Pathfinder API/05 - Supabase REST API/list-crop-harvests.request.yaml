@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Crop Harvests
+order: 13000
+method: GET
+url: '{{supabase_url}}/rest/v1/crop_harvests?select=harvested_qty,performed_at,total_revenue,crops!inner(crop_catalog(name))&order=performed_at'
+description: List crop harvests with yield and revenue data.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Alerts
+order: 6000
+method: GET
+url: '{{supabase_url}}/rest/v1/alerts?select=*,profiles!user_id(full_name)&order=scheduled_at.desc'
+description: List all alerts with user info.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

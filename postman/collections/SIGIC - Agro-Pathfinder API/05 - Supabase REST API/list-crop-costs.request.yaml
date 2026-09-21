@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Crop Costs
+order: 14000
+method: GET
+url: '{{supabase_url}}/rest/v1/crop_costs?select=*&order=created_at.desc'
+description: List crop costs.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

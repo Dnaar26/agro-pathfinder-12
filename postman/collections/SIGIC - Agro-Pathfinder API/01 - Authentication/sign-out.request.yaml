@@ -1,0 +1,6 @@
+$kind: http-request
+name: Sign Out
+order: 3000
+method: POST
+url: '{{base_url}}/_server/fn/signOutHttpOnlyCookie'
+description: Sign out and clear auth cookies.

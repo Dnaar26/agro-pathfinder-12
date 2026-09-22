@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { syncHttpOnlySession } from "@/lib/api/auth.server";
+import { signInWithHttpOnlyCookie, signUpWithHttpOnlyCookie } from "@/lib/api/auth.server";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,20 +27,7 @@ const signupPasswordSchema = z
   .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/, "Usa mayúscula, minúscula, número y carácter especial");
 const nameSchema = z.string().trim().min(2, "Nombre muy corto").max(120);
 
-async function persistServerSession(session: Session | null) {
-  if (!session) throw new Error("No se pudo iniciar sesión.");
-  try {
-    await syncHttpOnlySession({
-      data: {
-        accessToken: session.access_token,
-        refreshToken: session.refresh_token,
-        expiresIn: session.expires_in,
-      },
-    });
-  } catch {
-    throw new Error("No se pudo asegurar la sesión. Intenta de nuevo.");
-  }
-}
+
 
 function AuthPage() {
   const navigate = useNavigate();
@@ -49,7 +36,6 @@ function AuthPage() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) return;
-      await persistServerSession(data.session).catch(() => undefined);
       navigate({ to: "/dashboard", replace: true });
     }).catch(() => {});
   }, [navigate]);
@@ -78,12 +64,9 @@ function AuthPage() {
     if (!password.success) return toast.error(password.error.issues[0].message);
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email: email.data, password: password.data });
-      if (error) return toast.error(error.message);
-      await persistServerSession(data.session);
+      await signInWithHttpOnlyCookie({ data: { email: email.data, password: password.data } });
       navigate({ to: "/dashboard", replace: true });
     } catch (error) {
-      await supabase.auth.signOut().catch(() => undefined);
       toast.error(error instanceof Error ? error.message : "Error de conexión.");
     } finally {
       setLoading(false);
@@ -103,24 +86,21 @@ function AuthPage() {
     if (password.data !== confirmPassword) return toast.error("Las contraseñas no coinciden");
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.data,
-        password: password.data,
-        options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
-          data: { full_name: name.data },
+      const res = await signUpWithHttpOnlyCookie({
+        data: {
+          email: email.data,
+          password: password.data,
+          fullName: name.data,
+          redirectTo: `${window.location.origin}/dashboard`,
         },
       });
-      if (error) return toast.error(error.message);
-      if (!data?.session) {
+      if (res.needsEmailConfirmation) {
         toast.success("Cuenta creada. Revisa tu correo para confirmar el acceso.");
         return;
       }
-      await persistServerSession(data.session);
       toast.success("Cuenta creada.");
       navigate({ to: "/dashboard", replace: true });
     } catch (error) {
-      await supabase.auth.signOut().catch(() => undefined);
       toast.error(error instanceof Error ? error.message : "Error de conexión.");
     } finally {
       setLoading(false);

@@ -13,13 +13,13 @@ const cookieOptions = {
 };
 
 function authClient() {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !publishableKey) {
     const missing = [
-      ...(!supabaseUrl ? ["SUPABASE_URL"] : []),
-      ...(!publishableKey ? ["SUPABASE_PUBLISHABLE_KEY"] : []),
+      ...(!supabaseUrl ? ["SUPABASE_URL / VITE_SUPABASE_URL"] : []),
+      ...(!publishableKey ? ["SUPABASE_PUBLISHABLE_KEY / VITE_SUPABASE_PUBLISHABLE_KEY"] : []),
     ];
     throw new Error(`Configuracion Supabase incompleta: ${missing.join(", ")}`);
   }

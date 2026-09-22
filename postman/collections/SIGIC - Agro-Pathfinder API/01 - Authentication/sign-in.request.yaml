@@ -14,3 +14,25 @@ body:
       "email": "user@example.com",
       "password": "password123"
     }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      const jsonData = pm.response.json();
+
+      pm.test("Status 200 on successful login", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response contains user object", function () {
+        pm.expect(jsonData).to.have.property("user");
+        pm.expect(jsonData.user).to.have.property("id");
+        pm.expect(jsonData.user).to.have.property("email");
+      });
+
+      // Save access token from cookie if present
+      const accessCookie = pm.cookies.get("sigic_access_token");
+      if (accessCookie) {
+        pm.environment.set("access_token", accessCookie);
+        console.log("access_token saved from cookie");
+      }

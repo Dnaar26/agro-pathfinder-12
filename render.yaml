@@ -9,7 +9,7 @@ services:
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
-        value: 20.19.0
+        value: 22.14.0
       - key: NODE_ENV
         value: production
       - key: VITE_SUPABASE_URL
@@ -26,9 +26,9 @@ services:
         sync: false
       - key: APP_ALLOWED_ORIGINS
         sync: false
-      - key: VITE_SENTINEL_INSTANCE_ID
+      - key: SENTINEL_INSTANCE_ID
         sync: false
-      - key: VITE_SENTINEL_API_KEY
+      - key: SENTINEL_API_KEY
         sync: false
       - key: VITE_VAPID_PUBLIC_KEY
         sync: false

@@ -1,0 +1,60 @@
+{
+  "common": {
+    "app_name": "SGIC",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "create": "Criar",
+    "search": "Pesquisar…",
+    "loading": "Carregando…",
+    "no_data": "Sem dados",
+    "back": "Voltar",
+    "close": "Fechar"
+  },
+  "nav": {
+    "dashboard": "Início",
+    "parcels": "Fazendas",
+    "calendar": "Calendário",
+    "alerts": "Alertas",
+    "reports": "Relatórios",
+    "admin": "Admin",
+    "inventory": "Estoque",
+    "map": "Mapa",
+    "crops": "Cultivos",
+    "chat": "Assistente IA",
+    "sign_out": "Sair"
+  },
+  "parcels": {
+    "title": "Fazendas",
+    "new": "Nova fazenda",
+    "name": "Nome",
+    "area_m2": "Área (m²)",
+    "soil_type": "Tipo de solo",
+    "notes": "Observações",
+    "map_view": "Vista mapa"
+  },
+  "weather": {
+    "title": "Clima",
+    "forecast": "Previsão",
+    "temperature": "Temperatura",
+    "precipitation": "Precipitação",
+    "frost_alert": "❄️ Alerta de geada para {{date}}",
+    "rain_alert": "🌧️ Alerta de chuva forte para {{date}}"
+  },
+  "inventory": {
+    "title": "Estoque",
+    "low_stock_alert": "⚠️ Estoque baixo: {{name}} ({{stock}} {{unit}})"
+  },
+  "chat": {
+    "title": "Assistente IA",
+    "placeholder": "Pergunte sobre pragas, doenças, adubação…",
+    "analyzing": "Analisando…",
+    "error": "Não foi possível processar."
+  },
+  "alerts": {
+    "frost": "Geada",
+    "rain": "Chuva",
+    "stock": "Estoque"
+  }
+}

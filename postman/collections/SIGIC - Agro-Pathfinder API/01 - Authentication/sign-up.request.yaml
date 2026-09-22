@@ -16,3 +16,18 @@ body:
       "fullName": "New User",
       "redirectTo": "http://localhost:8080/auth"
     }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      const jsonData = pm.response.json();
+
+      pm.test("Status 200 on signup", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response has user or needsEmailConfirmation", function () {
+        pm.expect(jsonData).to.satisfy(function(d) {
+          return d.user !== undefined || d.needsEmailConfirmation !== undefined;
+        });
+      });

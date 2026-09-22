@@ -26,3 +26,20 @@ body:
       "model": "llama-3.3-70b-versatile",
       "max_tokens": 1024
     }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status 200", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response is a non-empty string", function () {
+        const body = pm.response.text();
+        pm.expect(body).to.be.a("string");
+        pm.expect(body.length).to.be.greaterThan(0);
+      });
+
+      pm.test("Response time under 10000ms", function () {
+        pm.expect(pm.response.responseTime).to.be.below(10000);
+      });

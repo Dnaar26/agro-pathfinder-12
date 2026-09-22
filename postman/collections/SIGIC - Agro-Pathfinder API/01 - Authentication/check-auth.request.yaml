@@ -4,3 +4,20 @@ order: 4000
 method: GET
 url: '{{base_url}}/_server/fn/checkAuthUser'
 description: Check if the current session is valid. Returns the authenticated user.
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status 200 when authenticated", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response contains user", function () {
+        const jsonData = pm.response.json();
+        pm.expect(jsonData).to.have.property("user");
+        pm.expect(jsonData.user).to.have.property("id");
+      });
+
+      pm.test("Response time under 2000ms", function () {
+        pm.expect(pm.response.responseTime).to.be.below(2000);
+      });

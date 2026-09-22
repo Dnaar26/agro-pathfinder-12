@@ -14,3 +14,10 @@ headers:
 body:
   type: json
   content: '{}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status 200 or 204", function () {
+        pm.expect([200, 204]).to.include(pm.response.code);
+      });

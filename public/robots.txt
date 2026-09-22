@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Allow: /trace/
+Disallow: /auth
+Disallow: /dashboard
+Disallow: /parcels
+Disallow: /cultivos
+Disallow: /calendar
+Disallow: /alerts
+Disallow: /reports
+Disallow: /inventory
+Disallow: /mapa
+Disallow: /chat
+Disallow: /admin
+Disallow: /audit

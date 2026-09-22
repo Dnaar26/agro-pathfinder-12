@@ -17,7 +17,11 @@ export const Route = createFileRoute("/auth")({
 });
 
 const emailSchema = z.string().trim().email("Correo inválido").max(180);
-const passwordSchema = z.string().min(6, "Mínimo 6 caracteres").max(72);
+const passwordSchema = z
+  .string()
+  .min(8, "Mínimo 8 caracteres")
+  .max(72)
+  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, "Usa mayúscula, minúscula y número");
 const nameSchema = z.string().trim().min(2, "Nombre muy corto").max(120);
 
 function AuthPage() {
@@ -32,11 +36,7 @@ function AuthPage() {
 
   const [resetEmail, setResetEmail] = useState("");
 
-  function handleDemoLogin() {
-    localStorage.setItem("sigic_demo_mode", "true");
-    toast.success("¡Acceso en Modo Demostración exitoso!");
-    navigate({ to: "/dashboard", replace: true });
-  }
+
 
   async function handleResetPassword(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -76,19 +76,23 @@ function AuthPage() {
     if (!email.success) return toast.error(email.error.issues[0].message);
     if (!password.success) return toast.error(password.error.issues[0].message);
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.data,
       password: password.data,
       options: {
         emailRedirectTo: `${window.location.origin}/dashboard`,
         data: { full_name: name.data },
       },
-    }).catch((err) => {
-      return { error: { message: "Error de conexión." } };
+    }).catch(() => {
+      return { data: { session: null }, error: { message: "Error de conexión." } };
     });
     setLoading(false);
     if (error) return toast.error(error.message);
-    toast.success("Cuenta creada. Revisa tu correo si requiere confirmación.");
+    if (!data?.session) {
+      toast.success("Cuenta creada. Revisa tu correo para confirmar el acceso.");
+      return;
+    }
+    toast.success("Cuenta creada.");
     navigate({ to: "/dashboard", replace: true });
   }
 
@@ -160,20 +164,14 @@ function AuthPage() {
                 <div className="space-y-2">
                   <Label htmlFor="password2">Contraseña</Label>
                   <Input id="password2" name="password" type="password" autoComplete="new-password" required />
+                  <p className="text-xs text-muted-foreground">Mínimo 8 caracteres, con mayúscula, minúscula y número.</p>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>Crear cuenta</Button>
               </form>
             </TabsContent>
           </Tabs>
 
-          <div className="mt-6 pt-6 border-t border-border text-center">
-            <Button variant="outline" className="w-full border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary font-medium" onClick={handleDemoLogin}>
-              🚀 Acceso Rápido / Modo Demostración
-            </Button>
-            <p className="text-xs text-muted-foreground mt-2">
-              Usa este botón si estás evaluando la aplicación y no cuentas con conexión a base de datos local.
-            </p>
-          </div>
+
 
         </div>
       </div>

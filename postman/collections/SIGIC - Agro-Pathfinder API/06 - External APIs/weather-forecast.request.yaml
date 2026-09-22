@@ -15,3 +15,22 @@ queryParams:
     value: auto
   - key: forecast_days
     value: '7'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status 200", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response has daily forecast", function () {
+        const jsonData = pm.response.json();
+        pm.expect(jsonData).to.have.property("daily");
+        pm.expect(jsonData.daily).to.have.property("time");
+        pm.expect(jsonData.daily.time).to.be.an("array").with.length.greaterThan(0);
+      });
+
+      pm.test("7 days of forecast data", function () {
+        const jsonData = pm.response.json();
+        pm.expect(jsonData.daily.time.length).to.equal(7);
+      });

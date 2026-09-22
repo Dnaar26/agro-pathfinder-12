@@ -9,3 +9,22 @@ headers:
     value: '{{supabase_anon_key}}'
   - key: Authorization
     value: 'Bearer {{access_token}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status 200", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response is an array", function () {
+        const jsonData = pm.response.json();
+        pm.expect(jsonData).to.be.an("array");
+      });
+
+      // Save first crop id
+      const jsonData = pm.response.json();
+      if (jsonData && jsonData.length > 0) {
+        pm.environment.set("crop_id", jsonData[0].id);
+        console.log("crop_id saved:", jsonData[0].id);
+      }

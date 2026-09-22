@@ -11,3 +11,20 @@ queryParams:
     value: '4.7110'
   - key: longitude
     value: '-74.0721'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status 200", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("NDVI result is null or has ndvi + date", function () {
+        const jsonData = pm.response.json();
+        if (jsonData !== null) {
+          pm.expect(jsonData).to.have.property("ndvi");
+          pm.expect(jsonData).to.have.property("date");
+          pm.expect(jsonData.ndvi).to.be.a("number");
+          pm.expect(jsonData.ndvi).to.be.within(-1, 1);
+        }
+      });

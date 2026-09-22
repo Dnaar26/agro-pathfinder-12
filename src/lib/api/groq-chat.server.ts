@@ -13,12 +13,19 @@ function allowedOrigins() {
 function verifySameOriginRequest() {
   const request = getRequest();
   const origin = request?.headers?.get("origin");
+  // No origin header = same-origin request from SSR or non-browser client — allow.
   if (!origin) return;
   const host = request?.headers?.get("host");
   const forwardedProto = request?.headers?.get("x-forwarded-proto");
   const proto = forwardedProto ?? (process.env.NODE_ENV === "production" ? "https" : "http");
   const sameHostOrigin = host ? `${proto}://${host}` : undefined;
-  if (origin !== sameHostOrigin && !allowedOrigins().includes(origin)) {
+  const allowed = allowedOrigins();
+  // In production, APP_ALLOWED_ORIGINS must be set to the deployed URL.
+  // If it is not set and we are in production, reject all cross-origin requests.
+  if (process.env.NODE_ENV === "production" && allowed.every((o) => o.startsWith("http://localhost") || o.startsWith("http://127.0.0.1"))) {
+    console.error("[SIGIC] APP_ALLOWED_ORIGINS is not configured for production. Set it to your deployed URL (e.g. https://sigic.onrender.com).");
+  }
+  if (origin !== sameHostOrigin && !allowed.includes(origin)) {
     throw new Error("Solicitud rechazada por política CSRF");
   }
 }

@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { signInWithHttpOnlyCookie, signUpWithHttpOnlyCookie } from "@/lib/api/auth.server";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,8 +65,18 @@ function AuthPage() {
     if (!password.success) return toast.error(password.error.issues[0].message);
     setLoading(true);
     try {
-      await signInWithHttpOnlyCookie({ data: { email: email.data, password: password.data } });
-      navigate({ to: "/dashboard", replace: true });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.data,
+        password: password.data,
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      if (data.session) {
+        toast.success("¡Bienvenido de vuelta!");
+        navigate({ to: "/dashboard", replace: true });
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Error de conexión.");
     } finally {
@@ -88,19 +97,23 @@ function AuthPage() {
     if (password.data !== confirmPassword) return toast.error("Las contraseñas no coinciden");
     setLoading(true);
     try {
-      const res = await signUpWithHttpOnlyCookie({
-        data: {
-          email: email.data,
-          password: password.data,
-          fullName: name.data,
-          redirectTo: `${window.location.origin}/dashboard`,
+      const { data, error } = await supabase.auth.signUp({
+        email: email.data,
+        password: password.data,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: { full_name: name.data },
         },
       });
-      if (res.needsEmailConfirmation) {
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      if (!data?.session) {
         toast.success("Cuenta creada. Revisa tu correo para confirmar el acceso.");
         return;
       }
-      toast.success("Cuenta creada.");
+      toast.success("¡Cuenta creada con éxito!");
       navigate({ to: "/dashboard", replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Error de conexión.");

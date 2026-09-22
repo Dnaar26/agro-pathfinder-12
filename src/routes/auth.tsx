@@ -21,7 +21,7 @@ const passwordSchema = z
   .string()
   .min(8, "Mínimo 8 caracteres")
   .max(72)
-  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, "Usa mayúscula, minúscula y número");
+  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/, "Usa mayúscula, minúscula, número y carácter especial");
 const nameSchema = z.string().trim().min(2, "Nombre muy corto").max(120);
 
 function AuthPage() {
@@ -72,9 +72,11 @@ function AuthPage() {
     const name = nameSchema.safeParse(fd.get("full_name"));
     const email = emailSchema.safeParse(fd.get("email"));
     const password = passwordSchema.safeParse(fd.get("password"));
+    const confirmPassword = fd.get("confirm_password");
     if (!name.success) return toast.error(name.error.issues[0].message);
     if (!email.success) return toast.error(email.error.issues[0].message);
     if (!password.success) return toast.error(password.error.issues[0].message);
+    if (password.data !== confirmPassword) return toast.error("Las contraseñas no coinciden");
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email: email.data,
@@ -164,7 +166,11 @@ function AuthPage() {
                 <div className="space-y-2">
                   <Label htmlFor="password2">Contraseña</Label>
                   <Input id="password2" name="password" type="password" autoComplete="new-password" required />
-                  <p className="text-xs text-muted-foreground">Mínimo 8 caracteres, con mayúscula, minúscula y número.</p>
+                  <p className="text-xs text-muted-foreground">Mínimo 8 caracteres, con mayúscula, minúscula, número y carácter especial.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm_password">Confirmar contraseña</Label>
+                  <Input id="confirm_password" name="confirm_password" type="password" autoComplete="new-password" required />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>Crear cuenta</Button>
               </form>

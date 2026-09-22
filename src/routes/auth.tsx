@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 export const Route = createFileRoute("/auth")({
@@ -41,6 +41,8 @@ function AuthPage() {
   }, [navigate]);
 
   const [resetEmail, setResetEmail] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
 
 
@@ -149,9 +151,21 @@ function AuthPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Contraseña</Label>
-                  <Input id="password" name="password" type="password" autoComplete="current-password" required />
+                  <div className="relative">
+                    <Input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required className="pr-10" />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>Entrar</Button>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Entrando..." : "Entrar"}
+                </Button>
                 <details className="text-center">
                   <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">¿Olvidaste tu contraseña?</summary>
                   <div className="mt-2 flex gap-2">
@@ -174,14 +188,36 @@ function AuthPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password2">Contraseña</Label>
-                  <Input id="password2" name="password" type="password" autoComplete="new-password" required />
+                  <div className="relative">
+                    <Input id="password2" name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" required className="pr-10" />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                   <p className="text-xs text-muted-foreground">Mínimo 8 caracteres, con mayúscula, minúscula, número y carácter especial.</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirm_password">Confirmar contraseña</Label>
-                  <Input id="confirm_password" name="confirm_password" type="password" autoComplete="new-password" required />
+                  <div className="relative">
+                    <Input id="confirm_password" name="confirm_password" type={showConfirmPassword ? "text" : "password"} autoComplete="new-password" required className="pr-10" />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      tabIndex={-1}
+                    >
+                      {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>Crear cuenta</Button>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Creando cuenta..." : "Crear cuenta"}
+                </Button>
               </form>
             </TabsContent>
           </Tabs>

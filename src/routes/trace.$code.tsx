@@ -1,6 +1,6 @@
 import { createFileRoute, useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,25 +21,30 @@ function TracePage() {
   const [scanning, setScanning] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const scanningRef = useRef(false);
+  const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [scannerError, setScannerError] = useState("");
 
-  const startScan = useCallback(async () => {
-    setScannerError("");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setScanning(true);
-      scanFrame();
-    } catch {
-      setScannerError("Cámara no disponible. Verifica los permisos.");
+  const stopScan = useCallback(() => {
+    scanningRef.current = false;
+    setScanning(false);
+    if (scanTimerRef.current) {
+      clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
   }, []);
 
-  function scanFrame() {
-    if (!videoRef.current || !scanning) return;
+  const scanFrame = useCallback(() => {
+    if (!videoRef.current || !scanningRef.current) return;
     const video = videoRef.current;
-    if (video.readyState !== 4) { setTimeout(scanFrame, 500); return; }
+    if (video.readyState !== HTMLMediaElement.HAVE_ENOUGH_DATA) {
+      scanTimerRef.current = setTimeout(scanFrame, 500);
+      return;
+    }
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -47,22 +52,36 @@ function TracePage() {
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-    if (code) {
+    const qr = jsQR(imageData.data, imageData.width, imageData.height);
+    if (qr) {
       stopScan();
-      const url = code.data;
-      const match = url.match(/\/trace\/(.+)$/);
-      if (match) navigate({ to: "/trace/$code", params: { code: match[1] }, replace: true });
-      else setScannerError(`Código escaneado: ${code.data.substring(0, 50)}...`);
+      const url = new URL(qr.data, window.location.origin);
+      const match = url.pathname.match(/^\/trace\/(.+)$/);
+      if (match?.[1]) navigate({ to: "/trace/$code", params: { code: decodeURIComponent(match[1]) }, replace: true });
+      else setScannerError(`Código escaneado: ${qr.data.substring(0, 50)}...`);
     } else {
-      setTimeout(scanFrame, 500);
+      scanTimerRef.current = setTimeout(scanFrame, 500);
     }
-  }
+  }, [navigate, stopScan]);
 
-  function stopScan() {
-    setScanning(false);
-    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
-  }
+  const startScan = useCallback(async () => {
+    setScannerError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => undefined);
+      }
+      scanningRef.current = true;
+      setScanning(true);
+      scanTimerRef.current = setTimeout(scanFrame, 100);
+    } catch {
+      setScannerError("Cámara no disponible. Verifica los permisos.");
+    }
+  }, [scanFrame]);
+
+  useEffect(() => () => stopScan(), [stopScan]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["trace", code],

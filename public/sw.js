@@ -1,14 +1,6 @@
 const CACHE = "sgic-v2";
 const APP_SHELL = [
   "/",
-  "/dashboard",
-  "/parcels",
-  "/calendar",
-  "/alerts",
-  "/reports",
-  "/inventory",
-  "/mapa",
-  "/chat",
   "/offline",
   "/manifest.webmanifest",
   "/icon-192.png",
@@ -33,16 +25,27 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
+  const acceptsJson = request.headers.get("accept")?.includes("application/json");
+  const isRpcOrApi = url.pathname.startsWith("/api/") || url.pathname.startsWith("/_server") || acceptsJson;
 
-  // API and Supabase requests: network-only (fallback to cache if offline)
-  if (url.pathname.startsWith("/api/") || url.hostname.includes("supabase")) {
+  // API, server functions and Supabase requests: network-only.
+  if (isRpcOrApi || url.hostname.includes("supabase")) {
     event.respondWith(
-      fetch(request).catch(() => caches.match("/offline"))
+      fetch(request).catch(() => new Response(
+        JSON.stringify({ error: "offline", message: "Sin conexión. Intenta nuevamente cuando vuelvas a estar en línea." }),
+        {
+          status: 503,
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+            "cache-control": "no-store",
+          },
+        },
+      ))
     );
     return;
   }
 
-  // Navigation requests: serve from cache first (app shell)
+  // Navigation requests: network-first, offline fallback. Authenticated pages are never precached.
   if (request.mode === "navigate") {
     event.respondWith(
       caches.match("/offline").then((offline) =>

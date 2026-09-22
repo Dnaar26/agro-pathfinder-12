@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback, useMemo, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { supabase } from "@/integrations/supabase/client";
 import { listParcels } from "@/lib/queries";
@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 const ParcelMap = lazy(() => import("@/components/map/parcel-map").then((m) => ({ default: m.ParcelMap })));
+const EMPTY_PARCELS: Awaited<ReturnType<typeof listParcels>> = [];
 
 export const Route = createFileRoute("/_authenticated/mapa")({
   head: () => ({ meta: [{ title: "Mapa — SIGIC" }] }),
@@ -27,12 +28,20 @@ function MapaPage() {
   const [cardPage, setCardPage] = useState(1);
   const cardPageSize = 12;
 
-  const selected = selectedId === "__all__" ? null : (parcels.data ?? []).find((p) => p.id === selectedId);
-  const displayParcels = selected ? [selected] : (parcels.data ?? []);
-  const showAll = selectedId === "__all__";
-  const cardList = showAll ? displayParcels : [selected!];
+  const parcelRows = parcels.data ?? EMPTY_PARCELS;
+  const selected = useMemo(
+    () => selectedId === "__all__" ? null : parcelRows.find((p) => p.id === selectedId) ?? null,
+    [parcelRows, selectedId],
+  );
+  const displayParcels = useMemo(() => selected ? [selected] : parcelRows, [parcelRows, selected]);
+  const showAll = selectedId === "__all__" || !selected;
+  const cardList = displayParcels;
   const cardTotalPages = Math.max(1, Math.ceil(cardList.length / cardPageSize));
   const paginatedCards = useMemo(() => cardList.slice((cardPage - 1) * cardPageSize, cardPage * cardPageSize), [cardList, cardPage]);
+
+  useEffect(() => {
+    setCardPage(1);
+  }, [selectedId, parcels.data]);
 
   const saveGeometry = useMutation({
     mutationFn: async ({ id, geometry, area }: { id: string; geometry: any; area: number }) => {

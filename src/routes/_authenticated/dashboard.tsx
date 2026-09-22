@@ -195,7 +195,7 @@ function Dashboard() {
                   <FileSpreadsheet className="size-3.5 mr-1" /> Exportar PDF
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => exportParcelsToExcel(filteredParcels)}>
-                  <Download className="size-3.5 mr-1" /> Excel completo
+                  <Download className="size-3.5 mr-1" /> CSV completo
                 </Button>
               </>
             )}

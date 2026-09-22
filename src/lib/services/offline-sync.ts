@@ -52,9 +52,11 @@ export async function clearCache() {
 async function syncMutation(m: any, supabase: any): Promise<boolean> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      if (m.action === "INSERT") await supabase.from(m.table).insert(m.data);
-      else if (m.action === "UPDATE") await supabase.from(m.table).update(m.data).eq("id", m.recordId);
-      else if (m.action === "DELETE") await supabase.from(m.table).delete().eq("id", m.recordId);
+      let result: { error?: unknown } | undefined;
+      if (m.action === "INSERT") result = await supabase.from(m.table).insert(m.data);
+      else if (m.action === "UPDATE") result = await supabase.from(m.table).update(m.data).eq("id", m.recordId);
+      else if (m.action === "DELETE") result = await supabase.from(m.table).delete().eq("id", m.recordId);
+      if (result?.error) throw result.error;
       return true;
     } catch {
       if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1000));
@@ -68,8 +70,8 @@ export function registerOnlineSync() {
   window.addEventListener("online", async () => {
     const mutations = await getPendingMutations();
     const syncedIds: number[] = [];
+    const { supabase } = await import("@/integrations/supabase/client");
     for (const m of mutations) {
-      const { default: supabase } = await import("@/integrations/supabase/client");
       const ok = await syncMutation(m, supabase);
       if (ok) syncedIds.push(m.id);
     }

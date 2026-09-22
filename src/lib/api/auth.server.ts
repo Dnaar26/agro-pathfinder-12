@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
 import { createClient, type User } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -14,14 +13,26 @@ const cookieOptions = {
 };
 
 function authClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+
+  if (!supabaseUrl || !publishableKey) {
+    const missing = [
+      ...(!supabaseUrl ? ["SUPABASE_URL"] : []),
+      ...(!publishableKey ? ["SUPABASE_PUBLISHABLE_KEY"] : []),
+    ];
+    throw new Error(`Configuracion Supabase incompleta: ${missing.join(", ")}`);
+  }
+
   return createClient(
-    process.env.SUPABASE_URL ?? "http://127.0.0.1:54321",
-    process.env.SUPABASE_PUBLISHABLE_KEY ?? "",
+    supabaseUrl,
+    publishableKey,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 }
 
 export async function requireCookieUser(): Promise<User> {
+  const { deleteCookie, getCookie, setCookie } = await import("@tanstack/react-start/server");
   let accessToken = getCookie(ACCESS_COOKIE);
   if (!accessToken) {
     const refreshToken = getCookie(REFRESH_COOKIE);
@@ -44,10 +55,27 @@ export async function requireCookieUser(): Promise<User> {
 
 const emailSchema = z.string().trim().email().max(180);
 const passwordSchema = z.string().min(8).max(72);
+const signupPasswordSchema = passwordSchema.regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/);
+
+export const syncHttpOnlySession = createServerFn({ method: "POST" })
+  .inputValidator(z.object({
+    accessToken: z.string().min(20),
+    refreshToken: z.string().min(20),
+    expiresIn: z.number().int().positive().max(60 * 60 * 24).optional(),
+  }))
+  .handler(async ({ data }) => {
+    const { setCookie } = await import("@tanstack/react-start/server");
+    const { data: auth, error } = await authClient().auth.getUser(data.accessToken);
+    if (error || !auth.user) throw new Error("No autorizado");
+    setCookie(ACCESS_COOKIE, data.accessToken, { ...cookieOptions, maxAge: data.expiresIn ?? 3600 });
+    setCookie(REFRESH_COOKIE, data.refreshToken, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
+    return { user: auth.user };
+  });
 
 export const signInWithHttpOnlyCookie = createServerFn({ method: "POST" })
   .inputValidator(z.object({ email: emailSchema, password: passwordSchema }))
   .handler(async ({ data }) => {
+    const { setCookie } = await import("@tanstack/react-start/server");
     const { data: auth, error } = await authClient().auth.signInWithPassword(data);
     if (error || !auth.session) throw new Error(error?.message ?? "No se pudo iniciar sesion");
     setCookie(ACCESS_COOKIE, auth.session.access_token, { ...cookieOptions, maxAge: auth.session.expires_in ?? 3600 });
@@ -56,8 +84,9 @@ export const signInWithHttpOnlyCookie = createServerFn({ method: "POST" })
   });
 
 export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ email: emailSchema, password: passwordSchema, fullName: z.string().trim().min(2).max(120), redirectTo: z.string().url() }))
+  .inputValidator(z.object({ email: emailSchema, password: signupPasswordSchema, fullName: z.string().trim().min(2).max(120), redirectTo: z.string().url() }))
   .handler(async ({ data }) => {
+    const { setCookie } = await import("@tanstack/react-start/server");
     const { data: auth, error } = await authClient().auth.signUp({
       email: data.email,
       password: data.password,
@@ -72,6 +101,7 @@ export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
   });
 
 export const signOutHttpOnlyCookie = createServerFn({ method: "POST" }).handler(async () => {
+  const { deleteCookie } = await import("@tanstack/react-start/server");
   deleteCookie(ACCESS_COOKIE, cookieOptions);
   deleteCookie(REFRESH_COOKIE, cookieOptions);
   return { ok: true };

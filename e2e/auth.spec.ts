@@ -34,7 +34,7 @@ test.describe("Authentication flows", () => {
     await page.fill('input#email2', "test@example.com");
     await page.fill('input#password2', "123");
     await page.click('button[type="submit"]:has-text("Crear cuenta")');
-    await expect(page.locator("text=Mínimo 6 caracteres")).toBeVisible();
+    await expect(page.locator("text=Mínimo 8 caracteres")).toBeVisible();
   });
 
   test("protected routes redirect unauthenticated users to login", async ({ page }) => {

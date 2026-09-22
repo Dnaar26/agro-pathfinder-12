@@ -12,9 +12,27 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
+import { signOutHttpOnlyCookie, syncHttpOnlySession } from "@/lib/api/auth.server";
 import { Toaster } from "@/components/ui/sonner";
 import { registerOnlineSync } from "@/lib/services/offline-sync";
 import { Logo } from "@/components/logo";
+
+type BrowserSession = {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number;
+};
+
+async function syncSessionCookie(session: BrowserSession | null) {
+  if (!session) return;
+  await syncHttpOnlySession({
+    data: {
+      accessToken: session.access_token,
+      refreshToken: session.refresh_token,
+      expiresIn: session.expires_in,
+    },
+  });
+}
 
 function NotFoundComponent() {
   return (
@@ -107,8 +125,14 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        void syncSessionCookie(session).catch(() => undefined);
+      }
+      if (event === "SIGNED_OUT") {
+        void signOutHttpOnlyCookie().catch(() => undefined);
+      }
+      if (event !== "INITIAL_SESSION" && event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "TOKEN_REFRESHED" && event !== "USER_UPDATED") return;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });

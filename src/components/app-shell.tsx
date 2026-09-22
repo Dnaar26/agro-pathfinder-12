@@ -1,6 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { MapPin, Calendar, Bell, FileBarChart, LogOut, LayoutDashboard, Menu, Shield, Package2, Bot, Globe, MapIcon, Leaf, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { signOutHttpOnlyCookie } from "@/lib/api/auth.server";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -90,7 +91,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   async function handleSignOut() {
     await qc.cancelQueries();
     qc.clear();
-    await supabase.auth.signOut();
+    await Promise.allSettled([
+      supabase.auth.signOut(),
+      signOutHttpOnlyCookie(),
+    ]);
     navigate({ to: "/auth", replace: true });
   }
 

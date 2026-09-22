@@ -2,23 +2,28 @@ import { saveAs } from "file-saver";
 
 type ColumnDef = { header: string; key: string; width?: number; format?: string };
 
+function csvCell(value: unknown) {
+  if (value == null) return "";
+  let text = String(value).replace(/\r?\n/g, " ").trim();
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+function csvRows(data: Record<string, unknown>[], columns: ColumnDef[]) {
+  return [
+    columns.map((column) => csvCell(column.header)).join(","),
+    ...data.map((row) => columns.map((column) => csvCell(row[column.key])).join(",")),
+  ];
+}
+
+function saveCsv(lines: string[], filename: string) {
+  const blob = new Blob([`\uFEFF${lines.join("\r\n")}`], { type: "text/csv;charset=utf-8" });
+  saveAs(blob, `${filename}-${new Date().toISOString().split("T")[0]}.csv`);
+}
+
 export async function exportToExcel(data: Record<string, unknown>[], columns: ColumnDef[], filename: string) {
-  const XLSX = await import("xlsx");
-  const wb = XLSX.utils.book_new();
-  const wsData = [columns.map((c) => c.header), ...data.map((row) => columns.map((c) => row[c.key] ?? ""))];
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-  columns.forEach((c, i) => {
-    if (c.width) ws["!cols"] = ws["!cols"] || [];
-    if (c.width) ws["!cols"][i] = { wch: c.width };
-  });
-
-  ws["!rows"] = [{ hpx: 30 }];
-  XLSX.utils.book_append_sheet(wb, ws, "Data");
-
-  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  saveAs(blob, `${filename}-${new Date().toISOString().split("T")[0]}.xlsx`);
+  saveCsv(csvRows(data, columns), filename);
 }
 
 export function exportParcelsToExcel(parcels: any[]) {
@@ -46,9 +51,6 @@ export function exportParcelsToExcel(parcels: any[]) {
 }
 
 export async function exportFullReport(parcels: any[], costs: any[], harvests: any[], activities: any[]) {
-  const XLSX = await import("xlsx");
-  const wb = XLSX.utils.book_new();
-
   const sheets: [string, Record<string, unknown>[], ColumnDef[]][] = [
     ["Parcelas", parcels.map((p) => ({ name: p.name, area_m2: Number(p.area_m2), area_ha: (Number(p.area_m2) / 10000).toFixed(2), soil: p.soil_types?.name || "", latitude: p.latitude ?? "", longitude: p.longitude ?? "" })), [
       { header: "Nombre", key: "name", width: 25 }, { header: "Área (m²)", key: "area_m2", width: 12 }, { header: "Área (ha)", key: "area_ha", width: 10 },
@@ -67,17 +69,14 @@ export async function exportFullReport(parcels: any[], costs: any[], harvests: a
     ]],
   ];
 
+  const lines: string[] = [];
   for (const [name, data, cols] of sheets) {
     if (data.length === 0) continue;
-    const wsData = [cols.map((c) => c.header), ...data.map((row) => cols.map((c) => row[c.key] ?? ""))];
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    cols.forEach((c, i) => { if (c.width) { ws["!cols"] = ws["!cols"] || []; ws["!cols"][i] = { wch: c.width }; } });
-    XLSX.utils.book_append_sheet(wb, ws, name);
+    if (lines.length > 0) lines.push("");
+    lines.push(csvCell(name), ...csvRows(data, cols));
   }
 
-  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  saveAs(blob, `reporte-completo-${new Date().toISOString().split("T")[0]}.xlsx`);
+  saveCsv(lines, "reporte-completo");
 }
 
 export function exportCostsToExcel(costs: any[], harvests: any[]) {

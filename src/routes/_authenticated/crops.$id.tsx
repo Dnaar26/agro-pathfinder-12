@@ -484,7 +484,7 @@ function CropDetail() {
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Costos registrados ({costs.data?.length ?? 0})</p>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => exportCostsToExcel(costs.data ?? [], harvests.data ?? [])}>Exportar Excel</Button>
+              <Button variant="outline" size="sm" onClick={() => exportCostsToExcel(costs.data ?? [], harvests.data ?? [])}>Exportar CSV</Button>
               <Dialog open={costOpen} onOpenChange={(v) => { setCostOpen(v); if (!v) setEditingCost(null); }}>
                 <DialogTrigger asChild><Button size="sm"><Plus className="size-4 mr-1" />Agregar costo</Button></DialogTrigger>
                 <DialogContent>

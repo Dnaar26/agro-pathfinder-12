@@ -426,7 +426,7 @@ function ReportsPage() {
             <Download className="size-4 mr-1" /> Exportar CSV
           </Button>
           <Button variant="outline" onClick={() => exportParcelsToExcel(parcels.data ?? [])} disabled={template !== "parcelas"}>
-            <FileSpreadsheet className="size-4 mr-1" /> {t("reports.export_excel")}
+            <FileSpreadsheet className="size-4 mr-1" /> Exportar CSV
           </Button>
           <Button variant="ghost" onClick={() => { setParcelFilter(ALL); setCropFilter(ALL); setFrom(""); setTo(""); }}>
             Limpiar filtros

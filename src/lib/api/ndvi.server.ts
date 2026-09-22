@@ -11,10 +11,16 @@ const inputSchema = z.object({
 
 type NdviResult = { ndvi: number; date: string } | null;
 
+function requireEnv(name: "SUPABASE_URL" | "SUPABASE_SERVICE_ROLE_KEY") {
+  const value = process.env[name];
+  if (!value) throw new Error(`Falta configurar ${name} en el servidor`);
+  return value;
+}
+
 function adminClient() {
   return createClient(
-    process.env.SUPABASE_URL ?? "http://127.0.0.1:54321",
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+    requireEnv("SUPABASE_URL"),
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 }

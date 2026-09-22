@@ -23,6 +23,12 @@ function verifySameOriginRequest() {
   }
 }
 
+function requireEnv(name: "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY") {
+  const value = process.env[name];
+  if (!value) throw new Error(`Falta configurar ${name} en el servidor`);
+  return value;
+}
+
 /** Verifica JWT del request y retorna userId */
 async function requireAuth(): Promise<string> {
   const request = getRequest();
@@ -30,8 +36,8 @@ async function requireAuth(): Promise<string> {
   if (!authHeader?.startsWith("Bearer ")) throw new Error("No autorizado");
   const token = authHeader.replace("Bearer ", "");
   const supabase = createClient(
-    process.env.SUPABASE_URL ?? "http://127.0.0.1:54321",
-    process.env.SUPABASE_PUBLISHABLE_KEY ?? "",
+    requireEnv("SUPABASE_URL"),
+    requireEnv("SUPABASE_PUBLISHABLE_KEY"),
     { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } }
   );
   const { data: { user }, error } = await supabase.auth.getUser(token);

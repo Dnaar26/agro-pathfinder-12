@@ -1,3 +1,7 @@
-import { signInWithHttpOnlyCookie, signUpWithHttpOnlyCookie, signOutHttpOnlyCookie, checkAuthUser } from "@/lib/auth/session.server";
-
-export { signInWithHttpOnlyCookie, signUpWithHttpOnlyCookie, signOutHttpOnlyCookie, checkAuthUser };
+export {
+  checkAuthUser,
+  signInWithHttpOnlyCookie,
+  signOutHttpOnlyCookie,
+  signUpWithHttpOnlyCookie,
+  syncHttpOnlySession,
+} from "@/lib/auth/session.server";

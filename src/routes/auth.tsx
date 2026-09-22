@@ -1,7 +1,9 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { syncHttpOnlySession } from "@/lib/api/auth.server";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,20 +19,38 @@ export const Route = createFileRoute("/auth")({
 });
 
 const emailSchema = z.string().trim().email("Correo inválido").max(180);
-const passwordSchema = z
+const loginPasswordSchema = z.string().min(1, "Ingresa tu contraseña").max(72);
+const signupPasswordSchema = z
   .string()
   .min(8, "Mínimo 8 caracteres")
   .max(72)
-  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, "Usa mayúscula, minúscula y número");
+  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/, "Usa mayúscula, minúscula, número y carácter especial");
 const nameSchema = z.string().trim().min(2, "Nombre muy corto").max(120);
+
+async function persistServerSession(session: Session | null) {
+  if (!session) throw new Error("No se pudo iniciar sesión.");
+  try {
+    await syncHttpOnlySession({
+      data: {
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+        expiresIn: session.expires_in,
+      },
+    });
+  } catch {
+    throw new Error("No se pudo asegurar la sesión. Intenta de nuevo.");
+  }
+}
 
 function AuthPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard", replace: true });
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session) return;
+      await persistServerSession(data.session).catch(() => undefined);
+      navigate({ to: "/dashboard", replace: true });
     }).catch(() => {});
   }, [navigate]);
 
@@ -38,12 +58,11 @@ function AuthPage() {
 
 
 
-  async function handleResetPassword(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleResetPassword() {
     const parsed = emailSchema.safeParse(resetEmail);
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(parsed.data, { redirectTo: `${window.location.origin}/dashboard` });
+    const { error } = await supabase.auth.resetPasswordForEmail(parsed.data, { redirectTo: `${window.location.origin}/reset-password` });
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Revisa tu correo para restablecer la contraseña");
@@ -54,16 +73,21 @@ function AuthPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const email = emailSchema.safeParse(fd.get("email"));
-    const password = passwordSchema.safeParse(fd.get("password"));
+    const password = loginPasswordSchema.safeParse(fd.get("password"));
     if (!email.success) return toast.error(email.error.issues[0].message);
     if (!password.success) return toast.error(password.error.issues[0].message);
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.data, password: password.data }).catch((err) => {
-      return { error: { message: "Error de conexión." } };
-    });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    navigate({ to: "/dashboard", replace: true });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.data, password: password.data });
+      if (error) return toast.error(error.message);
+      await persistServerSession(data.session);
+      navigate({ to: "/dashboard", replace: true });
+    } catch (error) {
+      await supabase.auth.signOut().catch(() => undefined);
+      toast.error(error instanceof Error ? error.message : "Error de conexión.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
@@ -71,29 +95,36 @@ function AuthPage() {
     const fd = new FormData(e.currentTarget);
     const name = nameSchema.safeParse(fd.get("full_name"));
     const email = emailSchema.safeParse(fd.get("email"));
-    const password = passwordSchema.safeParse(fd.get("password"));
+    const password = signupPasswordSchema.safeParse(fd.get("password"));
+    const confirmPassword = fd.get("confirm_password");
     if (!name.success) return toast.error(name.error.issues[0].message);
     if (!email.success) return toast.error(email.error.issues[0].message);
     if (!password.success) return toast.error(password.error.issues[0].message);
+    if (password.data !== confirmPassword) return toast.error("Las contraseñas no coinciden");
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: email.data,
-      password: password.data,
-      options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
-        data: { full_name: name.data },
-      },
-    }).catch(() => {
-      return { data: { session: null }, error: { message: "Error de conexión." } };
-    });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    if (!data?.session) {
-      toast.success("Cuenta creada. Revisa tu correo para confirmar el acceso.");
-      return;
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.data,
+        password: password.data,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: { full_name: name.data },
+        },
+      });
+      if (error) return toast.error(error.message);
+      if (!data?.session) {
+        toast.success("Cuenta creada. Revisa tu correo para confirmar el acceso.");
+        return;
+      }
+      await persistServerSession(data.session);
+      toast.success("Cuenta creada.");
+      navigate({ to: "/dashboard", replace: true });
+    } catch (error) {
+      await supabase.auth.signOut().catch(() => undefined);
+      toast.error(error instanceof Error ? error.message : "Error de conexión.");
+    } finally {
+      setLoading(false);
     }
-    toast.success("Cuenta creada.");
-    navigate({ to: "/dashboard", replace: true });
   }
 
   return (
@@ -143,10 +174,10 @@ function AuthPage() {
                 <Button type="submit" className="w-full" disabled={loading}>Entrar</Button>
                 <details className="text-center">
                   <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">¿Olvidaste tu contraseña?</summary>
-                  <form onSubmit={handleResetPassword} className="mt-2 flex gap-2">
+                  <div className="mt-2 flex gap-2">
                     <Input type="email" placeholder="Tu correo" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} className="text-sm" required />
-                    <Button type="submit" size="sm" disabled={loading}>Enviar</Button>
-                  </form>
+                    <Button type="button" size="sm" disabled={loading} onClick={handleResetPassword}>Enviar</Button>
+                  </div>
                 </details>
               </form>
             </TabsContent>
@@ -164,7 +195,11 @@ function AuthPage() {
                 <div className="space-y-2">
                   <Label htmlFor="password2">Contraseña</Label>
                   <Input id="password2" name="password" type="password" autoComplete="new-password" required />
-                  <p className="text-xs text-muted-foreground">Mínimo 8 caracteres, con mayúscula, minúscula y número.</p>
+                  <p className="text-xs text-muted-foreground">Mínimo 8 caracteres, con mayúscula, minúscula, número y carácter especial.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm_password">Confirmar contraseña</Label>
+                  <Input id="confirm_password" name="confirm_password" type="password" autoComplete="new-password" required />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>Crear cuenta</Button>
               </form>

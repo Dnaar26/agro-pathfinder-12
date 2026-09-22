@@ -11,8 +11,12 @@ node_modules
 dist
 playwright-report/
 test-results/
+playwright-report/
+e2e/playwright-report/
 .auth/
 cloudflared.exe
+public/*.pdf
+public/*.md
 dist-ssr
 .output
 .vercel

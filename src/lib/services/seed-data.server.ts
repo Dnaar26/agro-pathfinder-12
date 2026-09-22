@@ -2,10 +2,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL ?? "http://127.0.0.1:54321",
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
-);
+function requireEnv(name: "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY" | "SUPABASE_SERVICE_ROLE_KEY") {
+  const value = process.env[name];
+  if (!value) throw new Error(`Falta configurar ${name} en el servidor`);
+  return value;
+}
+
+function adminClient() {
+  return createClient(
+    requireEnv("SUPABASE_URL"),
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+}
 
 /** Extrae y verifica JWT del request, luego verifica que el usuario sea admin */
 async function requireAdmin(): Promise<string> {
@@ -14,8 +23,8 @@ async function requireAdmin(): Promise<string> {
   if (!authHeader?.startsWith("Bearer ")) throw new Error("No autorizado: token requerido");
   const token = authHeader.replace("Bearer ", "");
   const supabase = createClient(
-    process.env.SUPABASE_URL ?? "http://127.0.0.1:54321",
-    process.env.SUPABASE_PUBLISHABLE_KEY ?? "",
+    requireEnv("SUPABASE_URL"),
+    requireEnv("SUPABASE_PUBLISHABLE_KEY"),
     { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } }
   );
   const { data: { user }, error } = await supabase.auth.getUser(token);
@@ -27,6 +36,7 @@ async function requireAdmin(): Promise<string> {
 
 const TEST_PASSWORD_ENV = "SEED_TEST_PASSWORD";
 const ADMIN_PASSWORD_ENV = "SEED_ADMIN_PASSWORD";
+const ENABLE_SEED_TOOLS_ENV = "ENABLE_SEED_TOOLS";
 
 const FARMERS = [
   { name: "Carlos Mamani", phone: "999111001", email: "carlos.mamani@test.sgic" },
@@ -209,8 +219,16 @@ function randDate(daysBack: number) {
 
 function pick<T>(arr: readonly T[]): T { return arr[rand(0, arr.length - 1)]; }
 
+function requireSeedToolsEnabled() {
+  if (process.env.NODE_ENV === "production" && process.env[ENABLE_SEED_TOOLS_ENV] !== "true") {
+    throw new Error(`Herramientas de datos de prueba deshabilitadas en produccion. Configura ${ENABLE_SEED_TOOLS_ENV}=true solo para una ventana controlada de mantenimiento.`);
+  }
+}
+
 export const clearAllUsers = createServerFn({ method: "POST" }).handler(async () => {
   await requireAdmin();
+  requireSeedToolsEnabled();
+  const supabaseAdmin = adminClient();
   const { data: users } = await supabaseAdmin.auth.admin.listUsers();
   const adminEmail = "admin@sgic.local";
   let deleted = 0;
@@ -224,6 +242,7 @@ export const clearAllUsers = createServerFn({ method: "POST" }).handler(async ()
 
 export const deleteUser = createServerFn({ method: "POST" }).handler(async ({ data }: { data: { userId: string } }) => {
   await requireAdmin();
+  const supabaseAdmin = adminClient();
   const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
   if (error) throw error;
   return { success: true };
@@ -231,6 +250,8 @@ export const deleteUser = createServerFn({ method: "POST" }).handler(async ({ da
 
 export const seedTestData = createServerFn({ method: "POST" }).handler(async () => {
   await requireAdmin();
+  requireSeedToolsEnabled();
+  const supabaseAdmin = adminClient();
   const testPassword = process.env[TEST_PASSWORD_ENV];
   const adminPassword = process.env[ADMIN_PASSWORD_ENV];
   if (!testPassword || !adminPassword) {

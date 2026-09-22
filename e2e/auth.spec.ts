@@ -25,10 +25,17 @@ test.describe("Authentication flows", () => {
     await page.goto("/auth");
     await page.getByRole("tab", { name: "Crear cuenta" }).click();
     await page.fill('input[name="full_name"]', "Test User");
+<<<<<<< HEAD
     await page.fill("input#email2", "test@example.com");
     await page.fill("input#password2", "123");
     await page.getByRole("button", { name: "Crear cuenta" }).click();
     await expect(page.getByText(/M.nimo 8 caracteres/)).toBeVisible();
+=======
+    await page.fill('input#email2', "test@example.com");
+    await page.fill('input#password2', "123");
+    await page.click('button[type="submit"]:has-text("Crear cuenta")');
+    await expect(page.locator("text=Mínimo 8 caracteres")).toBeVisible();
+>>>>>>> 704bb328ceb83b877ebb7ce16e5819295b495014
   });
 
   test("protected routes redirect unauthenticated users to login", async ({ page }) => {

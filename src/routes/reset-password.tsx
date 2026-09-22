@@ -68,10 +68,6 @@ function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background relative">
-      <div className="absolute top-4 right-4 z-10">
-        <ThemeToggle />
-      </div>
-
       {/* Left panel */}
       <div className="hidden lg:flex flex-col justify-between p-12 bg-primary text-primary-foreground">
         <Link to="/">

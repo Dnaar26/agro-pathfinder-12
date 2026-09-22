@@ -158,7 +158,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </SelectContent>
               </Select>
             </div>
-            <ThemeToggle />
             <InstallPWA />
           </div>
           <div className="flex items-center justify-between">

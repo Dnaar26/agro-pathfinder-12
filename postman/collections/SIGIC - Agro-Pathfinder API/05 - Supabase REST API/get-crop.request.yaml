@@ -1,0 +1,11 @@
+$kind: http-request
+name: Get Crop by ID
+order: 5000
+method: GET
+url: '{{supabase_url}}/rest/v1/crops?select=*,crop_catalog(name,cycle_days),parcels(name,owner_id,latitude,longitude,profiles!owner_id(full_name)),activities(*)&id=eq.{{crop_id}}'
+description: Get a single crop with activities and parcel details.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Calendar Events
+order: 7000
+method: GET
+url: '{{supabase_url}}/rest/v1/calendar_events?select=*&order=starts_at'
+description: 'List calendar events. Filter by date range using starts_at=gte.{date}&starts_at=lte.{date}.'
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

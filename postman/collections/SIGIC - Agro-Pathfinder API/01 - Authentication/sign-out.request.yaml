@@ -1,0 +1,21 @@
+$kind: http-request
+name: Sign Out
+order: 3000
+method: POST
+url: '{{base_url}}/_server/fn/signOutHttpOnlyCookie'
+description: Sign out and clear auth cookies.
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status 200 on sign out", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response ok flag is true", function () {
+        const jsonData = pm.response.json();
+        pm.expect(jsonData.ok).to.be.true;
+      });
+
+      // Clear saved token
+      pm.environment.unset("access_token");

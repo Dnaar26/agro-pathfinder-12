@@ -1,0 +1,6 @@
+$kind: collection
+name: SIGIC - Agro-Pathfinder API
+description: |-
+  Collection for the Agro-Pathfinder (SIGIC) application — an agricultural management platform backed by Supabase.
+
+  Covers authentication (httpOnly cookie-based), parcel management, NDVI vegetation index, AI chat via Groq, direct Supabase PostgREST calls, and external APIs (weather, market prices).

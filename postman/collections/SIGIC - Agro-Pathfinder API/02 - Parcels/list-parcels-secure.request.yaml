@@ -1,0 +1,37 @@
+$kind: http-request
+name: List Parcels (Secure)
+order: 1000
+method: GET
+url: '{{base_url}}/_server/fn/getSecureUserParcels'
+description: 'Get all parcels for the authenticated user (Bearer token required). Returns id, name, area_m2, latitude, longitude, geometry, soil type, and owner.'
+headers:
+  - key: Authorization
+    value: 'Bearer {{access_token}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status 200", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response has parcels array", function () {
+        const jsonData = pm.response.json();
+        pm.expect(jsonData).to.have.property("parcels");
+        pm.expect(jsonData.parcels).to.be.an("array");
+      });
+
+      pm.test("Each parcel has required fields", function () {
+        const jsonData = pm.response.json();
+        jsonData.parcels.forEach(function(parcel) {
+          pm.expect(parcel).to.have.property("id");
+          pm.expect(parcel).to.have.property("name");
+        });
+      });
+
+      // Save first parcel id for downstream requests
+      const jsonData = pm.response.json();
+      if (jsonData.parcels && jsonData.parcels.length > 0) {
+        pm.environment.set("parcel_id", jsonData.parcels[0].id);
+        console.log("parcel_id saved:", jsonData.parcels[0].id);
+      }

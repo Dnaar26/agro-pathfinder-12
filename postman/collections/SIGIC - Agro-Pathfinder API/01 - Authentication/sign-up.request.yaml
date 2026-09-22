@@ -1,0 +1,33 @@
+$kind: http-request
+name: Sign Up
+order: 2000
+method: POST
+url: '{{base_url}}/_server/fn/signUpWithHttpOnlyCookie'
+description: 'Register a new user. Returns needsEmailConfirmation flag.'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "newuser@example.com",
+      "password": "password123",
+      "fullName": "New User",
+      "redirectTo": "http://localhost:8080/auth"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      const jsonData = pm.response.json();
+
+      pm.test("Status 200 on signup", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response has user or needsEmailConfirmation", function () {
+        pm.expect(jsonData).to.satisfy(function(d) {
+          return d.user !== undefined || d.needsEmailConfirmation !== undefined;
+        });
+      });

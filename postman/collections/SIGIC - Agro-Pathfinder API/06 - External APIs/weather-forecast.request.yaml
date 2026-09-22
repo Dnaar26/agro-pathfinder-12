@@ -1,0 +1,36 @@
+$kind: http-request
+name: Weather Forecast
+order: 1000
+method: GET
+url: 'https://api.open-meteo.com/v1/forecast'
+description: 'Get 7-day weather forecast from Open-Meteo (free, no auth required). Used for frost and heavy rain alerts.'
+queryParams:
+  - key: latitude
+    value: '4.7110'
+  - key: longitude
+    value: '-74.0721'
+  - key: daily
+    value: 'temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max'
+  - key: timezone
+    value: auto
+  - key: forecast_days
+    value: '7'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status 200", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response has daily forecast", function () {
+        const jsonData = pm.response.json();
+        pm.expect(jsonData).to.have.property("daily");
+        pm.expect(jsonData.daily).to.have.property("time");
+        pm.expect(jsonData.daily.time).to.be.an("array").with.length.greaterThan(0);
+      });
+
+      pm.test("7 days of forecast data", function () {
+        const jsonData = pm.response.json();
+        pm.expect(jsonData.daily.time.length).to.equal(7);
+      });

@@ -1,1 +1,0 @@
-\i supabase/migrations/20260607000004_profiles_rls_tecnico.sql

@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Soil Types
+order: 10000
+method: GET
+url: '{{supabase_url}}/rest/v1/soil_types?select=*&order=name'
+description: List all soil types.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

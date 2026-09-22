@@ -1,0 +1,45 @@
+$kind: http-request
+name: Chat with Groq
+order: 1000
+method: POST
+url: '{{base_url}}/_server/fn/chatWithGroq'
+description: 'Send a chat message to the Groq LLM (llama-3.3-70b-versatile). Requires Bearer token auth and same-origin request.'
+headers:
+  - key: Authorization
+    value: 'Bearer {{access_token}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "messages": [
+        {
+          "role": "system",
+          "content": "Eres un asistente agrícola experto en cultivos colombianos."
+        },
+        {
+          "role": "user",
+          "content": "¿Cuáles son las mejores prácticas para el cultivo de papa?"
+        }
+      ],
+      "model": "llama-3.3-70b-versatile",
+      "max_tokens": 1024
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status 200", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Response is a non-empty string", function () {
+        const body = pm.response.text();
+        pm.expect(body).to.be.a("string");
+        pm.expect(body.length).to.be.greaterThan(0);
+      });
+
+      pm.test("Response time under 10000ms", function () {
+        pm.expect(pm.response.responseTime).to.be.below(10000);
+      });

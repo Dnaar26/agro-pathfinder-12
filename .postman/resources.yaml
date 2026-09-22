@@ -1,0 +1,13 @@
+# Use this workspace to collaborate
+workspace:
+  id: 9665b19b-04a7-4fb1-b26d-13e3bcd8938c
+
+localResources:
+  docs:
+    - ..\agro-pathfinder-12-main\test-results\e2e-auth-Critical-business-flows-can-filter-parcels-by-name\error-context.md
+    - ..\agro-pathfinder-12-main\test-results\e2e-auth-Language-switching-can-switch-language-in-sidebar\error-context.md
+    - ..\agro-pathfinder-12-main\test-results\e2e-auth-Critical-business-flows-can-open-new-parcel-dialog\error-context.md
+    - ..\agro-pathfinder-12-main\test-results\e2e-auth-Authentication-fl-5fad3-ch-between-login-and-signup\error-context.md
+    - ..\agro-pathfinder-12-main\test-results\e2e-auth-Critical-business-cdf5f-e-redirects-non-admin-users\error-context.md
+    - ..\agro-pathfinder-12-main\test-results\e2e-auth-Authentication-flows-login-form-validates-email\error-context.md
+md

@@ -1,0 +1,11 @@
+$kind: http-request
+name: List Activities for Report
+order: 11000
+method: GET
+url: '{{supabase_url}}/rest/v1/activities?select=id,kind,performed_at,notes,crops(planting_date,crop_catalog(name),parcels(name))&order=performed_at.desc&limit=100'
+description: List activities for reporting, with crop and parcel info.
+headers:
+  - key: apikey
+    value: '{{supabase_anon_key}}'
+  - key: Authorization
+    value: 'Bearer {{access_token}}'

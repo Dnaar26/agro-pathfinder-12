@@ -106,7 +106,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Link to="/dashboard">
           <Logo size="sm" />
         </Link>
-        <Button variant="ghost" size="icon" onClick={() => setOpen((v) => !v)}><Menu className="size-5" /></Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="text-destructive gap-1 text-xs hover:bg-destructive/10" onClick={handleSignOut}>
+            <LogOut className="size-3.5" /> {t("nav.sign_out")}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => setOpen((v) => !v)}><Menu className="size-5" /></Button>
+        </div>
       </header>
 
       <aside className={cn(
@@ -169,8 +174,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">{children}</div>
+      <main className="flex-1 min-w-0 flex flex-col">
+        <header className="hidden md:flex items-center justify-between border-b border-border px-8 py-3 bg-card shadow-sm">
+          <div className="flex items-center gap-3">
+            <ConnectionBadge />
+            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">{roleBadge}</span>
+          </div>
+          <Button variant="outline" size="sm" className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={handleSignOut}>
+            <LogOut className="size-4" /> {t("nav.sign_out")}
+          </Button>
+        </header>
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10 w-full">{children}</div>
       </main>
 
       {/* Global search dialog */}

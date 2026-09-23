@@ -102,13 +102,17 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background">
-      <header className="md:hidden flex items-center justify-between border-b border-border px-4 py-3 bg-sidebar">
+      <header className="md:hidden flex items-center justify-between border-b border-border px-4 py-3 bg-card shadow-sm">
         <Link to="/dashboard">
           <Logo size="sm" />
         </Link>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="text-destructive gap-1 text-xs hover:bg-destructive/10" onClick={handleSignOut}>
-            <LogOut className="size-3.5" /> {t("nav.sign_out")}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-muted/60 text-[11px] text-muted-foreground border border-border">
+            <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>En línea</span>
+          </div>
+          <Button variant="ghost" size="sm" className="text-destructive gap-1 text-xs px-2 py-1 hover:bg-destructive/10" onClick={handleSignOut} title={t("nav.sign_out")}>
+            <LogOut className="size-3.5" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setOpen((v) => !v)}><Menu className="size-5" /></Button>
         </div>
@@ -177,12 +181,21 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="flex-1 min-w-0 flex flex-col">
         <header className="hidden md:flex items-center justify-between border-b border-border px-8 py-3 bg-card shadow-sm">
           <div className="flex items-center gap-3">
-            <ConnectionBadge />
-            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">{roleBadge}</span>
+            <span className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
+              <Leaf className="size-4 text-primary" /> SIGIC — Agro-Pathfinder
+            </span>
           </div>
-          <Button variant="outline" size="sm" className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={handleSignOut}>
-            <LogOut className="size-4" /> {t("nav.sign_out")}
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted/60 text-xs text-muted-foreground border border-border">
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>En línea</span>
+            </div>
+            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">{roleBadge}</span>
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors" onClick={handleSignOut} title={t("nav.sign_out")}>
+              <LogOut className="size-4" />
+              <span className="text-xs font-medium">{t("nav.sign_out")}</span>
+            </Button>
+          </div>
         </header>
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10 w-full">{children}</div>
       </main>

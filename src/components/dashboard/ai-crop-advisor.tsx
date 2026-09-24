@@ -49,15 +49,17 @@ Formatéalo en puntos breves y directos enfocados en optimización de agua, fert
 
     try {
       const reply = await chatWithGroq({
-        messages: [
-          {
-            role: "system",
-            content: "Eres el Asistente Inteligente de Gestión Agrícola de SIGIC (Gemini AI). Da recomendaciones oportunas, profesionales y accionables.",
-          },
-          { role: "user", content: prompt },
-        ],
-        model: "gemini-2.0-flash",
-        max_tokens: 350,
+        data: {
+          messages: [
+            {
+              role: "system",
+              content: "Eres el Asistente Inteligente de Gestión Agrícola de SIGIC (Gemini AI). Da recomendaciones oportunas, profesionales y accionables.",
+            },
+            { role: "user", content: prompt },
+          ],
+          model: "gemini-2.0-flash",
+          max_tokens: 350,
+        },
       });
       setAdvice(reply);
     } catch (e: any) {

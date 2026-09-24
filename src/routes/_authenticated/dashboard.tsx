@@ -194,7 +194,12 @@ function Dashboard() {
           <div className="p-6 relative z-0">
             <p className="text-sm text-green-100 mb-1">{new Date().toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" })}</p>
             <h1 className="text-3xl font-bold mt-1">Hola, {name} 👋</h1>
-            <p className="mt-2 text-green-50/90 italic flex items-center gap-2"><Star className="size-4" /> "El éxito de tu cosecha comienza hoy."</p>
+            <p className="mt-2 text-green-50/90 italic flex items-center gap-2">
+              <Star className="size-4" />
+              {isStaff
+                ? `Gestionando ${filteredParcels.length} parcela${filteredParcels.length !== 1 ? "s" : ""} · ${activeCrops} cultivo${activeCrops !== 1 ? "s" : ""} activo${activeCrops !== 1 ? "s" : ""}`
+                : "\"El éxito de tu cosecha comienza hoy.\""}
+            </p>
             {roles.data && roles.data.length > 0 && (
               <div className="mt-4 flex gap-2">
                 {roles.data.map((r) => (
@@ -248,9 +253,19 @@ function Dashboard() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/parcels"><MapPin className="size-4 mr-1.5" /> Nueva parcela</Link></Button>
-        <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/cultivos"><Sprout className="size-4 mr-1.5" /> Nuevo cultivo</Link></Button>
+        {isStaff ? (
+          <>
+            <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/parcels"><MapPin className="size-4 mr-1.5" /> Nueva parcela</Link></Button>
+            <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/cultivos"><Sprout className="size-4 mr-1.5" /> Nuevo cultivo</Link></Button>
+          </>
+        ) : (
+          <>
+            <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/parcels"><MapPin className="size-4 mr-1.5" /> Mis parcelas</Link></Button>
+            <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/cultivos"><Sprout className="size-4 mr-1.5" /> Mis cultivos</Link></Button>
+          </>
+        )}
         <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/mapa"><MapIcon className="size-4 mr-1.5" /> Ver mapa</Link></Button>
+        <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/chat"><Zap className="size-4 mr-1.5" /> Asesor IA</Link></Button>
         <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/reports"><BarChart className="size-4 mr-1.5" /> Ver reportes</Link></Button>
       </div>
 

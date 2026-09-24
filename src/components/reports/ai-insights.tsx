@@ -43,15 +43,17 @@ Resumen de datos del sistema SIGIC:
 
     try {
       const reply = await chatWithGroq({
-        messages: [
-          {
-            role: "system",
-            content: "Eres un analista agronómico experto. Dado un resumen de datos agrícolas, genera un análisis breve (máximo 4 párrafos) en español con: 1) diagnóstico rápido de la situación, 2) oportunidades de mejora, 3) riesgos identificados, 4) recomendaciones accionables. Sé concreto y práctico para pequeños agricultores.",
-          },
-          { role: "user", content: dataSummary },
-        ],
-        model: "llama-3.3-70b-versatile",
-        max_tokens: 600,
+        data: {
+          messages: [
+            {
+              role: "system",
+              content: "Eres un analista agronómico experto. Dado un resumen de datos agrícolas, genera un análisis breve (máximo 4 párrafos) en español con: 1) diagnóstico rápido de la situación, 2) oportunidades de mejora, 3) riesgos identificados, 4) recomendaciones accionables. Sé concreto y práctico para pequeños agricultores.",
+            },
+            { role: "user", content: dataSummary },
+          ],
+          model: "gemini-2.0-flash",
+          max_tokens: 600,
+        },
       });
       setInsight(reply);
     } catch (e) {

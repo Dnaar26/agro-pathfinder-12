@@ -354,9 +354,16 @@ function ReportsPage() {
     );
   }
 
+  if (isAgricultor) {
+    return (
+      <div className="space-y-6">
+        <FarmerReport />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {isAgricultor && <FarmerReport />}
       <header>
         <h1 className="text-3xl font-bold">Reportes</h1>
         <p className="text-sm text-muted-foreground">Plantillas configurables con logo, encabezado y pie de página.</p>

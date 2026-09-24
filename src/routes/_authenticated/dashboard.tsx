@@ -258,9 +258,9 @@ function Dashboard() {
 
       <PredictiveAlerts />
 
-      <RoleGate roles={["admin"]}>
+      <CollapsibleSection title="Salud de cultivos" icon={Activity} storageKey="dashboard-crop-health-collapsed">
         <CropHealthWidget />
-      </RoleGate>
+      </CollapsibleSection>
 
       {/* Farmer comparison table */}
       <RoleGate roles={["tecnico", "admin"]}>

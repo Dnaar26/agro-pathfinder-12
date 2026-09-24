@@ -79,12 +79,24 @@ export function CropHealthWidget() {
     refetchInterval: 60000,
   });
 
-  if (isLoading) return null;
-  if (!data || data.length === 0) return null;
+  if (isLoading) {
+    return (
+      <div className="p-4 text-center text-xs text-muted-foreground bg-card rounded-lg border border-border/50">
+        Cargando estado de salud de cultivos...
+      </div>
+    );
+  }
+  if (!data || data.length === 0) {
+    return (
+      <div className="p-4 text-center text-xs text-muted-foreground bg-card rounded-lg border border-border/50">
+        No hay cultivos activos registrados para evaluar salud.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold flex items-center gap-2"><Activity className="size-4 text-primary" /> Salud de cultivos</h3>
+
       {data.map((c: any) => (
         <div key={c.id} className={cn("flex items-center gap-3 p-3 rounded-lg border border-border", healthBg(c.score))}>
           <div className="size-8 rounded-full grid place-items-center bg-background">

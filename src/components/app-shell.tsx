@@ -1,7 +1,8 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { MapPin, Calendar, Bell, FileBarChart, LogOut, LayoutDashboard, Menu, Shield, Package2, Bot, Globe, MapIcon, Leaf, Search, UserCircle2, ChevronDown } from "lucide-react";
+import { MapPin, Calendar, Bell, FileBarChart, LogOut, LayoutDashboard, Menu, Shield, Package2, Bot, Globe, MapIcon, Leaf, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { signOutHttpOnlyCookie } from "@/lib/api/auth.server";
+import { EditProfileDialog } from "@/components/profile/edit-profile-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,7 +12,6 @@ import { getMyRoles, listAlerts } from "@/lib/queries";
 import { useTranslation } from "react-i18next";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LANGUAGES } from "@/i18n";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ConnectionBadge } from "@/components/ui/connection-badge";
@@ -38,6 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { t, i18n } = useTranslation();
   const roles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
@@ -56,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
       const { data: p } = await supabase.from("profiles").select("full_name, avatar_url").eq("id", u.user.id).maybeSingle();
-      return { email: u.user.email, fullName: p?.full_name, avatarUrl: p?.avatar_url };
+      return { email: u.user.email, fullName: p?.full_name || u.user.user_metadata?.full_name, avatarUrl: p?.avatar_url };
     },
   });
 
@@ -137,13 +138,20 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}>
         <div className="hidden md:flex flex-col px-4 py-4 border-b border-sidebar-border">
           <Logo />
-          <div className="mt-3 flex items-center gap-2">
+          <div
+            className="mt-3 flex items-center gap-2 p-1.5 rounded-lg hover:bg-sidebar-accent/50 cursor-pointer transition-colors group"
+            onClick={() => setEditProfileOpen(true)}
+            title="Editar perfil"
+          >
             <div className="size-8 rounded-full bg-primary/20 text-primary grid place-items-center text-sm font-bold">
               {(userProfile.data?.fullName ?? userProfile.data?.email ?? "U").charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold truncate">{userProfile.data?.fullName ?? userProfile.data?.email ?? "..."}</p>
-              <p className="text-[10px] text-sidebar-foreground/50 capitalize">{roleBadge}</p>
+              <div className="flex items-center justify-between text-[10px] text-sidebar-foreground/50">
+                <span className="capitalize">{roleBadge}</span>
+                <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity font-medium">Editar</span>
+              </div>
             </div>
           </div>
         </div>
@@ -219,46 +227,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               )}
             </Link>
             <ThemeToggle />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted/60 transition-colors border border-border/50 hover:border-border">
-                  <div className="size-7 rounded-full bg-primary/10 text-primary grid place-items-center overflow-hidden">
-                    {userProfile.data?.avatarUrl ? (
-                      <img src={userProfile.data.avatarUrl} alt="avatar" className="size-full object-cover" />
-                    ) : (
-                      <span className="text-xs font-bold">
-                        {(userProfile.data?.fullName ?? userProfile.data?.email ?? "U").charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs font-semibold leading-none truncate max-w-[120px]">
-                      {userProfile.data?.fullName ?? userProfile.data?.email ?? roleBadge}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground leading-none mt-0.5 capitalize">{roleBadge}</p>
-                  </div>
-                  <ChevronDown className="size-3.5 text-muted-foreground" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <div className="px-3 py-2">
-                  <p className="text-xs font-semibold truncate">{userProfile.data?.fullName ?? "—"}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">{userProfile.data?.email ?? "—"}</p>
-                </div>
-                <DropdownMenuSeparator />
-                {isAdmin && (
-                  <DropdownMenuItem onClick={() => navigate({ to: "/admin" })} className="gap-2">
-                    <Shield className="size-3.5" />
-                    Configuración
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive gap-2">
-                  <LogOut className="size-3.5" />
-                  {t("nav.sign_out")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <button
+              onClick={handleSignOut}
+              title={t("nav.sign_out")}
+              aria-label={t("nav.sign_out")}
+              className="size-8 rounded-lg border border-border/70 hover:border-destructive/40 text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex items-center justify-center transition-colors shadow-xs"
+            >
+              <LogOut className="size-4" />
+            </button>
           </div>
         </header>
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10 w-full">{children}</div>
@@ -297,6 +273,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         </DialogContent>
       </Dialog>
+
+      <EditProfileDialog open={editProfileOpen} onOpenChange={setEditProfileOpen} />
     </div>
   );
 }

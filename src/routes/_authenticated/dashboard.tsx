@@ -21,8 +21,8 @@ import { generatePdfReport } from "@/lib/pdf-report";
 import { cn } from "@/lib/utils";
 
 import { AiCropAdvisor } from "@/components/dashboard/ai-crop-advisor";
+import { MarketPrices } from "@/components/dashboard/market-prices";
 
-const MarketPrices = lazy(() => import("@/components/dashboard/market-prices").then((m) => ({ default: m.MarketPrices })));
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Inicio — SIGIC" }] }),

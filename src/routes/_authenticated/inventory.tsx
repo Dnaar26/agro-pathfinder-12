@@ -7,7 +7,7 @@ import { getMyRoles } from "@/lib/queries";
 import { Combobox } from "@/components/ui/combobox";
 import { User } from "lucide-react";
 
-const InventoryPanel = lazy(() => import("@/components/inventory/inventory-panel").then((m) => ({ default: m.InventoryPanel })));
+import { InventoryPanel } from "@/components/inventory/inventory-panel";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
   head: () => ({ meta: [{ title: "Inventario — SIGIC" }] }),

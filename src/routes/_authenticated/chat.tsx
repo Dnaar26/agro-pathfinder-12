@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 
-const AiChat = lazy(() => import("@/components/chat/ai-chat").then((m) => ({ default: m.AiChat })));
+import { AiChat } from "@/components/chat/ai-chat";
 
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({ meta: [{ title: "Asistente IA — SIGIC" }] }),

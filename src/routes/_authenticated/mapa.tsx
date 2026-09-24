@@ -11,7 +11,7 @@ import { MapPin, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-const ParcelMap = lazy(() => import("@/components/map/parcel-map").then((m) => ({ default: m.ParcelMap })));
+import { ParcelMap } from "@/components/map/parcel-map";
 const EMPTY_PARCELS: Awaited<ReturnType<typeof listParcels>> = [];
 
 export const Route = createFileRoute("/_authenticated/mapa")({

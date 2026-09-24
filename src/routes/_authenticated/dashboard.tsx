@@ -20,6 +20,8 @@ import { exportParcelsToExcel } from "@/lib/services/excel-export";
 import { generatePdfReport } from "@/lib/pdf-report";
 import { cn } from "@/lib/utils";
 
+import { AiCropAdvisor } from "@/components/dashboard/ai-crop-advisor";
+
 const MarketPrices = lazy(() => import("@/components/dashboard/market-prices").then((m) => ({ default: m.MarketPrices })));
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -240,7 +242,7 @@ function Dashboard() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard label="Parcelas" value={filteredParcels.length} numericValue={filteredParcels.length} icon={MapPin} to="/parcels" gradient="bg-gradient-to-br from-blue-500/10 to-blue-600/5" iconColor="bg-blue-500/20 text-blue-600" />
-        <StatCard label="Cultivos activos" value={activeCrops} numericValue={activeCrops} icon={Sprout} to="/cultivos?status=activos" gradient="bg-gradient-to-br from-green-500/10 to-green-600/5" iconColor="bg-green-500/20 text-green-600" />
+        <StatCard label="Cultivos activos" value={activeCrops} numericValue={activeCrops} icon={Sprout} to="/cultivos" search={{ status: "activos" }} gradient="bg-gradient-to-br from-green-500/10 to-green-600/5" iconColor="bg-green-500/20 text-green-600" />
         <StatCard label="Alertas" value={pendingAlerts.length} numericValue={pendingAlerts.length} icon={BellRing} to="/alerts" highlight={pendingAlerts.length > 0} gradient="bg-gradient-to-br from-orange-500/10 to-red-600/5" iconColor="bg-orange-500/20 text-orange-600" />
         <StatCard label="Valor inventario" value={invValue.isError ? "Error" : formatCOP(invValue.data ?? 0)} numericValue={0} icon={Warehouse} to="/inventory" gradient="bg-gradient-to-br from-violet-500/10 to-violet-600/5" iconColor="bg-violet-500/20 text-violet-600" />
       </div>
@@ -248,9 +250,11 @@ function Dashboard() {
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/parcels"><MapPin className="size-4 mr-1.5" /> Nueva parcela</Link></Button>
         <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/cultivos"><Sprout className="size-4 mr-1.5" /> Nuevo cultivo</Link></Button>
-        <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/map"><Map className="size-4 mr-1.5" /> Ver mapa</Link></Button>
+        <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/mapa"><Map className="size-4 mr-1.5" /> Ver mapa</Link></Button>
         <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/reports"><BarChart className="size-4 mr-1.5" /> Ver reportes</Link></Button>
       </div>
+
+      <AiCropAdvisor />
 
       <PredictiveAlerts />
 
@@ -534,10 +538,10 @@ function FarmerDetail({ farmerId }: { farmerId: string }) {
   );
 }
 
-function StatCard({ label, value, icon: Icon, to, highlight, gradient, iconColor, numericValue }: any) {
+function StatCard({ label, value, icon: Icon, to, search, highlight, gradient, iconColor, numericValue }: any) {
   const isTrendingUp = typeof numericValue === 'number' && numericValue > 0;
   return (
-    <Link to={to} className={cn("p-5 rounded-xl border bg-card transition-all duration-300 hover:scale-105 hover:shadow-lg block", gradient, highlight ? "border-red-400" : "border-border")}>
+    <Link to={to} search={search} className={cn("p-5 rounded-xl border bg-card transition-all duration-300 hover:scale-105 hover:shadow-lg block", gradient, highlight ? "border-red-400" : "border-border")}>
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-muted-foreground">{label}</span>
         <div className={cn("p-2 rounded-lg", iconColor)}>

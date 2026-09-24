@@ -5,18 +5,24 @@ import { CloudSun, CloudRain, Thermometer, AlertTriangle, Droplets } from "lucid
 import { cn } from "@/lib/utils";
 
 async function getWeatherRisk(parcelId: string, lat: number, lon: number) {
-  const res = await fetch(
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_min,temperature_2m_max,precipitation_sum,precipitation_probability_max&forecast_days=3&timezone=auto`
-  );
-  const data = await res.json();
-  const risks: { day: string; type: "frost" | "heavy_rain"; severity: "baja" | "media" | "alta"; temp?: number; precip?: number }[] = [];
-  for (let i = 0; i < (data.daily?.time?.length ?? 0); i++) {
-    const minTemp = data.daily.temperature_2m_min?.[i];
-    const precip = data.daily.precipitation_sum?.[i];
-    if (minTemp != null && minTemp < 2) risks.push({ day: data.daily.time[i], type: "frost", severity: minTemp < 0 ? "alta" : "media", temp: minTemp });
-    if (precip != null && precip > 20) risks.push({ day: data.daily.time[i], type: "heavy_rain", severity: precip > 50 ? "alta" : "media", precip });
+  try {
+    const res = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_min,temperature_2m_max,precipitation_sum,precipitation_probability_max&forecast_days=3&timezone=auto`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const risks: { day: string; type: "frost" | "heavy_rain"; severity: "baja" | "media" | "alta"; temp?: number; precip?: number }[] = [];
+    for (let i = 0; i < (data.daily?.time?.length ?? 0); i++) {
+      const minTemp = data.daily.temperature_2m_min?.[i];
+      const precip = data.daily.precipitation_sum?.[i];
+      if (minTemp != null && minTemp < 2) risks.push({ day: data.daily.time[i], type: "frost", severity: minTemp < 0 ? "alta" : "media", temp: minTemp });
+      if (precip != null && precip > 20) risks.push({ day: data.daily.time[i], type: "heavy_rain", severity: precip > 50 ? "alta" : "media", precip });
+    }
+    return risks;
+  } catch {
+    return [];
   }
-  return risks;
 }
 
 export function PredictiveAlerts() {

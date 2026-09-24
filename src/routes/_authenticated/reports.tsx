@@ -18,12 +18,13 @@ import { Card } from "@/components/ui/card";
 import { AiReportInsights } from "@/components/reports/ai-insights";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { FarmerReport } from "@/components/reports/farmer-report";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({ meta: [{ title: "Reportes — SIGIC" }] }),
   beforeLoad: async () => {
     const roles = await getMyRoles();
-    if (!roles.some((role) => role === "tecnico" || role === "admin")) {
+    if (!roles.some((role) => ["agricultor", "tecnico", "admin"].includes(role))) {
       throw redirect({ to: "/dashboard" });
     }
   },
@@ -74,6 +75,8 @@ function SkeletonCard() {
 
 function ReportsPage() {
   const { t } = useTranslation();
+  const myRoles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
+  const isAgricultor = (myRoles.data ?? []).includes("agricultor") && !(myRoles.data ?? []).some((r: string) => ["tecnico", "admin"].includes(r));
   const acts = useQuery({ queryKey: ["report-acts"], queryFn: listAllActivitiesForReport });
   const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
   const catalog = useQuery({ queryKey: ["catalog"], queryFn: listCatalog });
@@ -353,6 +356,7 @@ function ReportsPage() {
 
   return (
     <div className="space-y-6">
+      {isAgricultor && <FarmerReport />}
       <header>
         <h1 className="text-3xl font-bold">Reportes</h1>
         <p className="text-sm text-muted-foreground">Plantillas configurables con logo, encabezado y pie de página.</p>

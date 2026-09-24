@@ -97,7 +97,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     ? [...baseNav, { to: "/admin", labelKey: "nav.admin", icon: Shield } as const, { to: "/audit", labelKey: "audit.title", icon: Shield } as const]
     : isTecnico
       ? baseNav
-      : baseNav.filter((n) => !["/chat", "/reports"].includes(n.to)); // agricultor: menos ruido
+      : baseNav; // agricultor: acceso completo al nav (chat IA + reportes propios)
+
+
 
   async function handleSignOut() {
     await qc.cancelQueries();

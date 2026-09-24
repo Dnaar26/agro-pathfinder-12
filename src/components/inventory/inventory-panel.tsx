@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { Package, Plus, AlertTriangle, Search, Edit3, Trash2, TrendingDown, TrendingUp, BarChart3, List, Grid3X3, Filter, DollarSign, Layers } from "lucide-react";
+import { Package, Plus, AlertTriangle, Search, Edit3, Trash2, TrendingDown, TrendingUp, BarChart3, List, Grid3X3, Filter, DollarSign, Layers, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +25,19 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
   const [editingItem, setEditingItem] = useState<any>(null);
   const [movOpen, setMovOpen] = useState<string | null>(null);
   
+  // Detectar si el usuario es técnico (solo lectura)
+  const rolesQuery = useQuery({
+    queryKey: ["my-roles"],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return [];
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
+      return (data ?? []).map((r: any) => r.role);
+    },
+  });
+  const isTecnico = (rolesQuery.data ?? []).includes("tecnico") && !(rolesQuery.data ?? []).includes("admin");
+  const isReadOnly = isTecnico;
+
   // Controlled fields for form
   const formRef = useRef<HTMLFormElement>(null);
   const [unit, setUnit] = useState("KG");
@@ -156,6 +169,12 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
 
   return (
     <div className="space-y-6">
+      {isReadOnly && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-sm">
+          <Shield className="size-4 shrink-0" />
+          <span>Modo visualización — Como técnico puedes ver el inventario pero no modificarlo.</span>
+        </div>
+      )}
       {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -236,13 +255,14 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
             </Button>
           </div>
 
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="size-4 mr-1" /> {t("inventory.add_item")}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
+          {!isReadOnly && (
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="size-4 mr-1" /> {t("inventory.add_item")}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
               <DialogHeader>
                 <DialogTitle>{t("inventory.add_item")}</DialogTitle>
               </DialogHeader>
@@ -373,18 +393,24 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                       <TableCell className="font-semibold">{formatCOP((item.unit_cost || 0) * item.stock_qty)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => { setMovKind("ENTRADA"); setMovOpen(item.id); }}>
-                            <TrendingUp className="size-4 text-green-600" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => { setMovKind("SALIDA"); setMovOpen(item.id); }}>
-                            <TrendingDown className="size-4 text-red-600" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
-                            <Edit3 className="size-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => { if(confirm("¿Eliminar?")) deleteItem.mutate(item.id); }}>
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
+                          {!isReadOnly ? (
+                            <>
+                              <Button variant="ghost" size="icon" onClick={() => { setMovKind("ENTRADA"); setMovOpen(item.id); }}>
+                                <TrendingUp className="size-4 text-green-600" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => { setMovKind("SALIDA"); setMovOpen(item.id); }}>
+                                <TrendingDown className="size-4 text-red-600" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
+                                <Edit3 className="size-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => { if(confirm("¿Eliminar?")) deleteItem.mutate(item.id); }}>
+                                <Trash2 className="size-4 text-destructive" />
+                              </Button>
+                            </>
+                          ) : (
+                            <div className="text-xs text-muted-foreground text-center py-1 border border-dashed border-border rounded-md px-2">Solo visualización</div>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -441,22 +467,28 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                   </div>
 
                   <div className="flex items-center justify-between gap-1 mt-4 pt-4 border-t">
-                    <div className="flex gap-1">
-                      <Button variant="outline" size="sm" className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50" onClick={() => { setMovKind("ENTRADA"); setMovOpen(item.id); }}>
-                        <TrendingUp className="size-3 mr-1" /> Ent
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50" onClick={() => { setMovKind("SALIDA"); setMovOpen(item.id); }}>
-                        <TrendingDown className="size-3 mr-1" /> Sal
-                      </Button>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-                        <Edit3 className="size-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => { if(confirm("¿Eliminar?")) deleteItem.mutate(item.id); }}>
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
+                    {!isReadOnly ? (
+                      <>
+                        <div className="flex gap-1">
+                          <Button variant="outline" size="sm" className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50" onClick={() => { setMovKind("ENTRADA"); setMovOpen(item.id); }}>
+                            <TrendingUp className="size-3 mr-1" /> Ent
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50" onClick={() => { setMovKind("SALIDA"); setMovOpen(item.id); }}>
+                            <TrendingDown className="size-3 mr-1" /> Sal
+                          </Button>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+                            <Edit3 className="size-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => { if(confirm("¿Eliminar?")) deleteItem.mutate(item.id); }}>
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-xs text-muted-foreground text-center w-full py-1 border border-dashed border-border rounded-md">Solo visualización</div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

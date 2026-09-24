@@ -93,7 +93,7 @@ export function AiChat() {
       const reply = await chatWithGroq({
         data: {
           messages: apiMessages,
-          model: "gemini-2.0-flash",
+          model: "gemini-3.6-flash",
           max_tokens: 1024,
         },
       });
@@ -133,7 +133,7 @@ export function AiChat() {
             <h2 className="text-sm font-semibold flex items-center gap-1.5">
               Asistente Agronómico SIGIC
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-medium border border-emerald-500/20">
-                Gemini 2.0 AI
+                Gemini 3.6 AI
               </span>
             </h2>
             <p className="text-[11px] text-muted-foreground flex items-center gap-1">

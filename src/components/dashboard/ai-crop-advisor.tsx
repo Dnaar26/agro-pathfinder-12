@@ -57,7 +57,7 @@ Formatéalo en puntos breves y directos enfocados en optimización de agua, fert
             },
             { role: "user", content: prompt },
           ],
-          model: "gemini-2.0-flash",
+          model: "gemini-3.6-flash",
           max_tokens: 350,
         },
       });
@@ -81,7 +81,7 @@ Formatéalo en puntos breves y directos enfocados en optimización de agua, fert
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               Recomendación Agronómica Inteligente
             </h3>
-            <p className="text-[11px] text-muted-foreground">Potenciado por Gemini 2.0 AI</p>
+            <p className="text-[11px] text-muted-foreground">Potenciado por Gemini 3.6 AI</p>
           </div>
         </div>
         <Button

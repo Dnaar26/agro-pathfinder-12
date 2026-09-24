@@ -110,7 +110,7 @@ export const chatWithGroq = createServerFn({ method: "POST" })
           content: z.string().trim().min(1).max(4000),
         })
       ).min(1).max(25),
-      model: z.string().default("gemini-2.0-flash"),
+      model: z.string().default("gemini-3.6-flash"),
       max_tokens: z.number().int().min(1).max(2048).default(1024),
     })
   )
@@ -145,10 +145,10 @@ export const chatWithGroq = createServerFn({ method: "POST" })
       },
     };
 
-    // Asegurar que el modelo sea válido para Google Generative Language API
+    // Asegurar que el modelo activo sea gemini-3.6-flash
     let model = data.model;
-    if (!model || !model.startsWith("gemini")) {
-      model = "gemini-2.0-flash";
+    if (!model || model === "gemini-2.0-flash" || model === "gemini-1.5-flash" || !model.startsWith("gemini")) {
+      model = "gemini-3.6-flash";
     }
 
     const res = await fetch(
@@ -176,5 +176,7 @@ export const chatWithGroq = createServerFn({ method: "POST" })
     }
 
     const json = await res.json();
-    return json.candidates?.[0]?.content?.parts?.[0]?.text ?? "Sin respuesta del asistente.";
+    const parts = json.candidates?.[0]?.content?.parts || [];
+    const fullText = parts.map((p: any) => p.text || "").join("").trim();
+    return fullText || "Sin respuesta del asistente.";
   });

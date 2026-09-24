@@ -244,7 +244,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
             },
             { role: "user", content: prompt },
           ],
-          model: "gemini-2.0-flash",
+          model: "gemini-3.6-flash",
           max_tokens: 700,
         },
       });

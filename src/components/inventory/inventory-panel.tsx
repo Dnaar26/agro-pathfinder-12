@@ -342,6 +342,7 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
               </form>
             </DialogContent>
           </Dialog>
+        )}
         </div>
       </div>
 

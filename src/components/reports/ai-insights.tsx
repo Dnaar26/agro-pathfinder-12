@@ -56,8 +56,8 @@ Resumen de datos del sistema SIGIC:
       setInsight(reply);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error desconocido";
-      if (msg.includes("GROQ_API_KEY no configurada")) {
-        setError("El asistente IA no está disponible. El administrador debe configurar GROQ_API_KEY en el servidor.");
+      if (msg.includes("GEMINI_API_KEY no configurada") || msg.includes("GROQ_API_KEY no configurada")) {
+        setError("⚠️ El módulo de Análisis IA no se encuentra disponible en este momento. Comunícate con el administrador del sistema para verificar la configuración del servidor.");
       } else {
         setError(`Error: ${msg}`);
       }

@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { MapPin, Calendar, Bell, FileBarChart, LogOut, LayoutDashboard, Menu, Shield, Package2, Bot, Globe, MapIcon, Leaf, Search } from "lucide-react";
+import { MapPin, Calendar, Bell, FileBarChart, LogOut, LayoutDashboard, Menu, Shield, Package2, Bot, Globe, MapIcon, Leaf, Search, UserCircle2, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { signOutHttpOnlyCookie } from "@/lib/api/auth.server";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { getMyRoles, listAlerts } from "@/lib/queries";
 import { useTranslation } from "react-i18next";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LANGUAGES } from "@/i18n";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ConnectionBadge } from "@/components/ui/connection-badge";
@@ -171,9 +172,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center justify-between">
             <ConnectionBadge />
-            <Button variant="ghost" size="sm" className="gap-2" onClick={handleSignOut}>
-              <LogOut className="size-4" /> {t("nav.sign_out")}
-            </Button>
+            <button onClick={handleSignOut} className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-sidebar-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors">
+              <LogOut className="size-3.5" />
+              <span>{t("nav.sign_out")}</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -187,14 +189,29 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted/60 text-xs text-muted-foreground border border-border">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>En línea</span>
             </div>
-            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">{roleBadge}</span>
-            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors" onClick={handleSignOut} title={t("nav.sign_out")}>
-              <LogOut className="size-4" />
-              <span className="text-xs font-medium">{t("nav.sign_out")}</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted/60 transition-colors border border-border/50 hover:border-border">
+                  <div className="size-7 rounded-full bg-primary/10 text-primary grid place-items-center">
+                    <UserCircle2 className="size-4" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-semibold leading-none">{roleBadge}</p>
+                  </div>
+                  <ChevronDown className="size-3.5 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive gap-2">
+                  <LogOut className="size-3.5" />
+                  {t("nav.sign_out")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10 w-full">{children}</div>

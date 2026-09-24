@@ -61,41 +61,63 @@ export const chatWithGroq = createServerFn({ method: "POST" })
           content: z.string().trim().min(1).max(4000),
         })
       ).min(1).max(20),
-      model: z.string().default("llama-3.3-70b-versatile"),
+      model: z.string().default("gemini-2.0-flash"),
       max_tokens: z.number().int().min(1).max(1024).default(1024),
     })
   )
   .handler(async ({ data }) => {
     verifySameOriginRequest();
     await requireAuth();
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("GROQ_API_KEY no configurada en el servidor");
+      throw new Error("GEMINI_API_KEY no configurada en el servidor");
     }
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+    // Separar el system prompt de los mensajes de conversación
+    const systemMsg = data.messages.find((m) => m.role === "system");
+    const conversationMsgs = data.messages.filter((m) => m.role !== "system");
+
+    // Convertir al formato de Gemini (user/model)
+    const geminiContents = conversationMsgs.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+
+    const body: Record<string, unknown> = {
+      contents: geminiContents,
+      generationConfig: {
+        maxOutputTokens: data.max_tokens,
+        temperature: 0.7,
       },
-      body: JSON.stringify({
-        model: data.model,
-        messages: data.messages,
-        max_tokens: data.max_tokens,
-      }),
-    });
+    };
+
+    if (systemMsg) {
+      body.systemInstruction = { parts: [{ text: systemMsg.content }] };
+    }
+
+    const model = data.model;
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    );
 
     if (res.status === 429) {
-      throw new Error("Límite de uso. Espera un minuto.");
+      throw new Error("Límite de uso alcanzado. Por favor, intenta de nuevo en un momento.");
+    }
+    if (res.status === 400) {
+      throw new Error("Solicitud inválida al asistente de IA.");
     }
     if (res.status === 401 || res.status === 403) {
-      throw new Error("API key inválida en el servidor. Contacta al administrador.");
+      throw new Error("GEMINI_API_KEY inválida o sin permisos en el servidor.");
     }
     if (!res.ok) {
-      throw new Error(`Error Groq ${res.status}`);
+      throw new Error(`Error del asistente de IA (código ${res.status}). Contacta al administrador.`);
     }
 
     const json = await res.json();
-    return json.choices?.[0]?.message?.content ?? "Sin respuesta";
+    return json.candidates?.[0]?.content?.parts?.[0]?.text ?? "Sin respuesta";
   });

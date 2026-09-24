@@ -53,8 +53,8 @@ export function AiChat() {
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error desconocido";
-      if (msg.includes("GROQ_API_KEY no configurada")) {
-        setMessages((prev) => [...prev, { role: "assistant", content: "El asistente IA no está disponible. Contacta al administrador para configurar la API key en el servidor." }]);
+      if (msg.includes("GEMINI_API_KEY no configurada") || msg.includes("GROQ_API_KEY no configurada")) {
+        setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ El Asistente Agronómico IA no se encuentra disponible en este momento. Si el problema persiste, comunícate con el administrador del sistema." }]);
       } else {
         setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${msg}` }]);
       }
@@ -66,7 +66,7 @@ export function AiChat() {
     <div className="flex flex-col h-[500px] border border-border rounded-lg bg-card">
       <div className="p-3 border-b border-border flex items-center gap-2 text-sm font-medium">
         <Bot className="size-4 text-primary" />
-        Asistente agronómico <span className="text-xs text-muted-foreground">(Groq)</span>
+        Asistente Agronómico <span className="text-xs text-muted-foreground">(Gemini AI)</span>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">

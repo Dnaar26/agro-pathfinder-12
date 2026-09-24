@@ -34,6 +34,10 @@ function CalendarPage() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Date>(new Date());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [invItemId, setInvItemId] = useState("");
+  const [invQty, setInvQty] = useState("");
+  const [editInvItemId, setEditInvItemId] = useState("");
+  const [editInvQty, setEditInvQty] = useState("");
   const qc = useQueryClient();
 
   const monthStart = startOfMonth(cursor);
@@ -44,6 +48,14 @@ function CalendarPage() {
   const events = useQuery({
     queryKey: ["events", monthStart.toISOString()],
     queryFn: () => listEvents(gridStart, gridEnd),
+  });
+
+  const inventoryItems = useQuery({
+    queryKey: ["calendar-inventory"],
+    queryFn: async () => {
+      const { data } = await supabase.from("inventory_items").select("id, name, unit, stock_qty").order("name");
+      return data ?? [];
+    },
   });
   const crops = useQuery({
     queryKey: ["calendar-crops"],
@@ -87,22 +99,46 @@ function CalendarPage() {
   });
 
   const create = useMutation({
-    mutationFn: async (data: z.infer<typeof eventSchema>) => {
+    mutationFn: async (payload: { event: z.infer<typeof eventSchema>; invItemId?: string; invQty?: number }) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Sesión expirada");
+      
+      // Verificar stock si hay insumo
+      if (payload.invItemId && payload.invQty && payload.invQty > 0) {
+        const { data: inv } = await supabase.from("inventory_items").select("stock_qty").eq("id", payload.invItemId).single();
+        if (!inv || Number(inv.stock_qty) < payload.invQty) {
+          throw new Error("Stock insuficiente para el insumo seleccionado");
+        }
+      }
+      
       const { error } = await supabase.from("calendar_events").insert({
         user_id: u.user.id,
-        title: data.title,
-        description: data.description ?? null,
-        crop_id: data.crop_id ?? null,
-        starts_at: new Date(data.starts_at).toISOString(),
+        title: payload.event.title,
+        description: payload.event.description ?? null,
+        crop_id: payload.event.crop_id ?? null,
+        starts_at: new Date(payload.event.starts_at).toISOString(),
       });
       if (error) throw error;
+      
+      // Descontar del inventario
+      if (payload.invItemId && payload.invQty && payload.invQty > 0) {
+        await supabase.rpc("apply_inventory_movement", {
+          p_item_id: payload.invItemId,
+          p_kind: "SALIDA",
+          p_qty: payload.invQty,
+          p_notes: `Uso en evento: ${payload.event.title}`,
+          p_delta: -payload.invQty,
+        });
+      }
     },
     onSuccess: () => {
       toast.success("Evento creado");
       qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["calendar-inventory"] });
       setOpen(false);
+      setInvItemId("");
+      setInvQty("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -117,11 +153,39 @@ function CalendarPage() {
   const [editOpen, setEditOpen] = useState(false);
 
   const updateEvent = useMutation({
-    mutationFn: async (data: { id: string; title: string; description?: string; starts_at: string; crop_id?: string }) => {
-      const { error } = await supabase.from("calendar_events").update({ title: data.title, description: data.description ?? null, crop_id: data.crop_id ?? null, starts_at: new Date(data.starts_at).toISOString() }).eq("id", data.id);
+    mutationFn: async (payload: { id: string; title: string; description?: string; starts_at: string; crop_id?: string; editInvItemId?: string; editInvQty?: number }) => {
+      // Verificar stock si hay insumo
+      if (payload.editInvItemId && payload.editInvQty && payload.editInvQty > 0) {
+        const { data: inv } = await supabase.from("inventory_items").select("stock_qty").eq("id", payload.editInvItemId).single();
+        if (!inv || Number(inv.stock_qty) < payload.editInvQty) {
+          throw new Error("Stock insuficiente para el insumo seleccionado");
+        }
+      }
+
+      const { error } = await supabase.from("calendar_events").update({ title: payload.title, description: payload.description ?? null, crop_id: payload.crop_id ?? null, starts_at: new Date(payload.starts_at).toISOString() }).eq("id", payload.id);
       if (error) throw error;
+      
+      // Descontar del inventario
+      if (payload.editInvItemId && payload.editInvQty && payload.editInvQty > 0) {
+        await supabase.rpc("apply_inventory_movement", {
+          p_item_id: payload.editInvItemId,
+          p_kind: "SALIDA",
+          p_qty: payload.editInvQty,
+          p_notes: `Uso en evento: ${payload.title}`,
+          p_delta: -payload.editInvQty,
+        });
+      }
     },
-    onSuccess: () => { toast.success("Evento actualizado"); qc.invalidateQueries({ queryKey: ["events"] }); setEditOpen(false); setEditEvent(null); },
+    onSuccess: () => { 
+      toast.success("Evento actualizado"); 
+      qc.invalidateQueries({ queryKey: ["events"] }); 
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["calendar-inventory"] });
+      setEditOpen(false); 
+      setEditEvent(null); 
+      setEditInvItemId("");
+      setEditInvQty("");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -153,7 +217,11 @@ function CalendarPage() {
       crop_id: (fd.get("crop_id") as string) || undefined,
     });
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
-    create.mutate(parsed.data);
+    create.mutate({ 
+      event: parsed.data, 
+      invItemId: invItemId || undefined, 
+      invQty: invQty ? Number(invQty) : undefined 
+    });
   }
 
   const allItems = useMemo(() => {
@@ -225,6 +293,46 @@ function CalendarPage() {
                   <Label htmlFor="description">Descripción</Label>
                   <Textarea id="description" name="description" rows={3} />
                 </div>
+                
+                {/* Sección Insumos */}
+                <div className="space-y-2">
+                  <Label>Insumo del inventario (opcional)</Label>
+                  <div className="flex gap-2">
+                    <Select value={invItemId} onValueChange={setInvItemId}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Sin insumo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(inventoryItems.data ?? []).map((it) => (
+                          <SelectItem key={it.id} value={it.id}>
+                            {it.name} — Stock: {Number(it.stock_qty).toFixed(1)} {it.unit}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="any"
+                      min="0"
+                      placeholder="Cantidad"
+                      value={invQty}
+                      onChange={(e) => setInvQty(e.target.value)}
+                      className="w-28"
+                    />
+                  </div>
+                  {invItemId && invQty && (() => {
+                    const it = (inventoryItems.data ?? []).find(x => x.id === invItemId);
+                    if (!it) return null;
+                    const remaining = Number(it.stock_qty) - Number(invQty);
+                    return (
+                      <p className={`text-xs ${remaining < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        Stock tras uso: {remaining.toFixed(1)} {it.unit} {remaining < 0 ? '⚠️ Insuficiente' : '✓'}
+                      </p>
+                    );
+                  })()}
+                </div>
+
                 <DialogFooter><Button type="submit" disabled={create.isPending}>Guardar</Button></DialogFooter>
               </form>
             </DialogContent>
@@ -299,7 +407,20 @@ function CalendarPage() {
       <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) setEditEvent(null); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Editar evento</DialogTitle></DialogHeader>
-          <form onSubmit={(e) => { e.preventDefault(); if (!editEvent) return; const fd = new FormData(e.currentTarget); updateEvent.mutate({ id: editEvent.id, title: fd.get("title") as string, description: (fd.get("description") as string) || undefined, crop_id: (fd.get("crop_id") as string) || undefined, starts_at: fd.get("starts_at") as string }); }} className="space-y-4">
+          <form onSubmit={(e) => { 
+            e.preventDefault(); 
+            if (!editEvent) return; 
+            const fd = new FormData(e.currentTarget); 
+            updateEvent.mutate({ 
+              id: editEvent.id, 
+              title: fd.get("title") as string, 
+              description: (fd.get("description") as string) || undefined, 
+              crop_id: (fd.get("crop_id") as string) || undefined, 
+              starts_at: fd.get("starts_at") as string,
+              editInvItemId: editInvItemId || undefined,
+              editInvQty: editInvQty ? Number(editInvQty) : undefined
+            }); 
+          }} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="edit-title">Título</Label>
               <Input id="edit-title" name="title" required defaultValue={editEvent?.title ?? ""} />
@@ -323,6 +444,46 @@ function CalendarPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Sección Insumos */}
+            <div className="space-y-2">
+              <Label>Insumo del inventario (opcional)</Label>
+              <div className="flex gap-2">
+                <Select value={editInvItemId} onValueChange={setEditInvItemId}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Sin insumo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(inventoryItems.data ?? []).map((it) => (
+                      <SelectItem key={it.id} value={it.id}>
+                        {it.name} — Stock: {Number(it.stock_qty).toFixed(1)} {it.unit}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  min="0"
+                  placeholder="Cantidad"
+                  value={editInvQty}
+                  onChange={(e) => setEditInvQty(e.target.value)}
+                  className="w-28"
+                />
+              </div>
+              {editInvItemId && editInvQty && (() => {
+                const it = (inventoryItems.data ?? []).find(x => x.id === editInvItemId);
+                if (!it) return null;
+                const remaining = Number(it.stock_qty) - Number(editInvQty);
+                return (
+                  <p className={`text-xs ${remaining < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    Stock tras uso: {remaining.toFixed(1)} {it.unit} {remaining < 0 ? '⚠️ Insuficiente' : '✓'}
+                  </p>
+                );
+              })()}
+            </div>
+
             <DialogFooter><Button type="submit" disabled={updateEvent.isPending}>Guardar cambios</Button></DialogFooter>
           </form>
         </DialogContent>

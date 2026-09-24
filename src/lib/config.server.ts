@@ -19,6 +19,6 @@ import process from "node:process";
 export function getServerConfig() {
   return {
     nodeEnv: process.env.NODE_ENV,
-    groqApiKey: process.env.GROQ_API_KEY,
+    geminiApiKey: process.env.GEMINI_API_KEY,
   };
 }

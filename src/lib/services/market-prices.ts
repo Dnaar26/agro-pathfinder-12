@@ -9,7 +9,13 @@ export interface MarketPrice {
 
 export async function fetchMarketPrices(): Promise<MarketPrice[]> {
   try {
-    const res = await fetch("https://www.dane.gov.co/api/precios-agricolas", { signal: AbortSignal.timeout(5000) });
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), 5000) : null;
+    const res = await fetch("https://www.dane.gov.co/api/precios-agricolas", {
+      signal: controller?.signal,
+    }).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
     if (!res.ok) throw new Error("DANE API not available");
     const data = await res.json();
     return (data ?? []).map(normalizePrice);

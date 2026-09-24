@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Sprout, Leaf, CloudSun, BellRing, Calendar, MapPin } from "lucide-react";
+import { Sprout, Leaf, CloudSun, BellRing, Calendar, MapPin, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/")({
       { title: "SIGIC — Gestión Inteligente de Cultivos" },
       { name: "description", content: "Plataforma para digitalizar y optimizar el ciclo productivo agrícola: parcelas, cultivos, actividades, calendario y alertas." },
       { property: "og:title", content: "SIGIC — Gestión Inteligente de Cultivos" },
-      { property: "og:description", content: "Acompaña al agricultor en todo el ciclo productivo, incluso sin conexión." },
+      { property: "og:description", content: "Acompaña al agricultor en todo el ciclo productivo con inteligencia agronómica." },
     ],
   }),
   component: Landing,
@@ -51,7 +51,7 @@ function Landing() {
             { icon: Calendar, title: "Calendario inteligente", body: "Programa riegos, fertilizaciones y cosechas con vista mensual." },
             { icon: BellRing, title: "Alertas oportunas", body: "Recibe avisos automáticos por actividades pendientes y clima." },
             { icon: Leaf, title: "Trazabilidad completa", body: "Cada actividad queda registrada con foto, fecha y responsable." },
-            { icon: CloudSun, title: "Operación offline", body: "Diseñado para zonas rurales con conectividad limitada." },
+            { icon: Sparkles, title: "Diagnósticos con IA", body: "Recomendaciones agronómicas inteligentes con Gemini AI." },
             { icon: Sprout, title: "Reportes y KPIs", body: "Exporta tus datos y conoce el rendimiento real de tus cultivos." },
           ].map(({ icon: Icon, title, body }) => (
             <div key={title} className="p-6 rounded-xl border border-border bg-card">

@@ -108,8 +108,10 @@ function drawFooter(doc: jsPDF, opts: PdfReportOptions) {
 }
 
 export async function generatePdfReport(opts: PdfReportOptions): Promise<jsPDF> {
-  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-  const doc = new jsPDF({ orientation: opts.orientation ?? "landscape", unit: "mm", format: "a4" });
+  const [jspdfModule, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+  const jsPDFClass = (jspdfModule as any).jsPDF || (jspdfModule as any).default?.jsPDF || jspdfModule.default;
+  const autoTable = (autoTableModule as any).default || autoTableModule;
+  const doc = new jsPDFClass({ orientation: opts.orientation ?? "landscape", unit: "mm", format: "a4" });
   const logo = await loadLogo();
   drawHeader(doc, opts, logo);
 

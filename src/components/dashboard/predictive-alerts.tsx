@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { CloudSun, CloudRain, Thermometer, AlertTriangle, Droplets } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 async function getWeatherRisk(parcelId: string, lat: number, lon: number) {
@@ -31,7 +32,6 @@ export function PredictiveAlerts() {
   const parcels = useQuery({
     queryKey: ["parcels-coords"],
     queryFn: async () => {
-      const { supabase } = await import("@/integrations/supabase/client");
       const { data } = await supabase.from("parcels").select("id, name, latitude, longitude").not("latitude", "is", null).not("longitude", "is", null).limit(10);
       return data ?? [];
     },

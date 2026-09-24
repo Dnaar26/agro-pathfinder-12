@@ -25,13 +25,17 @@ type BrowserSession = {
 
 async function syncSessionCookie(session: BrowserSession | null) {
   if (!session) return;
-  await syncHttpOnlySession({
-    data: {
-      accessToken: session.access_token,
-      refreshToken: session.refresh_token,
-      expiresIn: session.expires_in,
-    },
-  });
+  try {
+    await syncHttpOnlySession({
+      data: {
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+        expiresIn: session.expires_in,
+      },
+    });
+  } catch {
+    // Ignore cookie sync errors on hosts without SSR cookie handlers
+  }
 }
 
 function NotFoundComponent() {

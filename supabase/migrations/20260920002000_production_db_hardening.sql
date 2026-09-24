@@ -20,19 +20,27 @@ BEGIN
 END;
 $$;
 
--- 2. Restringir log_audit (exclusiva para triggers, prohibida por RPC a cliente)
-REVOKE EXECUTE ON FUNCTION public.log_audit() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.log_audit() FROM anon;
-REVOKE EXECUTE ON FUNCTION public.log_audit() FROM authenticated;
+-- 2 y 3. Restringir permisos de funciones de forma segura si existen
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'log_audit') THEN
+    REVOKE EXECUTE ON FUNCTION public.log_audit() FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.log_audit() FROM anon;
+    REVOKE EXECUTE ON FUNCTION public.log_audit() FROM authenticated;
+  END IF;
 
--- 3. Asegurar apply_inventory_movement y has_role solo para authenticated
-REVOKE EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) FROM anon;
-GRANT EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) TO authenticated;
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'apply_inventory_movement') THEN
+    REVOKE EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) FROM anon;
+    GRANT EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) TO authenticated;
+  END IF;
 
-REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM anon;
-GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated;
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'has_role') THEN
+    REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM anon;
+    GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated;
+  END IF;
+END $$;
 
 -- 4. Optimizar políticas RLS para auth.uid() en profiles y user_roles
 DROP POLICY IF EXISTS "profile staff read all" ON public.profiles;

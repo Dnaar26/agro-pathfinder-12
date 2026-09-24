@@ -101,12 +101,23 @@ CREATE POLICY "evidences owner delete" ON storage.objects FOR DELETE TO authenti
   USING (bucket_id = 'evidences' AND ((storage.foldername(name))[1] = (SELECT auth.uid())::text OR public.has_role((SELECT auth.uid()), 'admin')));
 
 -- Sentinel credentials are read only by the SSR function, never by the browser.
-REVOKE EXECUTE ON FUNCTION public.log_audit() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.log_audit() FROM anon;
-REVOKE EXECUTE ON FUNCTION public.log_audit() FROM authenticated;
-REVOKE EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) FROM anon;
-GRANT EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) TO authenticated;
-REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM anon;
-GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'log_audit') THEN
+    REVOKE EXECUTE ON FUNCTION public.log_audit() FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.log_audit() FROM anon;
+    REVOKE EXECUTE ON FUNCTION public.log_audit() FROM authenticated;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'apply_inventory_movement') THEN
+    REVOKE EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) FROM anon;
+    GRANT EXECUTE ON FUNCTION public.apply_inventory_movement(uuid, text, numeric, text, numeric) TO authenticated;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'has_role') THEN
+    REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM anon;
+    GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated;
+  END IF;
+END $$;

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useMemo, useState, useEffect } from "react";
 import { listParcels, listAlerts, getMyProfile, getMyRoles, getMonthlyYield, getTotalPandL, getUpcomingActivities, getTotalInventoryValue } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
-import { MapPin, BellRing, Sprout, ArrowRight, TrendingUp, DollarSign, CalendarDays, Warehouse, Sun, User, FileSpreadsheet, Plus, Download, Droplet, Package, Bug, Scissors, Wheat, Eye, ChevronUp, ChevronDown, Activity, TrendingDown, Zap, Star, Map, BarChart } from "lucide-react";
+import { MapPin, BellRing, Sprout, ArrowRight, TrendingUp, DollarSign, CalendarDays, Warehouse, Sun, User, FileSpreadsheet, Plus, Download, Droplet, Package, Bug, Scissors, Wheat, Eye, ChevronUp, ChevronDown, Activity, TrendingDown, Zap, Star, Map as MapIcon, BarChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -250,7 +250,7 @@ function Dashboard() {
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/parcels"><MapPin className="size-4 mr-1.5" /> Nueva parcela</Link></Button>
         <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/cultivos"><Sprout className="size-4 mr-1.5" /> Nuevo cultivo</Link></Button>
-        <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/mapa"><Map className="size-4 mr-1.5" /> Ver mapa</Link></Button>
+        <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/mapa"><MapIcon className="size-4 mr-1.5" /> Ver mapa</Link></Button>
         <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/reports"><BarChart className="size-4 mr-1.5" /> Ver reportes</Link></Button>
       </div>
 

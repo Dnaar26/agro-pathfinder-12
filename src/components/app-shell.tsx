@@ -50,6 +50,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     refetchInterval: 30000,
   });
 
+  const userProfile = useQuery({
+    queryKey: ["user-header"],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return null;
+      const { data: p } = await supabase.from("profiles").select("full_name, avatar_url").eq("id", u.user.id).maybeSingle();
+      return { email: u.user.email, fullName: p?.full_name, avatarUrl: p?.avatar_url };
+    },
+  });
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 250);
     return () => clearTimeout(timer);
@@ -123,9 +133,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         "md:w-64 md:flex md:flex-col md:border-r md:border-sidebar-border bg-sidebar text-sidebar-foreground",
         open ? "block" : "hidden md:flex"
       )}>
-        <div className="hidden md:flex flex-col px-6 py-5 border-b border-sidebar-border gap-2">
+        <div className="hidden md:flex flex-col px-4 py-4 border-b border-sidebar-border">
           <Logo />
-          <div className="text-xs text-sidebar-foreground/60">{roleBadge}</div>
+          <div className="mt-3 flex items-center gap-2">
+            <div className="size-8 rounded-full bg-primary/20 text-primary grid place-items-center text-sm font-bold">
+              {(userProfile.data?.fullName ?? userProfile.data?.email ?? "U").charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold truncate">{userProfile.data?.fullName ?? userProfile.data?.email ?? "..."}</p>
+              <p className="text-[10px] text-sidebar-foreground/50 capitalize">{roleBadge}</p>
+            </div>
+          </div>
         </div>
         <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto">
           {nav.map(({ to, labelKey, icon: Icon }) => {
@@ -192,19 +210,46 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>En línea</span>
             </div>
+            <Link to="/alerts" className="relative p-2 rounded-md hover:bg-muted transition-colors">
+              <Bell className="size-4 text-muted-foreground" />
+              {(pendingAlerts.data ?? 0) > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 size-4 bg-destructive text-destructive-foreground text-[9px] font-bold rounded-full flex items-center justify-center">{pendingAlerts.data}</span>
+              )}
+            </Link>
+            <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted/60 transition-colors border border-border/50 hover:border-border">
-                  <div className="size-7 rounded-full bg-primary/10 text-primary grid place-items-center">
-                    <UserCircle2 className="size-4" />
+                  <div className="size-7 rounded-full bg-primary/10 text-primary grid place-items-center overflow-hidden">
+                    {userProfile.data?.avatarUrl ? (
+                      <img src={userProfile.data.avatarUrl} alt="avatar" className="size-full object-cover" />
+                    ) : (
+                      <span className="text-xs font-bold">
+                        {(userProfile.data?.fullName ?? userProfile.data?.email ?? "U").charAt(0).toUpperCase()}
+                      </span>
+                    )}
                   </div>
                   <div className="text-left">
-                    <p className="text-xs font-semibold leading-none">{roleBadge}</p>
+                    <p className="text-xs font-semibold leading-none truncate max-w-[120px]">
+                      {userProfile.data?.fullName ?? userProfile.data?.email ?? roleBadge}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground leading-none mt-0.5 capitalize">{roleBadge}</p>
                   </div>
                   <ChevronDown className="size-3.5 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-3 py-2">
+                  <p className="text-xs font-semibold truncate">{userProfile.data?.fullName ?? "—"}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{userProfile.data?.email ?? "—"}</p>
+                </div>
+                <DropdownMenuSeparator />
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => navigate({ to: "/admin" })} className="gap-2">
+                    <Shield className="size-3.5" />
+                    Configuración
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive gap-2">
                   <LogOut className="size-3.5" />

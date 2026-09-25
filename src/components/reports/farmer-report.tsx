@@ -49,6 +49,7 @@ import { InventoryReport } from "@/components/reports/inventory-report";
 import { CropPerformanceReport } from "@/components/reports/crop-performance-report";
 import { PestReport } from "@/components/reports/pest-report";
 import { HarvestProjectionReport } from "@/components/reports/harvest-projection-report";
+import { inferCategory } from "@/lib/queries";
 
 
 const formatCOP = (n: number) =>
@@ -176,14 +177,19 @@ export function FarmerReport() {
       if (!u.user) return { items: [], lowStock: [] };
       const { data } = await (supabase as any)
         .from("inventory_items")
-        .select("id, name, category, unit, stock_qty, min_stock, unit_cost")
+        .select("*")
         .eq("owner_id", u.user.id)
         .order("name");
-      const items = (data ?? []) as any[];
+      const rawItems = (data ?? []) as any[];
+      const items = rawItems.map((i) => ({
+        ...i,
+        category: i.category || inferCategory(i.name),
+      }));
       const lowStock = items.filter((i) => Number(i.stock_qty) <= Number(i.min_stock));
       return { items, lowStock };
     },
   });
+
 
 
   // Cálculos estadísticos

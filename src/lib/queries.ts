@@ -455,6 +455,28 @@ export async function getCropPhotoUrls(cropId: string) {
   return data ?? [];
 }
 
+// ── Category Inference Helper (protects when column 'category' is not in schema) ───
+
+export function inferCategory(name: string): string {
+  const n = (name || "").toLowerCase();
+  if (n.includes("fertiliz") || n.includes("urea") || n.includes("npk") || n.includes("compost") || n.includes("abono") || n.includes("cal ") || n.includes("dolomit")) {
+    return "Fertilizante";
+  }
+  if (n.includes("insectic") || n.includes("herbic") || n.includes("fungic") || n.includes("plaguic") || n.includes("caldo") || n.includes("acaric") || n.includes("cipermetrina") || n.includes("glifosato")) {
+    return "Plaguicida";
+  }
+  if (n.includes("semill") || n.includes("plantul") || n.includes("germinad") || n.includes("esqueje")) {
+    return "Semilla";
+  }
+  if (n.includes("bomba") || n.includes("machete") || n.includes("tijera") || n.includes("manguera") || n.includes("tutor") || n.includes("trampa") || n.includes("herramienta")) {
+    return "Herramienta";
+  }
+  if (n.includes("gasolina") || n.includes("diesel") || n.includes("acpm") || n.includes("combust")) {
+    return "Combustible";
+  }
+  return "Otro";
+}
+
 // ── Farmer Inventory Report ────────────────────────────────────────────────
 
 export async function getMyInventoryReport() {
@@ -465,7 +487,7 @@ export async function getMyInventoryReport() {
   const [itemsRes, movementsRes] = await Promise.all([
     sb
       .from("inventory_items")
-      .select("id, name, category, unit, stock_qty, min_stock, unit_cost, owner_id")
+      .select("*")
       .eq("owner_id", u.user.id)
       .order("name"),
     sb
@@ -476,12 +498,17 @@ export async function getMyInventoryReport() {
       .limit(200),
   ]);
 
-  const items = (itemsRes.data ?? []) as any[];
+  const rawItems = (itemsRes.data ?? []) as any[];
+  const items = rawItems.map((i) => ({
+    ...i,
+    category: i.category || inferCategory(i.name),
+  }));
   const movements = (movementsRes.data ?? []) as any[];
   const lowStock = items.filter((i) => Number(i.stock_qty) <= Number(i.min_stock));
 
   return { items, movements, lowStock };
 }
+
 
 // ── Farmer Crop Performance Report ────────────────────────────────────────
 
@@ -630,12 +657,17 @@ export async function getGlobalProductivityRanking() {
 export async function getGlobalInventoryConsolidated() {
   const { data, error } = await (supabase as any)
     .from("inventory_items")
-    .select("id, name, category, unit, stock_qty, min_stock, unit_cost, owner_id, profiles!owner_id(full_name, phone)")
-    .order("category");
+    .select("*, profiles!owner_id(full_name, phone)")
+    .order("name");
 
   if (error) throw error;
-  return (data ?? []) as any[];
+  const rawItems = (data ?? []) as any[];
+  return rawItems.map((i) => ({
+    ...i,
+    category: i.category || inferCategory(i.name),
+  }));
 }
+
 
 // ── Technical Visits & Assistance (Técnico / Admin) ───────────────────────
 

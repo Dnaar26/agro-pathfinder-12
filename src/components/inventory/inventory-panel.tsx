@@ -11,11 +11,35 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { Package, Plus, AlertTriangle, Search, Edit3, Trash2, TrendingDown, TrendingUp, BarChart3, List, Grid3X3, Filter, DollarSign, Layers, Shield } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
+import { Package, Plus, AlertTriangle, Search, Edit3, Trash2, TrendingDown, TrendingUp, BarChart3, List, Grid3X3, Filter, DollarSign, Layers, Shield, Sparkles, CheckCircle2, Loader2, Wrench, Sprout } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { inferCategory } from "@/lib/queries";
 
 const formatCOP = (n: number) => '$ ' + n.toLocaleString('es-CO', { minimumFractionDigits: 0 });
+
+const INVENTORY_PRESETS = [
+  { name: "Fertilizante NPK 20-20-20", category: "Fertilizante", unit: "KG", minStock: 25, cost: 85000, icon: "🌿" },
+  { name: "Urea Agrícola 46%", category: "Fertilizante", unit: "KG", minStock: 50, cost: 78000, icon: "🌾" },
+  { name: "Insecticida Cipermetrina", category: "Plaguicida", unit: "L", minStock: 5, cost: 48000, icon: "🛡️" },
+  { name: "Fungicida Cúprico", category: "Plaguicida", unit: "KG", minStock: 10, cost: 38000, icon: "🍄" },
+  { name: "Semillas Certificadas", category: "Semilla", unit: "KG", minStock: 15, cost: 32000, icon: "🌱" },
+  { name: "Bomba de Mochila 20L", category: "Herramienta", unit: "UN", minStock: 2, cost: 185000, icon: "🎒" },
+  { name: "Manguera de Goteo 100m", category: "Herramienta", unit: "UN", minStock: 2, cost: 120000, icon: "💧" },
+];
 
 export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }) {
   const { t } = useTranslation();
@@ -39,12 +63,33 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
   const isReadOnly = isTecnico;
 
   // Controlled fields for form
-  const formRef = useRef<HTMLFormElement>(null);
+  const [itemName, setItemName] = useState("");
+  const [stockQty, setStockQty] = useState<string>("0");
+  const [minStock, setMinStock] = useState<string>("5");
+  const [unitCost, setUnitCost] = useState<string>("0");
   const [unit, setUnit] = useState("KG");
-  const [category, setCategory] = useState("Otro");
+  const [category, setCategory] = useState("Fertilizante");
   const [editUnit, setEditUnit] = useState("KG");
   const [editCategory, setEditCategory] = useState("Otro");
   const [movKind, setMovKind] = useState("ENTRADA");
+
+  const resetAddForm = () => {
+    setItemName("");
+    setStockQty("0");
+    setMinStock("5");
+    setUnitCost("0");
+    setUnit("KG");
+    setCategory("Fertilizante");
+  };
+
+  const applyPreset = (p: typeof INVENTORY_PRESETS[0]) => {
+    setItemName(p.name);
+    setCategory(p.category);
+    setUnit(p.unit);
+    setMinStock(String(p.minStock));
+    setUnitCost(String(p.cost));
+    if (stockQty === "0") setStockQty(String(p.minStock * 2));
+  };
 
   // Filters & Views
   const [query, setQuery] = useState("");
@@ -59,12 +104,17 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("No session");
       const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
-      const isStaff = (roles ?? []).some((r) => ["tecnico", "admin"].includes(r.role));
-      let q = supabase.from("inventory_items").select("*");
+      const isStaff = (roles ?? []).some((r: any) => ["tecnico", "admin"].includes(r.role));
+      let q = (supabase as any).from("inventory_items").select("*");
       if (propFarmerId) q = q.eq("owner_id", propFarmerId);
       else if (!isStaff) q = q.eq("owner_id", u.user.id);
-      const { data } = await q.order("name");
-      return data ?? [];
+      const { data, error } = await q.order("name");
+      if (error) throw error;
+      const raw = (data ?? []) as any[];
+      return raw.map((i) => ({
+        ...i,
+        category: i.category || inferCategory(i.name),
+      }));
     },
   });
 
@@ -85,33 +135,57 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
     mutationFn: async (input: { name: string; category: string; unit: string; stock_qty: number; min_stock: number; unit_cost: number }) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("No session");
-      const { error } = await supabase.from("inventory_items").insert({ ...input, owner_id: u.user.id });
-      if (error) throw error;
+      const payload: any = { ...input, owner_id: u.user.id };
+
+      const sb = supabase as any;
+      const { error } = await sb.from("inventory_items").insert(payload);
+      if (error) {
+        // Fallback seguro si la columna 'category' aún no existe en PostgreSQL
+        if (error.message?.includes("category") || error.details?.includes("category") || error.code === "PGRST204") {
+          const { category: _c, ...safePayload } = payload;
+          const { error: retryError } = await sb.from("inventory_items").insert(safePayload);
+          if (retryError) throw retryError;
+        } else {
+          throw error;
+        }
+      }
     },
     onSuccess: () => { 
       qc.invalidateQueries({ queryKey: ["inventory"] }); 
+      qc.invalidateQueries({ queryKey: ["my-inventory-report"] });
+      qc.invalidateQueries({ queryKey: ["global-inventory"] });
       setOpen(false); 
-      setUnit("KG");
-      setCategory("Otro");
-      formRef.current?.reset();
-      toast.success("Item created"); 
+      resetAddForm();
+      toast.success("Insumo agregado con éxito"); 
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const updateItem = useMutation({
     mutationFn: async (input: { id: string; name: string; category: string; unit: string; min_stock: number; unit_cost: number }) => {
-      const { error } = await supabase.from("inventory_items").update(input).eq("id", input.id);
-      if (error) throw error;
+      const sb = supabase as any;
+      const { error } = await sb.from("inventory_items").update(input).eq("id", input.id);
+      if (error) {
+        if (error.message?.includes("category") || error.details?.includes("category") || error.code === "PGRST204") {
+          const { category: _c, ...safeInput } = input;
+          const { error: retryError } = await sb.from("inventory_items").update(safeInput).eq("id", input.id);
+          if (retryError) throw retryError;
+        } else {
+          throw error;
+        }
+      }
     },
     onSuccess: () => { 
       qc.invalidateQueries({ queryKey: ["inventory"] }); 
+      qc.invalidateQueries({ queryKey: ["my-inventory-report"] });
+      qc.invalidateQueries({ queryKey: ["global-inventory"] });
       setEditOpen(false); 
       setEditingItem(null); 
-      toast.success("Item actualizado"); 
+      toast.success("Insumo actualizado"); 
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const deleteItem = useMutation({
     mutationFn: async (id: string) => {
@@ -256,93 +330,238 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
           </div>
 
           {!isReadOnly && (
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) resetAddForm(); }}>
               <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="size-4 mr-1" /> {t("inventory.add_item")}
+                <Button size="sm" className="gap-1.5 shadow-xs bg-primary hover:bg-primary/90">
+                  <Plus className="size-4" /> {t("inventory.add_item")}
                 </Button>
               </DialogTrigger>
-              <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{t("inventory.add_item")}</DialogTitle>
-              </DialogHeader>
-              <form
-                ref={formRef}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.currentTarget);
-                  createItem.mutate({
-                    name: fd.get("name") as string,
-                    category,
-                    unit,
-                    stock_qty: Number(fd.get("stock_qty")),
-                    min_stock: Number(fd.get("min_stock")),
-                    unit_cost: Number(fd.get("unit_cost")),
-                  });
-                }}
-                className="space-y-4"
-              >
-                <div className="space-y-2">
-                  <Label>{t("inventory.item_name")}</Label>
-                  <Input name="name" required />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Categoría</Label>
-                    <Select value={category} onValueChange={setCategory}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Fertilizante">Fertilizante</SelectItem>
-                        <SelectItem value="Pesticida">Pesticida</SelectItem>
-                        <SelectItem value="Semilla">Semilla</SelectItem>
-                        <SelectItem value="Herramienta">Herramienta</SelectItem>
-                        <SelectItem value="Combustible">Combustible</SelectItem>
-                        <SelectItem value="Otro">Otro</SelectItem>
-                      </SelectContent>
-                    </Select>
+              <DialogContent className="sm:max-w-[560px] p-6 max-h-[92vh] overflow-y-auto">
+                <DialogHeader className="pb-3 border-b border-border/60">
+                  <div className="flex items-center gap-3">
+                    <div className="size-10 rounded-xl bg-primary/10 text-primary grid place-items-center shrink-0">
+                      <Package className="size-5" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-lg font-bold text-foreground">
+                        Agregar Insumo al Inventario
+                      </DialogTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Registra productos, semillas o herramientas con control de existencias y costos.
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>{t("inventory.unit")}</Label>
-                    <Select value={unit} onValueChange={setUnit}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="KG">KG</SelectItem>
-                        <SelectItem value="L">L</SelectItem>
-                        <SelectItem value="UN">UN</SelectItem>
-                        <SelectItem value="SACO">SACO</SelectItem>
-                      </SelectContent>
-                    </Select>
+                </DialogHeader>
+
+                {/* Atajos Rápidos */}
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="size-3 text-amber-500" /> Insumos Frecuentes (Autocompletar en 1 clic)
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {INVENTORY_PRESETS.map((p, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => applyPreset(p)}
+                        className="text-xs py-1 px-2.5 rounded-lg border border-border/80 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all flex items-center gap-1.5"
+                      >
+                        <span>{p.icon}</span>
+                        <span>{p.name}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>{t("inventory.stock")}</Label>
-                    <Input name="stock_qty" type="number" inputMode="decimal" defaultValue="0" step="any" />
+                <form
+                  ref={formRef}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!itemName.trim()) {
+                      toast.error("El nombre del insumo es obligatorio");
+                      return;
+                    }
+                    createItem.mutate({
+                      name: itemName.trim(),
+                      category,
+                      unit,
+                      stock_qty: Number(stockQty) || 0,
+                      min_stock: Number(minStock) || 0,
+                      unit_cost: Number(unitCost) || 0,
+                    });
+                  }}
+                  className="space-y-4 pt-2"
+                >
+                  {/* Nombre */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold flex items-center justify-between">
+                      <span>Nombre del Insumo *</span>
+                      <span className="text-[10px] text-muted-foreground">Ej: Fertilizante 15-15-15, Semillas de Papa</span>
+                    </Label>
+                    <Input
+                      value={itemName}
+                      onChange={(e) => setItemName(e.target.value)}
+                      placeholder="Nombre comercial o genérico del insumo..."
+                      required
+                      className="text-sm"
+                    />
                   </div>
-                  <div className="space-y-2">
-                    <Label>{t("inventory.min_stock")}</Label>
-                    <Input name="min_stock" type="number" inputMode="decimal" defaultValue="0" step="any" />
+
+                  {/* Categoría y Unidad */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Categoría</Label>
+                      <Select value={category} onValueChange={setCategory}>
+                        <SelectTrigger className="text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Fertilizante">🌿 Fertilizante</SelectItem>
+                          <SelectItem value="Plaguicida">🛡️ Plaguicida / Fitosanitario</SelectItem>
+                          <SelectItem value="Semilla">🌱 Semilla o Plántula</SelectItem>
+                          <SelectItem value="Herramienta">🔧 Herramienta / Equipo</SelectItem>
+                          <SelectItem value="Combustible">⛽ Combustible</SelectItem>
+                          <SelectItem value="Otro">📦 Otro Insumo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Unidad de Medida</Label>
+                      <Select value={unit} onValueChange={setUnit}>
+                        <SelectTrigger className="text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="KG">Kilogramos (KG)</SelectItem>
+                          <SelectItem value="L">Litros (L)</SelectItem>
+                          <SelectItem value="UN">Unidades (UN)</SelectItem>
+                          <SelectItem value="SACO">Bultos / Sacos (SACO)</SelectItem>
+                          <SelectItem value="GL">Galones (GL)</SelectItem>
+                          <SelectItem value="TON">Toneladas (TON)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label>Costo Unitario (COP)</Label>
-                  <Input name="unit_cost" type="number" inputMode="decimal" defaultValue="0" step="any" />
-                </div>
+                  {/* Stock y Stock Mínimo */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Stock Inicial Disponible</Label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          value={stockQty}
+                          onChange={(e) => setStockQty(e.target.value)}
+                          step="any"
+                          min="0"
+                          className="pr-12 text-sm"
+                        />
+                        <span className="absolute right-3 top-2.5 text-xs text-muted-foreground pointer-events-none font-medium">
+                          {unit}
+                        </span>
+                      </div>
+                    </div>
 
-                <DialogFooter>
-                  <Button type="submit">{t("common.create")}</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold flex items-center justify-between">
+                        <span>Stock Mínimo (Alerta)</span>
+                        <span className="text-[10px] text-muted-foreground">Aviso de reposición</span>
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          value={minStock}
+                          onChange={(e) => setMinStock(e.target.value)}
+                          step="any"
+                          min="0"
+                          className="pr-12 text-sm"
+                        />
+                        <span className="absolute right-3 top-2.5 text-xs text-muted-foreground pointer-events-none font-medium">
+                          {unit}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Costo Unitario */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold flex items-center justify-between">
+                      <span>Costo Unitario de Adquisición (COP)</span>
+                      <span className="text-[10px] text-muted-foreground">Valor por cada {unit}</span>
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs text-muted-foreground pointer-events-none font-semibold">
+                        $
+                      </span>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={unitCost}
+                        onChange={(e) => setUnitCost(e.target.value)}
+                        step="any"
+                        min="0"
+                        className="pl-7 text-sm"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tarjeta de Resumen en Vivo */}
+                  <div className="p-3.5 rounded-xl border border-border/80 bg-muted/30 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Valor Total Inicial de este Insumo:</span>
+                      <span className="font-bold text-emerald-600 text-sm">
+                        {formatCOP((Number(stockQty) || 0) * (Number(unitCost) || 0))}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/50">
+                      <span className="text-muted-foreground">Estado inicial de inventario:</span>
+                      {(Number(stockQty) || 0) <= (Number(minStock) || 0) ? (
+                        <span className="text-amber-600 font-semibold flex items-center gap-1">
+                          <AlertTriangle className="size-3" /> Iniciará con alerta de stock bajo
+                        </span>
+                      ) : (
+                        <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="size-3" /> Nivel de existencias óptimo
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <DialogFooter className="pt-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => { setOpen(false); resetAddForm(); }}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={createItem.isPending}
+                      className="gap-1.5"
+                    >
+                      {createItem.isPending ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" /> Guardando...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="size-4" /> Guardar en Inventario
+                        </>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
+
         </div>
       </div>
 

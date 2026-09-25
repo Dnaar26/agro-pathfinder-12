@@ -45,6 +45,11 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
+import { InventoryReport } from "@/components/reports/inventory-report";
+import { CropPerformanceReport } from "@/components/reports/crop-performance-report";
+import { PestReport } from "@/components/reports/pest-report";
+import { HarvestProjectionReport } from "@/components/reports/harvest-projection-report";
+
 
 const formatCOP = (n: number) =>
   "$ " +
@@ -131,12 +136,13 @@ export function FarmerReport() {
   const financials = useQuery({
     queryKey: ["farmer-report-financials"],
     queryFn: async () => {
+      const sb = supabase as any;
       const [costsRes, harvestsRes] = await Promise.all([
-        supabase
+        sb
           .from("crop_costs")
           .select("id, total, kind, description, created_at, crops(crop_catalog(name))")
           .order("created_at", { ascending: false }),
-        supabase
+        sb
           .from("crop_harvests")
           .select("id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops(crop_catalog(name))")
           .order("performed_at", { ascending: false }),
@@ -162,6 +168,24 @@ export function FarmerReport() {
     },
   });
 
+  // Inventario (para incluir resumen en PDF principal)
+  const inventory = useQuery({
+    queryKey: ["my-inventory-report"],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return { items: [], lowStock: [] };
+      const { data } = await (supabase as any)
+        .from("inventory_items")
+        .select("id, name, category, unit, stock_qty, min_stock, unit_cost")
+        .eq("owner_id", u.user.id)
+        .order("name");
+      const items = (data ?? []) as any[];
+      const lowStock = items.filter((i) => Number(i.stock_qty) <= Number(i.min_stock));
+      return { items, lowStock };
+    },
+  });
+
+
   // Cálculos estadísticos
   const totalAreaHa = useMemo(() => {
     const m2 = (parcels.data ?? []).reduce((acc, p: any) => acc + Number(p.area_m2 || 0), 0);
@@ -178,12 +202,12 @@ export function FarmerReport() {
   }, [parcels.data]);
 
   const totalCost = useMemo(
-    () => (financials.data?.costs ?? []).reduce((s, c: any) => s + Number(c.total || 0), 0),
+    () => (financials.data?.costs ?? []).reduce((s: number, c: any) => s + Number(c.total || 0), 0),
     [financials.data]
   );
 
   const totalRevenue = useMemo(
-    () => (financials.data?.harvests ?? []).reduce((s, h: any) => s + Number(h.total_revenue || 0), 0),
+    () => (financials.data?.harvests ?? []).reduce((s: number, h: any) => s + Number(h.total_revenue || 0), 0),
     [financials.data]
   );
 
@@ -293,12 +317,27 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
         h.performed_at ? format(new Date(h.performed_at), "dd/MM/yyyy") : "—",
       ]);
 
+      const inventoryItems = (inventory.data?.items ?? []) as any[];
+      const lowStockItems = (inventory.data?.lowStock ?? []) as any[];
+      const inventoryValue = inventoryItems.reduce(
+        (s, i) => s + Number(i.stock_qty || 0) * Number(i.unit_cost || 0), 0
+      );
+
+      const inventoryRows = inventoryItems.slice(0, 20).map((i) => [
+        i.name,
+        i.category || "—",
+        `${Number(i.stock_qty).toFixed(2)} ${i.unit || ""}`,
+        formatCOP(Number(i.unit_cost || 0)),
+        formatCOP(Number(i.stock_qty || 0) * Number(i.unit_cost || 0)),
+        Number(i.stock_qty) <= Number(i.min_stock) ? "⚠ Stock bajo" : "OK",
+      ]);
+
       const doc = await generatePdfReport({
         template: "resumen",
-        title: `Reporte Agrícola — ${farmerName}`,
+        title: `Reporte Agrícola Integral — ${farmerName}`,
         subtitle: `Generado el ${dateStr} • SIGIC Agro-Pathfinder`,
         author: farmerName,
-        orientation: "portrait",
+        orientation: "landscape",
         sections: [
           {
             title: "Indicadores Generales de la Finca",
@@ -313,6 +352,9 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
               ["Ingresos por Cosecha", formatCOP(totalRevenue)],
               ["Costos Operativos", formatCOP(totalCost)],
               ["Margen Bruto", formatCOP(netMargin)],
+              ["Ítems en Inventario", String(inventoryItems.length)],
+              ["Valor del Inventario", formatCOP(inventoryValue)],
+              ["Ítems con Stock Bajo", String(lowStockItems.length)],
             ],
           },
           {
@@ -324,14 +366,23 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
             title: "Bitácora de Labores Agrícolas Recientes",
             head: ["Fecha", "Labor", "Cultivo", "Parcela", "Observaciones"],
             body: actRows,
+            columnStyles: { 4: { cellWidth: 80 } },
           },
           {
             title: "Registro de Cosechas y Ventas",
             head: ["Cultivo", "Cantidad", "Precio Unitario", "Ingreso Total", "Fecha Cosecha"],
             body: harvestRows,
           },
+          ...(inventoryRows.length > 0
+            ? [{
+                title: "Resumen de Inventario de Insumos",
+                head: ["Ítem", "Categoría", "Stock", "Costo Unit.", "Valor Total", "Estado"],
+                body: inventoryRows,
+              }]
+            : []),
         ],
       });
+
 
       doc.save(`SIGIC-Reporte-${farmerName.replace(/\s+/g, "_")}-${format(new Date(), "yyyyMMdd")}.pdf`);
       toast.success("Reporte PDF descargado con éxito");
@@ -386,7 +437,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
         rows
           .map((r) =>
             r
-              .map((val) => {
+              .map((val: unknown) => {
                 const s = String(val ?? "").replace(/"/g, '""');
                 return /[",\n]/.test(s) ? `"${s}"` : s;
               })
@@ -611,7 +662,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
 
       {/* Pestañas detalladas */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted/60 p-1 w-full sm:w-auto grid grid-cols-2 sm:inline-flex h-auto gap-1">
+        <TabsList className="bg-muted/60 p-1 w-full sm:w-auto grid grid-cols-3 sm:inline-flex h-auto gap-1">
           <TabsTrigger value="resumen" className="text-xs gap-1.5 py-1.5">
             <DollarSign className="size-3.5" />
             Finanzas y Gráficos
@@ -627,6 +678,22 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
           <TabsTrigger value="cosechas" className="text-xs gap-1.5 py-1.5">
             <Wheat className="size-3.5" />
             Cosechas ({financials.data?.harvests?.length ?? 0})
+          </TabsTrigger>
+          <TabsTrigger value="cultivos" className="text-xs gap-1.5 py-1.5">
+            <Sprout className="size-3.5" />
+            Rendimiento
+          </TabsTrigger>
+          <TabsTrigger value="inventario" className="text-xs gap-1.5 py-1.5">
+            <Package className="size-3.5" />
+            Inventario
+          </TabsTrigger>
+          <TabsTrigger value="sanidad" className="text-xs gap-1.5 py-1.5">
+            <Bug className="size-3.5" />
+            Sanidad y Plagas
+          </TabsTrigger>
+          <TabsTrigger value="proyeccion" className="text-xs gap-1.5 py-1.5">
+            <Calendar className="size-3.5" />
+            Proyección y Labores
           </TabsTrigger>
         </TabsList>
 
@@ -853,7 +920,28 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
             )}
           </Card>
         </TabsContent>
+
+        {/* Tab 5: Rendimiento de Cultivos */}
+        <TabsContent value="cultivos" className="space-y-4">
+          <CropPerformanceReport />
+        </TabsContent>
+
+        {/* Tab 6: Inventario de Insumos */}
+        <TabsContent value="inventario" className="space-y-4">
+          <InventoryReport />
+        </TabsContent>
+
+        {/* Tab 7: Sanidad Fitosanitaria y Plagas */}
+        <TabsContent value="sanidad" className="space-y-4">
+          <PestReport />
+        </TabsContent>
+
+        {/* Tab 8: Proyección de Cosechas y Labores */}
+        <TabsContent value="proyeccion" className="space-y-4">
+          <HarvestProjectionReport />
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
+

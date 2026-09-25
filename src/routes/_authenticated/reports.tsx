@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Download, FileBarChart, FileText, Filter, FileSpreadsheet, TrendingUp, TrendingDown, AlertTriangle, DollarSign, BarChart3, CalendarClock, Plus, Trash2, Clock, Mail, CheckCircle2, XCircle } from "lucide-react";
+import { Download, FileBarChart, FileText, Filter, FileSpreadsheet, TrendingUp, TrendingDown, AlertTriangle, DollarSign, BarChart3, CalendarClock, Plus, Trash2, Clock, Mail, CheckCircle2, XCircle, Layers } from "lucide-react";
 import { format } from "date-fns";
 import { generatePdfReport, type PdfReportTemplate } from "@/lib/pdf-report";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,9 @@ import { AiReportInsights } from "@/components/reports/ai-insights";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { FarmerReport } from "@/components/reports/farmer-report";
+import { StaffReportsPanel } from "@/components/reports/staff-reports-panel";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({ meta: [{ title: "Reportes — SIGIC" }] }),
@@ -110,6 +113,8 @@ function ReportsPage() {
   const [to, setTo] = useState<string>("");
   const [chartYear, setChartYear] = useState<string>(new Date().getFullYear().toString());
   const dateError = from && to && new Date(from) > new Date(to) ? "La fecha 'Desde' no puede ser mayor que 'Hasta'" : null;
+  const [staffView, setStaffView] = useState<string>("specialized");
+  const userRole = (myRoles.data ?? []).includes("admin") ? "admin" : "tecnico";
 
   const [schedDialog, setSchedDialog] = useState(false);
   const [schedTemplate, setSchedTemplate] = useState<PdfReportTemplate>("actividades");
@@ -370,10 +375,36 @@ function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-3xl font-bold">Reportes</h1>
-        <p className="text-sm text-muted-foreground">Plantillas configurables con logo, encabezado y pie de página.</p>
-      </header>
+      <Tabs value={staffView} onValueChange={setStaffView} className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Centro de Reportes</h1>
+            <p className="text-xs text-muted-foreground">
+              Panel analítico e institucional para rol {userRole === "admin" ? "Administrador" : "Técnico"}.
+            </p>
+          </div>
+          <TabsList className="bg-muted/60 p-1">
+            <TabsTrigger value="specialized" className="text-xs gap-1.5 py-1.5">
+              <Layers className="size-3.5" />
+              Reportes Especializados por Rol
+            </TabsTrigger>
+            <TabsTrigger value="builder" className="text-xs gap-1.5 py-1.5">
+              <Filter className="size-3.5" />
+              Generador con Filtros & Plantillas
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="specialized" className="space-y-6">
+          <StaffReportsPanel userRole={userRole} />
+        </TabsContent>
+
+        <TabsContent value="builder" className="space-y-6">
+          <header>
+            <h2 className="text-xl font-bold">Generador de Reportes</h2>
+            <p className="text-sm text-muted-foreground">Plantillas configurables con logo, encabezado y pie de página.</p>
+          </header>
+
 
       <section className="p-5 rounded-xl border border-border bg-card space-y-4">
         <h2 className="text-sm font-semibold flex items-center gap-2"><Filter className="size-4 text-primary" /> Configuración del reporte</h2>
@@ -689,6 +720,9 @@ function ReportsPage() {
           </div>
         )}
       </section>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
+

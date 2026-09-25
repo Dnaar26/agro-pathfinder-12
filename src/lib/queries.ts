@@ -454,3 +454,201 @@ export async function getCropPhotoUrls(cropId: string) {
   if (error) throw error;
   return data ?? [];
 }
+
+// ── Farmer Inventory Report ────────────────────────────────────────────────
+
+export async function getMyInventoryReport() {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return { items: [], movements: [], lowStock: [] };
+
+  const sb = supabase as any;
+  const [itemsRes, movementsRes] = await Promise.all([
+    sb
+      .from("inventory_items")
+      .select("id, name, category, unit, stock_qty, min_stock, unit_cost, owner_id")
+      .eq("owner_id", u.user.id)
+      .order("name"),
+    sb
+      .from("inventory_movements")
+      .select("id, item_id, kind, qty, notes, created_at, inventory_items(name, unit)")
+      .eq("inventory_items.owner_id", u.user.id)
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
+
+  const items = (itemsRes.data ?? []) as any[];
+  const movements = (movementsRes.data ?? []) as any[];
+  const lowStock = items.filter((i) => Number(i.stock_qty) <= Number(i.min_stock));
+
+  return { items, movements, lowStock };
+}
+
+// ── Farmer Crop Performance Report ────────────────────────────────────────
+
+export async function getMyCropPerformanceReport() {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return [];
+
+  const { data: parcels } = await supabase
+    .from("parcels")
+    .select("id")
+    .eq("owner_id", u.user.id);
+
+  const parcelIds = (parcels ?? []).map((p) => p.id);
+  if (parcelIds.length === 0) return [];
+
+  const { data: crops, error } = await (supabase as any)
+    .from("crops")
+    .select(
+      "id, status, planting_date, estimated_harvest_date, notes, " +
+      "crop_catalog(name, cycle_days), parcels(name), " +
+      "activities(id, kind, performed_at), " +
+      "crop_costs(id, total, kind), " +
+      "crop_harvests(id, harvested_qty, unit, sale_price, total_revenue, performed_at)"
+    )
+    .in("parcel_id", parcelIds)
+    .order("planting_date", { ascending: false });
+
+  if (error) throw error;
+  return (crops ?? []) as any[];
+}
+
+// ── Farmer Pest Incidents Summary ─────────────────────────────────────────
+
+export async function getMyPestIncidentsSummary() {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return [];
+
+  const { data: parcels } = await supabase
+    .from("parcels")
+    .select("id")
+    .eq("owner_id", u.user.id);
+
+  const parcelIds = (parcels ?? []).map((p) => p.id);
+  if (parcelIds.length === 0) return [];
+
+  const { data: cropIds } = await supabase
+    .from("crops")
+    .select("id")
+    .in("parcel_id", parcelIds);
+
+  const ids = (cropIds ?? []).map((c) => c.id);
+  if (ids.length === 0) return [];
+
+  const { data, error } = await (supabase as any)
+    .from("pest_incidents")
+    .select("*, crops(crop_catalog(name), parcels(name))")
+    .in("crop_id", ids)
+    .order("date", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as any[];
+}
+
+// ── Farmer Projections and Upcoming Tasks ────────────────────────────────
+
+export async function getMyUpcomingHarvestsAndTasks() {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return { crops: [], alerts: [], upcomingActivities: [] };
+
+  const { data: parcels } = await supabase
+    .from("parcels")
+    .select("id")
+    .eq("owner_id", u.user.id);
+
+  const parcelIds = (parcels ?? []).map((p) => p.id);
+  if (parcelIds.length === 0) return { crops: [], alerts: [], upcomingActivities: [] };
+
+  const [cropsRes, alertsRes, actsRes] = await Promise.all([
+    (supabase as any)
+      .from("crops")
+      .select("id, status, planting_date, estimated_harvest_date, crop_catalog(name, cycle_days), parcels(name)")
+      .in("parcel_id", parcelIds)
+      .in("status", ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO", "COSECHA"])
+      .order("estimated_harvest_date", { ascending: true }),
+    supabase
+      .from("alerts")
+      .select("id, title, body, kind, status, scheduled_at")
+      .eq("user_id", u.user.id)
+      .eq("status", "PENDIENTE")
+      .order("scheduled_at", { ascending: true })
+      .limit(30),
+    (supabase as any)
+      .from("activities")
+      .select("id, kind, performed_at, notes, crops!inner(parcel_id, crop_catalog(name), parcels(name))")
+      .in("crops.parcel_id", parcelIds)
+      .order("performed_at", { ascending: false })
+      .limit(30),
+  ]);
+
+  return {
+    crops: (cropsRes.data ?? []) as any[],
+    alerts: (alertsRes.data ?? []) as any[],
+    upcomingActivities: (actsRes.data ?? []) as any[],
+  };
+}
+
+// ── Global Pest Monitoring (Técnico / Admin) ─────────────────────────────
+
+export async function listAllPestIncidentsGlobal() {
+  const { data, error } = await (supabase as any)
+    .from("pest_incidents")
+    .select("id, pest_name, severity, treatment, date, notes, crops(id, status, crop_catalog(name), parcels(id, name, owner_id, profiles!owner_id(full_name, phone)))")
+    .order("date", { ascending: false })
+    .limit(500);
+
+  if (error) throw error;
+  return (data ?? []) as any[];
+}
+
+// ── Global Productivity Ranking (Admin / Técnico) ─────────────────────────
+
+export async function getGlobalProductivityRanking() {
+  const [harvestsRes, costsRes, parcelsRes] = await Promise.all([
+    (supabase as any)
+      .from("crop_harvests")
+      .select("id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops!inner(id, parcel_id, crop_catalog(name), parcels(id, name, area_m2, owner_id, profiles!owner_id(full_name)))")
+      .order("performed_at", { ascending: false }),
+    (supabase as any)
+      .from("crop_costs")
+      .select("id, total, kind, crops!inner(id, parcel_id, crop_catalog(name), parcels(id, name, owner_id, profiles!owner_id(full_name)))"),
+    supabase
+      .from("parcels")
+      .select("id, name, area_m2, owner_id, profiles!owner_id(full_name)")
+      .order("name"),
+  ]);
+
+  return {
+    harvests: (harvestsRes.data ?? []) as any[],
+    costs: (costsRes.data ?? []) as any[],
+    parcels: (parcelsRes.data ?? []) as any[],
+  };
+}
+
+// ── Global Consolidated Inventory (Admin / Técnico) ───────────────────────
+
+export async function getGlobalInventoryConsolidated() {
+  const { data, error } = await (supabase as any)
+    .from("inventory_items")
+    .select("id, name, category, unit, stock_qty, min_stock, unit_cost, owner_id, profiles!owner_id(full_name, phone)")
+    .order("category");
+
+  if (error) throw error;
+  return (data ?? []) as any[];
+}
+
+// ── Technical Visits & Assistance (Técnico / Admin) ───────────────────────
+
+export async function listTechnicalAssistance() {
+  const { data, error } = await (supabase as any)
+    .from("activities")
+    .select("id, kind, performed_at, notes, photo_urls, responsible_id, profiles!responsible_id(full_name), crops(crop_catalog(name), parcels(name, profiles!owner_id(full_name, phone)))")
+    .in("kind", ["MONITOREO", "CONTROL_PLAGAS", "FERTILIZACION", "RIEGO"])
+    .order("performed_at", { ascending: false })
+    .limit(500);
+
+  if (error) throw error;
+  return (data ?? []) as any[];
+}
+
+

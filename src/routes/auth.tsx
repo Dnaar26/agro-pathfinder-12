@@ -156,14 +156,20 @@ export function AuthPage() {
         return;
       }
 
-      if (data.user) {
-        // Actualizar tabla de perfiles
-        await supabase.from("profiles").upsert({
-          id: data.user.id,
-          full_name: fullName,
-          phone: phone.data,
-          updated_at: new Date().toISOString(),
-        }).catch(() => undefined);
+      if (data.user && data.session) {
+        try {
+          const { error: profileError } = await (supabase as any).from("profiles").upsert({
+            id: data.user.id,
+            full_name: fullName,
+            phone: phone.data,
+            updated_at: new Date().toISOString(),
+          });
+          if (profileError) {
+            console.warn("Aviso al sincronizar perfil tras registro:", profileError.message);
+          }
+        } catch (profileErr) {
+          console.warn("Error secundario al actualizar perfil:", profileErr);
+        }
       }
 
       if (!data?.session) {
@@ -171,6 +177,7 @@ export function AuthPage() {
         setTab("login");
         return;
       }
+
 
       toast.success("¡Cuenta creada exitosamente!");
       navigate({ to: "/dashboard", replace: true });

@@ -58,9 +58,18 @@ export function InventoryReport() {
     },
   });
 
-  const { items, movements, lowStock } = useMemo(() => {
-    return inventoryQuery.data ?? { items: [], movements: [], lowStock: [] };
-  }, [inventoryQuery.data]);
+  const items = useMemo(
+    () => (Array.isArray(inventoryQuery.data?.items) ? (inventoryQuery.data.items as any[]) : []),
+    [inventoryQuery.data]
+  );
+  const movements = useMemo(
+    () => (Array.isArray(inventoryQuery.data?.movements) ? (inventoryQuery.data.movements as any[]) : []),
+    [inventoryQuery.data]
+  );
+  const lowStock = useMemo(
+    () => (Array.isArray(inventoryQuery.data?.lowStock) ? (inventoryQuery.data.lowStock as any[]) : []),
+    [inventoryQuery.data]
+  );
 
   const totalValue = useMemo(
     () => (items as any[]).reduce((s, i) => s + Number(i.stock_qty || 0) * Number(i.unit_cost || 0), 0),

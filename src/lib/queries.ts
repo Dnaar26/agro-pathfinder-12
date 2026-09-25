@@ -484,29 +484,52 @@ export async function getMyInventoryReport() {
   if (!u.user) return { items: [], movements: [], lowStock: [] };
 
   const sb = supabase as any;
-  const [itemsRes, movementsRes] = await Promise.all([
-    sb
+  try {
+    const { data: rawItems, error: itemsErr } = await sb
       .from("inventory_items")
       .select("*")
       .eq("owner_id", u.user.id)
-      .order("name"),
-    sb
-      .from("inventory_movements")
-      .select("id, item_id, kind, qty, notes, created_at, inventory_items(name, unit)")
-      .eq("inventory_items.owner_id", u.user.id)
-      .order("created_at", { ascending: false })
-      .limit(200),
-  ]);
+      .order("name");
 
-  const rawItems = (itemsRes.data ?? []) as any[];
-  const items = rawItems.map((i) => ({
-    ...i,
-    category: i.category || inferCategory(i.name),
-  }));
-  const movements = (movementsRes.data ?? []) as any[];
-  const lowStock = items.filter((i) => Number(i.stock_qty) <= Number(i.min_stock));
+    if (itemsErr) {
+      console.warn("Error fetching inventory items for report:", itemsErr);
+    }
 
-  return { items, movements, lowStock };
+    const items = ((rawItems ?? []) as any[]).map((i) => ({
+      ...i,
+      category: i.category || inferCategory(i.name),
+    }));
+
+    const itemIds = items.map((i: any) => i.id);
+    let movements: any[] = [];
+    if (itemIds.length > 0) {
+      try {
+        const { data: mData, error: mErr } = await sb
+          .from("inventory_movements")
+          .select("id, item_id, kind, qty, notes, created_at")
+          .in("item_id", itemIds)
+          .order("created_at", { ascending: false })
+          .limit(200);
+
+        if (!mErr && Array.isArray(mData)) {
+          const itemMap = new Map(items.map((i: any) => [i.id, i]));
+          movements = mData.map((m: any) => ({
+            ...m,
+            inventory_items: itemMap.get(m.item_id) || null,
+          }));
+        }
+      } catch (err) {
+        console.warn("Error fetching inventory movements:", err);
+        movements = [];
+      }
+    }
+
+    const lowStock = items.filter((i) => Number(i.stock_qty) <= Number(i.min_stock));
+    return { items, movements, lowStock };
+  } catch (err) {
+    console.error("Critical error in getMyInventoryReport:", err);
+    return { items: [], movements: [], lowStock: [] };
+  }
 }
 
 

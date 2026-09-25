@@ -376,7 +376,6 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                 </div>
 
                 <form
-                  ref={formRef}
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (!itemName.trim()) {

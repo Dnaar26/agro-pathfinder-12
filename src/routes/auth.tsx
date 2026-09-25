@@ -137,8 +137,22 @@ export function AuthPage() {
 
     setLoading(true);
     try {
+      // 1. Pre-verificación RPC para comprobar si el correo ya existe
+      try {
+        const { data: exists } = await (supabase as any).rpc("check_email_exists", {
+          p_email: email.data.trim().toLowerCase(),
+        });
+        if (exists === true) {
+          toast.error("Este correo electrónico ya se encuentra registrado. Por favor inicia sesión.");
+          setTab("login");
+          return;
+        }
+      } catch {
+        // En caso de que la función SQL no esté creada aún en la base de datos, continúa con la verificación de Supabase Auth
+      }
+
       const { data, error } = await supabase.auth.signUp({
-        email: email.data,
+        email: email.data.trim().toLowerCase(),
         password: password.data,
         options: {
           emailRedirectTo: `${window.location.origin}/dashboard`,
@@ -152,7 +166,25 @@ export function AuthPage() {
       });
 
       if (error) {
+        const msg = error.message.toLowerCase();
+        if (
+          msg.includes("already registered") ||
+          msg.includes("already exists") ||
+          msg.includes("ya está registrado") ||
+          msg.includes("unique constraint")
+        ) {
+          toast.error("Este correo ya está registrado en el sistema. Por favor inicia sesión.");
+          setTab("login");
+          return;
+        }
         toast.error(error.message);
+        return;
+      }
+
+      // Supabase retorna identities = [] cuando el correo ya existe y la confirmación de email está activa
+      if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        toast.error("Este correo electrónico ya se encuentra registrado. Por favor inicia sesión con tu contraseña.");
+        setTab("login");
         return;
       }
 
@@ -177,7 +209,6 @@ export function AuthPage() {
         setTab("login");
         return;
       }
-
 
       toast.success("¡Cuenta creada exitosamente!");
       navigate({ to: "/dashboard", replace: true });

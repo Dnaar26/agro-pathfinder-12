@@ -93,6 +93,9 @@ export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
       options: { emailRedirectTo: data.redirectTo, data: { full_name: data.fullName } },
     });
     if (error) throw new Error(error.message);
+    if (auth?.user && Array.isArray(auth.user.identities) && auth.user.identities.length === 0) {
+      throw new Error("Este correo electrónico ya se encuentra registrado. Inicia sesión con tu contraseña.");
+    }
     if (auth.session) {
       setCookie(ACCESS_COOKIE, auth.session.access_token, { ...cookieOptions, maxAge: auth.session.expires_in ?? 3600 });
       setCookie(REFRESH_COOKIE, auth.session.refresh_token, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });

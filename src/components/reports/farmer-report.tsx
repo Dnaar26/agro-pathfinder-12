@@ -171,7 +171,7 @@ export function FarmerReport() {
 
   // Inventario (para incluir resumen en PDF principal)
   const inventory = useQuery({
-    queryKey: ["my-inventory-report"],
+    queryKey: ["farmer-inventory-overview"],
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return { items: [], lowStock: [] };

@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { listAllActivitiesForReport, listParcels, listCatalog, listAlerts, getMyRoles, getYearOverYearComparison, listScheduledReports, createScheduledReport, toggleScheduledReport, deleteScheduledReport } from "@/lib/queries";
@@ -22,12 +22,6 @@ import { FarmerReport } from "@/components/reports/farmer-report";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({ meta: [{ title: "Reportes — SIGIC" }] }),
-  beforeLoad: async () => {
-    const roles = await getMyRoles();
-    if (!roles.some((role) => ["agricultor", "tecnico", "admin"].includes(role))) {
-      throw redirect({ to: "/dashboard" });
-    }
-  },
   component: ReportsPage,
 });
 
@@ -76,7 +70,8 @@ function SkeletonCard() {
 function ReportsPage() {
   const { t } = useTranslation();
   const myRoles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
-  const isAgricultor = (myRoles.data ?? []).includes("agricultor") && !(myRoles.data ?? []).some((r: string) => ["tecnico", "admin"].includes(r));
+  const isStaff = (myRoles.data ?? []).some((r: string) => ["tecnico", "admin"].includes(r));
+  const isAgricultor = !isStaff;
   const acts = useQuery({ queryKey: ["report-acts"], queryFn: listAllActivitiesForReport });
   const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
   const catalog = useQuery({ queryKey: ["catalog"], queryFn: listCatalog });
@@ -324,6 +319,25 @@ function ReportsPage() {
     doc.save(`sgic-${template}-${format(new Date(), "yyyyMMdd-HHmm")}.pdf`);
   }
 
+  if (myRoles.isLoading) {
+    return (
+      <div className="space-y-6">
+        <header><h1 className="text-3xl font-bold">Reportes</h1></header>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <SkeletonCard /><SkeletonCard /><SkeletonCard />
+        </div>
+      </div>
+    );
+  }
+
+  if (isAgricultor) {
+    return (
+      <div className="space-y-6">
+        <FarmerReport />
+      </div>
+    );
+  }
+
   const loading = acts.isLoading || parcels.isLoading || catalog.isLoading;
   const error = acts.isError || parcels.isError || catalog.isError;
 
@@ -350,14 +364,6 @@ function ReportsPage() {
             Reintentar
           </Button>
         </Card>
-      </div>
-    );
-  }
-
-  if (isAgricultor) {
-    return (
-      <div className="space-y-6">
-        <FarmerReport />
       </div>
     );
   }

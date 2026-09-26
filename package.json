@@ -10,7 +10,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node -e \"const fs = require('fs'); const p = fs.existsSync('dist/server/index.mjs') ? 'dist/server/index.mjs' : '.output/server/index.mjs'; require('child_process').spawn('node', [p], { stdio: 'inherit' });\"",
+    "start": "node scripts/start-server.mjs",
     "lint": "eslint .",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "test:e2e:ui": "playwright test --ui --config e2e/playwright.config.ts"

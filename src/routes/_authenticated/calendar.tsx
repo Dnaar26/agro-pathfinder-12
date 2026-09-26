@@ -48,9 +48,9 @@ function CalendarPage() {
   const [editInvQty, setEditInvQty] = useState("");
   const qc = useQueryClient();
 
-  const monthStart = startOfMonth(cursor);
-  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const gridEnd = addDays(gridStart, 42);
+  const monthStart = useMemo(() => startOfMonth(cursor), [cursor]);
+  const gridStart = useMemo(() => startOfWeek(monthStart, { weekStartsOn: 1 }), [monthStart]);
+  const gridEnd = useMemo(() => addDays(gridStart, 42), [gridStart]);
   const days = useMemo(() => Array.from({ length: 42 }, (_, i) => addDays(gridStart, i)), [gridStart]);
 
   const events = useQuery({
@@ -135,13 +135,14 @@ function CalendarPage() {
       
       // Descontar del inventario
       if (payload.invItemId && payload.invQty && payload.invQty > 0) {
-        await supabase.rpc("apply_inventory_movement", {
+        const { error: rpcErr } = await supabase.rpc("apply_inventory_movement", {
           p_item_id: payload.invItemId,
           p_kind: "SALIDA",
           p_qty: payload.invQty,
           p_notes: `Uso en evento: ${payload.event.title}`,
           p_delta: -payload.invQty,
         });
+        if (rpcErr) throw new Error(rpcErr.message || "Error al descontar insumo del inventario");
       }
     },
     onSuccess: () => {
@@ -185,13 +186,14 @@ function CalendarPage() {
       
       // Descontar del inventario
       if (payload.editInvItemId && payload.editInvQty && payload.editInvQty > 0) {
-        await supabase.rpc("apply_inventory_movement", {
+        const { error: rpcErr } = await supabase.rpc("apply_inventory_movement", {
           p_item_id: payload.editInvItemId,
           p_kind: "SALIDA",
           p_qty: payload.editInvQty,
           p_notes: `Uso en evento: ${payload.title}`,
           p_delta: -payload.editInvQty,
         });
+        if (rpcErr) throw new Error(rpcErr.message || "Error al descontar insumo del inventario");
       }
     },
     onSuccess: () => { 

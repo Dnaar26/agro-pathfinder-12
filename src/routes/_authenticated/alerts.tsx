@@ -55,6 +55,7 @@ function AlertsPage() {
 
   const createAlert = useMutation({
     mutationFn: async () => {
+      if (!isStaff) throw new Error("Los agricultores no tienen permisos para generar notificaciones manuales.");
       if (!alertTitle.trim()) throw new Error("El título es obligatorio");
       if (!alertFarmer) throw new Error("Selecciona un destinatario");
       const { error } = await supabase.rpc("create_manual_alert", {

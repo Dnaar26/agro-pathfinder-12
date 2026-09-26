@@ -110,7 +110,7 @@ export const chatWithGroq = createServerFn({ method: "POST" })
           content: z.string().trim().min(1).max(4000),
         })
       ).min(1).max(25),
-      model: z.string().default("gemini-3.6-flash"),
+      model: z.string().default("gemini-2.5-flash"),
       max_tokens: z.number().int().min(1).max(2048).default(1024),
     })
   )
@@ -147,8 +147,8 @@ export const chatWithGroq = createServerFn({ method: "POST" })
 
     // Asegurar que el modelo activo sea gemini-3.6-flash
     let model = data.model;
-    if (!model || model === "gemini-2.0-flash" || model === "gemini-1.5-flash" || !model.startsWith("gemini")) {
-      model = "gemini-3.6-flash";
+    if (!model || !model.startsWith("gemini")) {
+      model = "gemini-2.5-flash";
     }
 
     // Llamada a Gemini con timeout y reintento exponencial (hasta 3 intentos para 503/502/429)

@@ -57,24 +57,51 @@ export function CropHealthWidget() {
   const { data, isLoading } = useQuery({
     queryKey: ["crop-health"],
     queryFn: async () => {
-      const { data: crops } = await supabase
+      const { data: crops, error: cropsErr } = await supabase
         .from("crops")
         .select("id, parcel_id, catalog_id, status, planting_date, crop_catalog(name), parcels(name)")
         .order("created_at", { ascending: false })
         .limit(10);
-      if (!crops) return [];
+      if (cropsErr || !crops || crops.length === 0) return [];
 
-      const result = [];
-      for (const crop of crops) {
-        const [acts, pests, harvests] = await Promise.all([
-          supabase.from("activities").select("id, performed_at").eq("crop_id", crop.id),
-          supabase.from("pest_incidents").select("id, severity").eq("crop_id", crop.id),
-          supabase.from("crop_harvests").select("id").eq("crop_id", crop.id),
-        ]);
-        const score = calculateHealth(crop, acts.data ?? [], pests.data ?? [], harvests.data ?? []);
-        result.push({ ...crop, score, actCount: (acts.data ?? []).length, pestCount: (pests.data ?? []).length });
+      const cropIds = crops.map((c) => c.id);
+      const [actsRes, pestsRes, harvestsRes] = await Promise.all([
+        supabase.from("activities").select("id, crop_id, performed_at").in("crop_id", cropIds),
+        supabase.from("pest_incidents").select("id, crop_id, severity").in("crop_id", cropIds),
+        supabase.from("crop_harvests").select("id, crop_id").in("crop_id", cropIds),
+      ]);
+
+      const actsByCrop = new Map<string, any[]>();
+      for (const a of actsRes.data ?? []) {
+        const list = actsByCrop.get(a.crop_id) ?? [];
+        list.push(a);
+        actsByCrop.set(a.crop_id, list);
       }
-      return result;
+      const pestsByCrop = new Map<string, any[]>();
+      for (const p of pestsRes.data ?? []) {
+        const list = pestsByCrop.get(p.crop_id) ?? [];
+        list.push(p);
+        pestsByCrop.set(p.crop_id, list);
+      }
+      const harvestsByCrop = new Map<string, any[]>();
+      for (const h of harvestsRes.data ?? []) {
+        const list = harvestsByCrop.get(h.crop_id) ?? [];
+        list.push(h);
+        harvestsByCrop.set(h.crop_id, list);
+      }
+
+      return crops.map((crop) => {
+        const acts = actsByCrop.get(crop.id) ?? [];
+        const pests = pestsByCrop.get(crop.id) ?? [];
+        const harvests = harvestsByCrop.get(crop.id) ?? [];
+        const score = calculateHealth(crop, acts, pests, harvests);
+        return {
+          ...crop,
+          score,
+          actCount: acts.length,
+          pestCount: pests.length,
+        };
+      });
     },
     refetchInterval: 60000,
   });

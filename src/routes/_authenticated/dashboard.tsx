@@ -77,14 +77,11 @@ function Dashboard() {
   const upcoming = useQuery({ queryKey: ["upcoming", farmerFilter], queryFn: () => getUpcomingActivities(7, farmerParam) });
   const invValue = useQuery({ queryKey: ["inv-value", farmerFilter], queryFn: () => getTotalInventoryValue(farmerParam) });
 
-  const farmers = useQuery({
-    queryKey: ["farmers-list"],
-    queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("id, full_name").order("full_name");
-      return data ?? [];
-    },
-    enabled: isStaff,
-  });
+  // Optimizado: se deriva de farmersWithStats para evitar peticion duplicada a profiles
+  const farmers = useMemo(() => ({
+    data: (farmersWithStats.data ?? []).map((f) => ({ id: f.id, full_name: f.full_name })),
+    isLoading: farmersWithStats.isLoading,
+  }), [farmersWithStats.data, farmersWithStats.isLoading]);
 
   const farmersWithStats = useQuery({
     queryKey: ["farmers-stats"],
@@ -437,7 +434,7 @@ function Dashboard() {
                             {a.crops?.crop_catalog?.name && <span className="text-muted-foreground font-normal ml-1">— {a.crops.crop_catalog.name}</span>}
                           </p>
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-                            <span className="font-medium text-primary/80">{format(new Date(a.performed_at), "EEEE d MMM", { locale: es })}</span>
+                            <span className="font-medium text-primary/80">{format(new Date(a.startsAt), "EEEE d MMM", { locale: es })}</span>
                             {a.crops?.parcels?.profiles?.full_name && (
                               <>
                                 <span className="text-border/60">·</span>

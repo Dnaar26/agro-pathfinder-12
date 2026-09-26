@@ -73,9 +73,9 @@ CREATE POLICY "batches via crop" ON public.batches FOR ALL TO authenticated
   WITH CHECK (EXISTS (SELECT 1 FROM public.crops c JOIN public.parcels p ON p.id = c.parcel_id WHERE c.id = crop_id AND (p.owner_id = (SELECT auth.uid()) OR public.has_role((SELECT auth.uid()), 'tecnico') OR public.has_role((SELECT auth.uid()), 'admin'))));
 
 DROP POLICY IF EXISTS "events owner" ON public.calendar_events;
-CREATE POLICY "events owner" ON public.calendar_events FOR ALL TO authenticated
-  USING (user_id = (SELECT auth.uid()) OR public.has_role((SELECT auth.uid()), 'tecnico') OR public.has_role((SELECT auth.uid()), 'admin'))
-  WITH CHECK (user_id = (SELECT auth.uid()) OR public.has_role((SELECT auth.uid()), 'tecnico') OR public.has_role((SELECT auth.uid()), 'admin'));
+CREATE POLICY "events via crop" ON public.calendar_events FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.crops c JOIN public.parcels p ON p.id = c.parcel_id WHERE c.id = calendar_events.crop_id AND (p.owner_id = (SELECT auth.uid()) OR public.has_role((SELECT auth.uid()), 'tecnico') OR public.has_role((SELECT auth.uid()), 'admin'))))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.crops c JOIN public.parcels p ON p.id = c.parcel_id WHERE c.id = calendar_events.crop_id AND (p.owner_id = (SELECT auth.uid()) OR public.has_role((SELECT auth.uid()), 'tecnico') OR public.has_role((SELECT auth.uid()), 'admin'))));
 
 DROP POLICY IF EXISTS "alerts owner" ON public.alerts;
 CREATE POLICY "alerts owner" ON public.alerts FOR ALL TO authenticated

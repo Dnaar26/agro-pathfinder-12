@@ -57,7 +57,7 @@ Formatéalo en puntos breves y directos enfocados en optimización de agua, fert
             },
             { role: "user", content: prompt },
           ],
-          model: "gemini-3.6-flash",
+          model: "gemini-2.5-flash",
           max_tokens: 350,
         },
       });

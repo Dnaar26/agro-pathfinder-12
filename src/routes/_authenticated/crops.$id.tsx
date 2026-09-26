@@ -368,7 +368,7 @@ function CropDetail() {
                Confirmar inicio
              </Button>
            )}
-          <Select defaultValue={crop.data.status} onValueChange={(v) => { if (v !== crop.data.status) setPendingStatus(v); }}>
+          <Select defaultValue={crop.data.status} onValueChange={(v) => { if (v !== crop.data.status && v !== "PLANEADO") setPendingStatus(v); }}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}

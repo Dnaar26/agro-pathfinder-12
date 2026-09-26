@@ -41,14 +41,23 @@ export function PredictiveAlerts() {
     },
   });
 
+  const parcelIdsKey = (parcels.data ?? []).map((p) => p.id).join(",");
+
   const risksQuery = useQuery({
-    queryKey: ["weather-risks", parcels.data],
+    queryKey: ["weather-risks", parcelIdsKey],
     queryFn: async () => {
+      const validParcels = (parcels.data ?? []).filter((p) => p.latitude && p.longitude);
+      const results = await Promise.allSettled(
+        validParcels.map(async (p) => {
+          const risks = await getWeatherRisk(p.id, Number(p.latitude), Number(p.longitude));
+          return { parcel: p.name, risks };
+        })
+      );
       const allRisks: { parcel: string; risks: any[] }[] = [];
-      for (const p of parcels.data ?? []) {
-        if (!p.latitude || !p.longitude) continue;
-        const risks = await getWeatherRisk(p.id, Number(p.latitude), Number(p.longitude));
-        if (risks.length > 0) allRisks.push({ parcel: p.name, risks });
+      for (const res of results) {
+        if (res.status === "fulfilled" && res.value.risks.length > 0) {
+          allRisks.push(res.value);
+        }
       }
       return allRisks;
     },

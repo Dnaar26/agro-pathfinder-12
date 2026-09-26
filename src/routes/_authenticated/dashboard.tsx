@@ -77,12 +77,6 @@ function Dashboard() {
   const upcoming = useQuery({ queryKey: ["upcoming", farmerFilter], queryFn: () => getUpcomingActivities(7, farmerParam) });
   const invValue = useQuery({ queryKey: ["inv-value", farmerFilter], queryFn: () => getTotalInventoryValue(farmerParam) });
 
-  // Optimizado: se deriva de farmersWithStats para evitar peticion duplicada a profiles
-  const farmers = useMemo(() => ({
-    data: (farmersWithStats.data ?? []).map((f) => ({ id: f.id, full_name: f.full_name })),
-    isLoading: farmersWithStats.isLoading,
-  }), [farmersWithStats.data, farmersWithStats.isLoading]);
-
   const farmersWithStats = useQuery({
     queryKey: ["farmers-stats"],
     queryFn: async () => {
@@ -115,11 +109,17 @@ function Dashboard() {
         const totalCrops = pIds.reduce((s, id) => s + (cropCountByParcel.get(id) ?? 0), 0);
         const totalActive = pIds.reduce((s, id) => s + (activeByParcel.get(id) ?? 0), 0);
         const totalActivities = pIds.reduce((s, id) => s + (activityByCrop.get(id) ?? 0), 0);
-        return { id: p.id, name: p.full_name, parcels: info?.count ?? 0, area: info?.area ?? 0, crops: totalCrops, active: totalActive, activities: totalActivities };
+        return { id: p.id, name: p.full_name, full_name: p.full_name, parcels: info?.count ?? 0, area: info?.area ?? 0, crops: totalCrops, active: totalActive, activities: totalActivities };
       });
     },
     enabled: isStaff,
   });
+
+  // Optimizado: se deriva de farmersWithStats (declarado previamente)
+  const farmers = useMemo(() => ({
+    data: (farmersWithStats.data ?? []).map((f) => ({ id: f.id, full_name: f.full_name ?? f.name })),
+    isLoading: farmersWithStats.isLoading,
+  }), [farmersWithStats.data, farmersWithStats.isLoading]);
 
   const selectedFarmer = useMemo(() => {
     if (!isStaff || farmerFilter === "__all__") return null;

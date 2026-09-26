@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,25 +20,34 @@ export const Route = createFileRoute("/auth")({
   validateSearch: (s: Record<string, unknown>) => ({
     mode: (s.mode as "login" | "signup") || "login",
   }),
-  component: AuthPage,
+  component: () => <AuthPage />,
 });
 
 const loginPasswordSchema = z.string().min(1, "Ingresa tu contraseña").max(72);
 
 export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {}) {
-  const search = useSearch({ from: "/auth", strict: false }) as any;
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"login" | "signup">(initialTab || search?.mode || "login");
+  const [tab, setTab] = useState<"login" | "signup">(() => {
+    if (initialTab) return initialTab;
+    if (typeof window !== "undefined") {
+      const mode = new URLSearchParams(window.location.search).get("mode");
+      if (mode === "login" || mode === "signup") return mode;
+    }
+    return "login";
+  });
   const [loading, setLoading] = useState(false);
 
-  // Sync tab if initialTab or URL search parameter changes
+  // Sync tab if initialTab changes
   useEffect(() => {
     if (initialTab) {
       setTab(initialTab);
-    } else if (search?.mode && (search.mode === "login" || search.mode === "signup")) {
-      setTab(search.mode);
+    } else if (typeof window !== "undefined") {
+      const mode = new URLSearchParams(window.location.search).get("mode");
+      if (mode === "login" || mode === "signup") {
+        setTab(mode);
+      }
     }
-  }, [initialTab, search?.mode]);
+  }, [initialTab]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -216,8 +225,10 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const email = emailSchema.safeParse(fd.get("email"));
-    const password = loginPasswordSchema.safeParse(fd.get("password"));
+    const rawEmail = ((fd.get("email") as string) || "").trim().toLowerCase();
+    const rawPassword = (fd.get("password") as string) || "";
+    const email = emailSchema.safeParse(rawEmail);
+    const password = loginPasswordSchema.safeParse(rawPassword);
 
     if (!email.success) return toast.error(email.error.issues[0].message);
     if (!password.success) return toast.error(password.error.issues[0].message);
@@ -292,10 +303,13 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
       try {
         await validateDomainMx({ data: { email: cleanEmail } });
       } catch (mxErr: any) {
-        const msg = mxErr?.message ?? "El dominio del correo no es válido. Usa una dirección real.";
-        setSignupErrors((prev) => ({ ...prev, email: msg }));
-        toast.error(msg);
-        return;
+        const msg = mxErr?.message || "";
+        if (msg.includes("dominio") || msg.includes("correo") || msg.includes("existe") || msg.includes("escribir")) {
+          setSignupErrors((prev) => ({ ...prev, email: msg }));
+          toast.error(msg);
+          return;
+        }
+        console.warn("Aviso en validación MX:", mxErr);
       }
 
       // 1. Pre-verificación RPC para comprobar si el correo ya existe

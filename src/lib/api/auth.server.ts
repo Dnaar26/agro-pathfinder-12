@@ -1,6 +1,26 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient, type User } from "@supabase/supabase-js";
 import { z } from "zod";
+import { promises as dnsPromises } from "dns";
+import { phoneSchema, optionalPhoneSchema } from "@/lib/schemas/phone";
+
+/** Verifica que el dominio del correo tiene registros MX válidos. */
+async function validateEmailDomain(email: string): Promise<void> {
+  const domain = email.split("@")[1]?.toLowerCase();
+  if (!domain) throw new Error("Formato de correo inválido.");
+  try {
+    const records = await dnsPromises.resolveMx(domain);
+    if (!records || records.length === 0) {
+      throw new Error(`El dominio '${domain}' no tiene servidores de correo válidos. Verifica que el correo sea real.`);
+    }
+  } catch (err: any) {
+    if (err.code === "ENOTFOUND" || err.code === "ENODATA") {
+      throw new Error(`El dominio '${domain}' no existe o no tiene servidores de correo. Usa un correo real.`);
+    }
+    // Si la resolución falla por otro motivo (red, timeout), no bloqueamos el registro
+    if (err.message?.startsWith("El dominio")) throw err;
+  }
+}
 
 export const ACCESS_COOKIE = "sigic_access_token";
 export const REFRESH_COOKIE = "sigic_refresh_token";
@@ -57,6 +77,14 @@ const emailSchema = z.string().trim().email().max(180);
 const passwordSchema = z.string().min(8).max(72);
 const signupPasswordSchema = passwordSchema.regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/);
 
+/** Server function que puede llamar el frontend para validar MX antes del registro. */
+export const validateDomainMx = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ email: emailSchema }))
+  .handler(async ({ data }) => {
+    await validateEmailDomain(data.email.trim().toLowerCase());
+    return { valid: true };
+  });
+
 export const syncHttpOnlySession = createServerFn({ method: "POST" })
   .inputValidator(z.object({
     accessToken: z.string().min(20),
@@ -84,13 +112,27 @@ export const signInWithHttpOnlyCookie = createServerFn({ method: "POST" })
   });
 
 export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ email: emailSchema, password: signupPasswordSchema, fullName: z.string().trim().min(2).max(120), redirectTo: z.string().url() }))
+  .inputValidator(z.object({
+    email: emailSchema,
+    password: signupPasswordSchema,
+    fullName: z.string().trim().min(2).max(120),
+    phone: phoneSchema.optional(),
+    redirectTo: z.string().url()
+  }))
   .handler(async ({ data }) => {
+    // Validación de dominio MX antes de intentar el registro
+    await validateEmailDomain(data.email);
     const { setCookie } = await import("@tanstack/react-start/server");
     const { data: auth, error } = await authClient().auth.signUp({
       email: data.email,
       password: data.password,
-      options: { emailRedirectTo: data.redirectTo, data: { full_name: data.fullName } },
+      options: {
+        emailRedirectTo: data.redirectTo,
+        data: {
+          full_name: data.fullName,
+          phone: data.phone,
+        }
+      },
     });
     if (error) throw new Error(error.message);
     if (auth?.user && Array.isArray(auth.user.identities) && auth.user.identities.length === 0) {
@@ -101,6 +143,28 @@ export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
       setCookie(REFRESH_COOKIE, auth.session.refresh_token, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
     }
     return { user: auth.user, needsEmailConfirmation: !auth.session };
+  });
+
+export const updateProfileServerFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({
+    fullName: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres").max(120),
+    phone: optionalPhoneSchema,
+  }))
+  .handler(async ({ data }) => {
+    const user = await requireCookieUser();
+    const client = authClient();
+
+    const { error: profileError } = await client
+      .from("profiles")
+      .upsert({
+        id: user.id,
+        full_name: data.fullName,
+        phone: data.phone || null,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (profileError) throw new Error(profileError.message);
+    return { success: true };
   });
 
 export const signOutHttpOnlyCookie = createServerFn({ method: "POST" }).handler(async () => {
@@ -114,3 +178,45 @@ export const checkAuthUser = createServerFn({ method: "GET" }).handler(async () 
   const user = await requireCookieUser();
   return { user };
 });
+
+export const requestPasswordReset = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      email: emailSchema,
+      redirectTo: z.string().url().optional(),
+    })
+  )
+  .handler(async ({ data }) => {
+    const client = authClient();
+    const cleanEmail = data.email.trim().toLowerCase();
+
+    // Validar existencia del usuario en la base de datos
+    let exists = false;
+    try {
+      const { data: hasAccount, error } = await client.rpc("check_email_exists", {
+        p_email: cleanEmail,
+      });
+      if (!error && hasAccount === true) {
+        exists = true;
+      }
+    } catch (e) {
+      console.warn("[requestPasswordReset] Error verificando existencia de correo:", e);
+    }
+
+    // Solo despacha el restablecimiento de contraseña si el correo existe en la BD
+    if (exists) {
+      try {
+        await client.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: data.redirectTo,
+        });
+      } catch (e) {
+        console.warn("[requestPasswordReset] Error enviando correo de restablecimiento:", e);
+      }
+    }
+
+    // Responder siempre con mensaje neutral para evitar enumeración de cuentas
+    return {
+      success: true,
+      message: "Si el correo está registrado, recibirás un enlace de recuperación.",
+    };
+  });

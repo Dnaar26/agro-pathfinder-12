@@ -59,6 +59,7 @@ export function AiChat() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [lastUserMessage, setLastUserMessage] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -72,6 +73,7 @@ export function AiChat() {
     const userMsg: Message = { role: "user", content: messageContent };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
+    setLastUserMessage(messageContent);
     if (!textToSend) setInput("");
     setLoading(true);
 
@@ -113,7 +115,7 @@ export function AiChat() {
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", isError: true, content: `⚠️ ${msg}` },
+          { role: "assistant", isError: true, content: `⚠️ ${msg}\n\n_Puedes intentarlo de nuevo con el botón de abajo._` },
         ]);
       }
     } finally {
@@ -207,7 +209,22 @@ export function AiChat() {
       )}
 
       {/* Input */}
-      <div className="p-3 border-t border-border bg-card">
+      <div className="p-3 border-t border-border bg-card space-y-2">
+        {/* Botón de reintento visible cuando hay error y hay mensaje para reintentar */}
+        {messages[messages.length - 1]?.isError && lastUserMessage && (
+          <button
+            type="button"
+            onClick={() => {
+              setMessages((prev) => prev.filter((_, i) => i !== prev.length - 1));
+              handleSend(lastUserMessage);
+            }}
+            disabled={loading}
+            className="w-full text-xs py-1.5 px-3 rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors flex items-center justify-center gap-1.5"
+          >
+            <AlertCircle className="size-3.5" />
+            Reintentar consulta anterior
+          </button>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();

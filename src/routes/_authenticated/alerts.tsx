@@ -67,7 +67,7 @@ function AlertsPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Alerta creada");
+      toast.success("Aviso enviado inmediatamente");
       setNewOpen(false);
       setAlertTitle("");
       setAlertBody("");
@@ -89,16 +89,16 @@ function AlertsPage() {
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Alertas</h1>
-          <p className="text-sm text-muted-foreground">Notificaciones y recordatorios.</p>
+          <h1 className="text-3xl font-bold">Alertas y Notificaciones</h1>
+          <p className="text-sm text-muted-foreground">Avisos y recordatorios del sistema.</p>
         </div>
         <Dialog open={newOpen} onOpenChange={setNewOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="size-4 mr-1" /> Nueva alerta</Button>
+            <Button><Plus className="size-4 mr-1" /> Enviar aviso</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Nueva alerta</DialogTitle>
+              <DialogTitle>Notificación inmediata</DialogTitle>
             </DialogHeader>
             <form onSubmit={(e) => { e.preventDefault(); createAlert.mutate(); }} className="space-y-4">
               {isStaff && (
@@ -117,7 +117,7 @@ function AlertsPage() {
                 </div>
               )}
               <div className="space-y-1.5">
-                <Label>Tipo</Label>
+                <Label>Tipo de aviso</Label>
                 <Select value={alertKind} onValueChange={setAlertKind}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -128,14 +128,14 @@ function AlertsPage() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Título</Label>
+                <Label>Título del aviso</Label>
                 <Input value={alertTitle} onChange={(e) => setAlertTitle(e.target.value)} placeholder="Ej: Revisar riego" required />
               </div>
               <div className="space-y-1.5">
                 <Label>Descripción (opcional)</Label>
                 <Input value={alertBody} onChange={(e) => setAlertBody(e.target.value)} placeholder="Detalles adicionales" />
               </div>
-              <Button type="submit" className="w-full" disabled={createAlert.isPending}>Crear alerta</Button>
+              <Button type="submit" className="w-full" disabled={createAlert.isPending}>Enviar aviso ahora</Button>
             </form>
           </DialogContent>
         </Dialog>

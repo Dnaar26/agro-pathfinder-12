@@ -23,8 +23,16 @@ export const Route = createFileRoute("/_authenticated/calendar")({
 });
 
 const eventSchema = z.object({
-  title: z.string().trim().min(2).max(150),
-  starts_at: z.string().min(1),
+  title: z.string().trim().min(2, "El título debe tener al menos 2 caracteres").max(150),
+  starts_at: z.string().min(1, "La fecha es obligatoria").refine(
+    (val) => {
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return false;
+      // Permitir margen de 2 minutos por desfases de reloj
+      return d.getTime() >= Date.now() - 2 * 60 * 1000;
+    },
+    { message: "No se pueden programar eventos en fechas u horas pasadas" }
+  ),
   description: z.string().max(500).optional(),
   crop_id: z.string().uuid().optional(),
 });
@@ -102,6 +110,11 @@ function CalendarPage() {
     mutationFn: async (payload: { event: z.infer<typeof eventSchema>; invItemId?: string; invQty?: number }) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Sesión expirada");
+
+      const eventDate = new Date(payload.event.starts_at);
+      if (isNaN(eventDate.getTime()) || eventDate.getTime() < Date.now() - 2 * 60 * 1000) {
+        throw new Error("No se pueden programar eventos en fechas u horas pasadas");
+      }
       
       // Verificar stock si hay insumo
       if (payload.invItemId && payload.invQty && payload.invQty > 0) {
@@ -116,7 +129,7 @@ function CalendarPage() {
         title: payload.event.title,
         description: payload.event.description ?? null,
         crop_id: payload.event.crop_id ?? null,
-        starts_at: new Date(payload.event.starts_at).toISOString(),
+        starts_at: eventDate.toISOString(),
       });
       if (error) throw error;
       
@@ -154,6 +167,11 @@ function CalendarPage() {
 
   const updateEvent = useMutation({
     mutationFn: async (payload: { id: string; title: string; description?: string; starts_at: string; crop_id?: string; editInvItemId?: string; editInvQty?: number }) => {
+      const eventDate = new Date(payload.starts_at);
+      if (isNaN(eventDate.getTime()) || eventDate.getTime() < Date.now() - 2 * 60 * 1000) {
+        throw new Error("No se pueden programar eventos en fechas u horas pasadas");
+      }
+
       // Verificar stock si hay insumo
       if (payload.editInvItemId && payload.editInvQty && payload.editInvQty > 0) {
         const { data: inv } = await supabase.from("inventory_items").select("stock_qty").eq("id", payload.editInvItemId).single();
@@ -162,7 +180,7 @@ function CalendarPage() {
         }
       }
 
-      const { error } = await supabase.from("calendar_events").update({ title: payload.title, description: payload.description ?? null, crop_id: payload.crop_id ?? null, starts_at: new Date(payload.starts_at).toISOString() }).eq("id", payload.id);
+      const { error } = await supabase.from("calendar_events").update({ title: payload.title, description: payload.description ?? null, crop_id: payload.crop_id ?? null, starts_at: eventDate.toISOString() }).eq("id", payload.id);
       if (error) throw error;
       
       // Descontar del inventario
@@ -276,7 +294,14 @@ function CalendarPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="starts_at">Fecha y hora</Label>
-                  <Input id="starts_at" name="starts_at" type="datetime-local" required defaultValue={format(selected, "yyyy-MM-dd'T'09:00")} />
+                  <Input
+                    id="starts_at"
+                    name="starts_at"
+                    type="datetime-local"
+                    required
+                    min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+                    defaultValue={format(selected < new Date() ? new Date() : selected, "yyyy-MM-dd'T'09:00")}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Cultivo relacionado</Label>
@@ -411,12 +436,19 @@ function CalendarPage() {
             e.preventDefault(); 
             if (!editEvent) return; 
             const fd = new FormData(e.currentTarget); 
+            const parsed = eventSchema.safeParse({
+              title: fd.get("title"),
+              starts_at: fd.get("starts_at"),
+              description: (fd.get("description") as string) || undefined,
+              crop_id: (fd.get("crop_id") as string) || undefined,
+            });
+            if (!parsed.success) return toast.error(parsed.error.issues[0].message);
             updateEvent.mutate({ 
               id: editEvent.id, 
-              title: fd.get("title") as string, 
-              description: (fd.get("description") as string) || undefined, 
-              crop_id: (fd.get("crop_id") as string) || undefined, 
-              starts_at: fd.get("starts_at") as string,
+              title: parsed.data.title, 
+              description: parsed.data.description, 
+              crop_id: parsed.data.crop_id, 
+              starts_at: parsed.data.starts_at,
               editInvItemId: editInvItemId || undefined,
               editInvQty: editInvQty ? Number(editInvQty) : undefined
             }); 
@@ -427,7 +459,14 @@ function CalendarPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-starts_at">Fecha y hora</Label>
-              <Input id="edit-starts_at" name="starts_at" type="datetime-local" required defaultValue={editEvent?.starts_at ? format(new Date(editEvent.starts_at), "yyyy-MM-dd'T'HH:mm") : ""} />
+              <Input
+                id="edit-starts_at"
+                name="starts_at"
+                type="datetime-local"
+                required
+                min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+                defaultValue={editEvent?.starts_at ? format(new Date(editEvent.starts_at), "yyyy-MM-dd'T'HH:mm") : ""}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-description">Descripción</Label>

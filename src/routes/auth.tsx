@@ -9,6 +9,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Eye, EyeOff, Mail, Lock, User, Phone, Sprout, ShieldCheck, CheckCircle2, ArrowRight, Loader2 } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { requestPasswordReset, validateDomainMx } from "@/lib/api/auth.server";
+import { phoneSchema } from "@/lib/schemas/phone";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -23,7 +25,7 @@ const emailSchema = z.string().trim().email("Correo electrónico inválido").max
 const loginPasswordSchema = z.string().min(1, "Ingresa tu contraseña").max(72);
 const firstNameSchema = z.string().trim().min(2, "Ingresa tu nombre (mínimo 2 caracteres)").max(60);
 const lastNameSchema = z.string().trim().min(2, "Ingresa tu apellido (mínimo 2 caracteres)").max(60);
-const phoneSchema = z.string().trim().min(7, "Ingresa un teléfono válido (mínimo 7 dígitos)").max(20);
+// phoneSchema importado arriba desde @/lib/schemas/phone (centralizado)
 const signupPasswordSchema = z
   .string()
   .min(8, "La contraseña debe tener al menos 8 caracteres")
@@ -74,13 +76,21 @@ export function AuthPage() {
     const parsed = emailSchema.safeParse(resetEmail);
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(parsed.data, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    toast.success("Se ha enviado un enlace de recuperación a tu correo.");
-    setResetEmail("");
+    try {
+      const res = await requestPasswordReset({
+        data: {
+          email: parsed.data,
+          redirectTo: `${window.location.origin}/reset-password`,
+        },
+      });
+      toast.success(res.message);
+      setResetEmail("");
+    } catch {
+      toast.success("Si el correo está registrado, recibirás un enlace de recuperación.");
+      setResetEmail("");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
@@ -137,6 +147,14 @@ export function AuthPage() {
 
     setLoading(true);
     try {
+      // 0. Validación MX del dominio del correo en el servidor
+      try {
+        await validateDomainMx({ data: { email: email.data.trim().toLowerCase() } });
+      } catch (mxErr: any) {
+        toast.error(mxErr?.message ?? "El dominio del correo no es válido. Usa una dirección real.");
+        return;
+      }
+
       // 1. Pre-verificación RPC para comprobar si el correo ya existe
       try {
         const { data: exists } = await (supabase as any).rpc("check_email_exists", {

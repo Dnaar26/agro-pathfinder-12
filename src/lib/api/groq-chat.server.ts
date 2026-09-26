@@ -151,32 +151,64 @@ export const chatWithGroq = createServerFn({ method: "POST" })
       model = "gemini-3.6-flash";
     }
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+    // Llamada a Gemini con timeout y reintento exponencial (hasta 3 intentos para 503/502/429)
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const requestInit: RequestInit = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    };
+
+    const MAX_RETRIES = 3;
+    const TIMEOUT_MS = 30_000;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        const res = await fetch(endpoint, { ...requestInit, signal: controller.signal });
+        clearTimeout(timer);
+
+        if (res.status === 429 || res.status === 503 || res.status === 502) {
+          const retryAfterMs = Math.min(1000 * 2 ** (attempt - 1), 8000);
+          if (attempt < MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, retryAfterMs));
+            lastError = new Error(`El servicio de IA respondió con código ${res.status}. Reintentando…`);
+            continue;
+          }
+          throw new Error(
+            res.status === 429
+              ? "Límite de solicitudes de IA alcanzado. Por favor, espera unos segundos y vuelve a intentarlo."
+              : "El asistente de IA no está disponible en este momento (error 503/502). Inténtalo de nuevo en unos segundos."
+          );
+        }
+        if (res.status === 400) {
+          const errBody = await res.text().catch(() => "");
+          console.error("[GEMINI ERROR 400]", errBody);
+          throw new Error("Solicitud no procesada por el asistente de IA. Verifica los datos enviados.");
+        }
+        if (res.status === 401 || res.status === 403) {
+          throw new Error("La GEMINI_API_KEY es inválida o no tiene permisos. Verifica tu clave en Google AI Studio (aistudio.google.com).");
+        }
+        if (!res.ok) {
+          throw new Error(`Error en el servicio de IA (código ${res.status}). Intenta nuevamente.`);
+        }
+
+        const json = await res.json();
+        const parts = json.candidates?.[0]?.content?.parts || [];
+        const fullText = parts.map((p: any) => p.text || "").join("").trim();
+        return fullText || "Sin respuesta del asistente.";
+      } catch (err: any) {
+        clearTimeout(timer);
+        if (err.name === "AbortError") {
+          lastError = new Error("El asistente tardó demasiado en responder (timeout 30s). Inténtalo de nuevo con una pregunta más corta.");
+          if (attempt < MAX_RETRIES) continue;
+          throw lastError;
+        }
+        throw err;
       }
-    );
-
-    if (res.status === 429) {
-      throw new Error("Límite de solicitudes de IA alcanzado. Por favor, reintenta en unos segundos.");
-    }
-    if (res.status === 400) {
-      const errBody = await res.text().catch(() => "");
-      console.error("[GEMINI ERROR 400]", errBody);
-      throw new Error("Solicitud no procesada por el asistente de IA. Verifica los datos enviados.");
-    }
-    if (res.status === 401 || res.status === 403) {
-      throw new Error("La GEMINI_API_KEY es inválida o no tiene permisos. Verifica tu clave en Google AI Studio (aistudio.google.com).");
-    }
-    if (!res.ok) {
-      throw new Error(`Error en el servicio de IA (código ${res.status}). Intenta nuevamente.`);
     }
 
-    const json = await res.json();
-    const parts = json.candidates?.[0]?.content?.parts || [];
-    const fullText = parts.map((p: any) => p.text || "").join("").trim();
-    return fullText || "Sin respuesta del asistente.";
+    throw lastError ?? new Error("El asistente de IA no pudo procesar tu solicitud. Inténtalo más tarde.");
   });

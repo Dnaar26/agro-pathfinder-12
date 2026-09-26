@@ -18,6 +18,26 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
   const qc = useQueryClient();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [touched, setTouched] = useState<{ name?: boolean; phone?: boolean }>({});
+  const [errors, setErrors] = useState<{ name?: string; phone?: string }>({});
+
+  const validatePhone = (val: string) => {
+    const res = phoneSchema.safeParse(val.trim());
+    return res.success ? "" : res.error.issues[0].message;
+  };
+
+  const validateName = (val: string) => {
+    const trimmed = val.trim();
+    if (!trimmed) return "El nombre es obligatorio";
+    if (trimmed.length < 2) return "El nombre debe tener al menos 2 caracteres";
+    if (trimmed.length > 60) return "El nombre no puede exceder 60 caracteres";
+    if (!/^[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+(?:\s+[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+)*$/.test(trimmed)) {
+      return "El nombre solo puede contener letras y espacios";
+    }
+    return "";
+  };
+
+  const isFormValid = !validateName(fullName) && !validatePhone(phone);
 
   const userQuery = useQuery({
     queryKey: ["edit-profile-data"],
@@ -50,8 +70,10 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
     if (userQuery.data) {
       setFullName(userQuery.data.fullName);
       setPhone(userQuery.data.phone);
+      setTouched({});
+      setErrors({});
     }
-  }, [userQuery.data]);
+  }, [userQuery.data, open]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async ({ name, phoneNumber }: { name: string; phoneNumber: string }) => {
@@ -61,7 +83,8 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
       const trimmedName = name.trim();
       const trimmedPhone = phoneNumber.trim();
 
-      if (!trimmedName) throw new Error("El nombre no puede estar vacío");
+      const nameErr = validateName(trimmedName);
+      if (nameErr) throw new Error(nameErr);
 
       const phoneValidation = phoneSchema.safeParse(trimmedPhone);
       if (!phoneValidation.success) {
@@ -104,12 +127,14 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const phoneValidation = phoneSchema.safeParse(phone.trim());
-    if (!phoneValidation.success) {
-      toast.error(phoneValidation.error.issues[0].message);
+    const nameErr = validateName(fullName);
+    const phoneErr = validatePhone(phone);
+    setTouched({ name: true, phone: true });
+    setErrors({ name: nameErr, phone: phoneErr });
+    if (nameErr || phoneErr) {
       return;
     }
-    updateProfileMutation.mutate({ name: fullName, phoneNumber: phone.trim() });
+    updateProfileMutation.mutate({ name: fullName.trim(), phoneNumber: phone.trim() });
   };
 
   const primaryRole = userQuery.data?.roles?.includes("admin")
@@ -162,12 +187,25 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
                 <Input
                   id="profile-full-name"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFullName(val);
+                    if (touched.name) {
+                      setErrors((prev) => ({ ...prev, name: validateName(val) }));
+                    }
+                  }}
+                  onBlur={() => {
+                    setTouched((prev) => ({ ...prev, name: true }));
+                    setErrors((prev) => ({ ...prev, name: validateName(fullName) }));
+                  }}
                   placeholder="Tu nombre completo"
                   required
-                  className="pl-9 h-10 text-sm"
+                  className={`pl-9 h-10 text-sm ${touched.name && errors.name ? "border-destructive focus-visible:ring-destructive" : ""}`}
                 />
               </div>
+              {touched.name && errors.name && (
+                <p className="text-xs text-destructive mt-1 font-medium">{errors.name}</p>
+              )}
             </div>
 
             {/* Teléfono */}
@@ -181,13 +219,24 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
                   id="profile-phone"
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+57 300 123 4567"
-                  minLength={7}
-                  maxLength={20}
-                  className="pl-9 h-10 text-sm"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setPhone(val);
+                    if (touched.phone) {
+                      setErrors((prev) => ({ ...prev, phone: validatePhone(val) }));
+                    }
+                  }}
+                  onBlur={() => {
+                    setTouched((prev) => ({ ...prev, phone: true }));
+                    setErrors((prev) => ({ ...prev, phone: validatePhone(phone) }));
+                  }}
+                  placeholder="3001234567 o +573001234567"
+                  className={`pl-9 h-10 text-sm ${touched.phone && errors.phone ? "border-destructive focus-visible:ring-destructive" : ""}`}
                 />
               </div>
+              {touched.phone && errors.phone && (
+                <p className="text-xs text-destructive mt-1 font-medium">{errors.phone}</p>
+              )}
             </div>
 
             <DialogFooter className="pt-2">
@@ -201,7 +250,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
               </Button>
               <Button
                 type="submit"
-                disabled={updateProfileMutation.isPending}
+                disabled={updateProfileMutation.isPending || !isFormValid}
                 className="gap-2"
               >
                 {updateProfileMutation.isPending ? (

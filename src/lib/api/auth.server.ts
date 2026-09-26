@@ -3,8 +3,8 @@ import { createClient, type User } from "@supabase/supabase-js";
 import { z } from "zod";
 import { promises as dnsPromises } from "dns";
 import { phoneSchema, optionalPhoneSchema } from "@/lib/schemas/phone";
-
-import { TYPO_DOMAINS } from "@/lib/schemas/email";
+import { TYPO_DOMAINS, emailSchema } from "@/lib/schemas/email";
+import { firstNameSchema, lastNameSchema, passwordBaseSchema, validatePasswordSecurity } from "@/lib/schemas/user";
 
 /** Verifica que el dominio del correo es válido y tiene registros MX. */
 async function validateEmailDomain(email: string): Promise<void> {
@@ -103,9 +103,7 @@ export async function requireCookieUser(): Promise<User> {
   return data.user;
 }
 
-const emailSchema = z.string().trim().email().max(180);
-const passwordSchema = z.string().min(8).max(72);
-const signupPasswordSchema = passwordSchema.regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/);
+const loginPasswordSchema = z.string().min(1, "Ingresa tu contraseña").max(72);
 
 /** Server function que puede llamar el frontend para validar MX antes del registro. */
 export const validateDomainMx = createServerFn({ method: "POST" })
@@ -131,7 +129,7 @@ export const syncHttpOnlySession = createServerFn({ method: "POST" })
   });
 
 export const signInWithHttpOnlyCookie = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ email: emailSchema, password: passwordSchema }))
+  .inputValidator(z.object({ email: emailSchema, password: loginPasswordSchema }))
   .handler(async ({ data }) => {
     const { setCookie } = await import("@tanstack/react-start/server");
     const { data: auth, error } = await authClient().auth.signInWithPassword(data);
@@ -144,30 +142,64 @@ export const signInWithHttpOnlyCookie = createServerFn({ method: "POST" })
 export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
   .inputValidator(z.object({
     email: emailSchema,
-    password: signupPasswordSchema,
-    fullName: z.string().trim().min(2).max(120),
-    phone: phoneSchema.optional(),
-    redirectTo: z.string().url()
+    password: passwordBaseSchema,
+    firstName: firstNameSchema.optional(),
+    lastName: lastNameSchema.optional(),
+    fullName: z.string().trim().min(2).max(120).optional(),
+    phone: phoneSchema,
+    redirectTo: z.string().url().optional(),
   }))
   .handler(async ({ data }) => {
+    const cleanEmail = data.email.trim().toLowerCase();
     // Validación de dominio MX antes de intentar el registro
-    await validateEmailDomain(data.email);
+    await validateEmailDomain(cleanEmail);
+
+    const fName = data.firstName || data.fullName?.split(" ")[0] || "";
+    const lName = data.lastName || data.fullName?.split(" ").slice(1).join(" ") || "";
+    const computedFullName = (data.fullName || `${fName} ${lName}`).trim();
+
+    // Validar seguridad de contraseña con contexto del usuario
+    const passCheck = validatePasswordSecurity(data.password, {
+      firstName: fName,
+      lastName: lName,
+      email: cleanEmail,
+    });
+    if (!passCheck.valid) {
+      throw new Error(passCheck.error || "Contraseña no válida");
+    }
+
     const { setCookie } = await import("@tanstack/react-start/server");
     const { data: auth, error } = await authClient().auth.signUp({
-      email: data.email,
+      email: cleanEmail,
       password: data.password,
       options: {
         emailRedirectTo: data.redirectTo,
         data: {
-          full_name: data.fullName,
+          full_name: computedFullName,
+          first_name: fName,
+          last_name: lName,
           phone: data.phone,
         }
       },
     });
-    if (error) throw new Error(error.message);
-    if (auth?.user && Array.isArray(auth.user.identities) && auth.user.identities.length === 0) {
-      throw new Error("Este correo electrónico ya se encuentra registrado. Inicia sesión con tu contraseña.");
+
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (
+        msg.includes("already registered") ||
+        msg.includes("already exists") ||
+        msg.includes("ya está registrado") ||
+        msg.includes("unique constraint")
+      ) {
+        throw new Error("Este correo ya está en uso");
+      }
+      throw new Error(error.message);
     }
+
+    if (auth?.user && Array.isArray(auth.user.identities) && auth.user.identities.length === 0) {
+      throw new Error("Este correo ya está en uso");
+    }
+
     if (auth.session) {
       setCookie(ACCESS_COOKIE, auth.session.access_token, { ...cookieOptions, maxAge: auth.session.expires_in ?? 3600 });
       setCookie(REFRESH_COOKIE, auth.session.refresh_token, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
@@ -178,7 +210,7 @@ export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
 export const updateProfileServerFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({
     fullName: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres").max(120),
-    phone: optionalPhoneSchema,
+    phone: phoneSchema,
   }))
   .handler(async ({ data }) => {
     const user = await requireCookieUser();

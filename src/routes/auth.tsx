@@ -12,6 +12,7 @@ import { Logo } from "@/components/logo";
 import { requestPasswordReset, validateDomainMx } from "@/lib/api/auth.server";
 import { phoneSchema } from "@/lib/schemas/phone";
 import { emailSchema } from "@/lib/schemas/email";
+import { firstNameSchema, lastNameSchema, validatePasswordSecurity } from "@/lib/schemas/user";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -23,12 +24,6 @@ export const Route = createFileRoute("/auth")({
 });
 
 const loginPasswordSchema = z.string().min(1, "Ingresa tu contraseña").max(72);
-const firstNameSchema = z.string().trim().min(2, "Ingresa tu nombre (mínimo 2 caracteres)").max(60);
-const lastNameSchema = z.string().trim().min(2, "Ingresa tu apellido (mínimo 2 caracteres)").max(60);
-const signupPasswordSchema = z
-  .string()
-  .min(8, "La contraseña debe tener al menos 8 caracteres")
-  .max(72);
 
 export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {}) {
   const search = useSearch({ from: "/auth", strict: false }) as any;
@@ -56,6 +51,116 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [signupPassword, setSignupPassword] = useState("");
+
+  const [signupForm, setSignupForm] = useState({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [signupTouched, setSignupTouched] = useState<Record<string, boolean>>({});
+  const [signupErrors, setSignupErrors] = useState<Record<string, string>>({});
+
+  const validateSignupField = (name: string, value: string, current = signupForm) => {
+    switch (name) {
+      case "firstName": {
+        const res = firstNameSchema.safeParse(value.trim());
+        return res.success ? "" : res.error.issues[0].message;
+      }
+      case "lastName": {
+        const res = lastNameSchema.safeParse(value.trim());
+        return res.success ? "" : res.error.issues[0].message;
+      }
+      case "phone": {
+        const res = phoneSchema.safeParse(value.trim());
+        return res.success ? "" : res.error.issues[0].message;
+      }
+      case "email": {
+        const res = emailSchema.safeParse(value.trim().toLowerCase());
+        return res.success ? "" : res.error.issues[0].message;
+      }
+      case "password": {
+        const res = validatePasswordSecurity(value, {
+          firstName: current.firstName,
+          lastName: current.lastName,
+          email: current.email,
+        });
+        return res.valid ? "" : (res.error || "Contraseña inválida");
+      }
+      case "confirmPassword": {
+        if (!value) return "Confirma tu contraseña";
+        if (value !== current.password) return "Las contraseñas no coinciden";
+        return "";
+      }
+      default:
+        return "";
+    }
+  };
+
+  const isSignupValid = Boolean(
+    signupForm.firstName.trim() &&
+    signupForm.lastName.trim() &&
+    signupForm.phone.trim() &&
+    signupForm.email.trim() &&
+    signupForm.password &&
+    signupForm.confirmPassword &&
+    signupForm.password === signupForm.confirmPassword &&
+    firstNameSchema.safeParse(signupForm.firstName.trim()).success &&
+    lastNameSchema.safeParse(signupForm.lastName.trim()).success &&
+    phoneSchema.safeParse(signupForm.phone.trim()).success &&
+    emailSchema.safeParse(signupForm.email.trim().toLowerCase()).success &&
+    validatePasswordSecurity(signupForm.password, {
+      firstName: signupForm.firstName.trim(),
+      lastName: signupForm.lastName.trim(),
+      email: signupForm.email.trim().toLowerCase(),
+    }).valid
+  );
+
+  const handleSignupChange = (field: keyof typeof signupForm, value: string) => {
+    const updated = { ...signupForm, [field]: value };
+    setSignupForm(updated);
+
+    if (field === "password") {
+      setSignupPassword(value);
+    }
+
+    if (signupTouched[field]) {
+      setSignupErrors((prev) => ({
+        ...prev,
+        [field]: validateSignupField(field, value, updated),
+      }));
+    }
+
+    // Co-validación si cambia la contraseña
+    if (field === "password" && (signupTouched.confirmPassword || updated.confirmPassword)) {
+      setSignupErrors((prev) => ({
+        ...prev,
+        confirmPassword: validateSignupField("confirmPassword", updated.confirmPassword, updated),
+      }));
+    }
+
+    // Co-validación si cambia nombre, apellido o correo (afecta contraseña)
+    if (["firstName", "lastName", "email"].includes(field) && (signupTouched.password || updated.password)) {
+      setSignupErrors((prev) => ({
+        ...prev,
+        password: validateSignupField("password", updated.password, updated),
+      }));
+    }
+  };
+
+  const handleSignupBlur = (field: keyof typeof signupForm) => {
+    setSignupTouched((prev) => ({ ...prev, [field]: true }));
+    setSignupErrors((prev) => {
+      const err = validateSignupField(field, signupForm[field], signupForm);
+      const nextErrors = { ...prev, [field]: err };
+      if (field === "password" && (signupTouched.confirmPassword || signupForm.confirmPassword)) {
+        nextErrors.confirmPassword = validateSignupField("confirmPassword", signupForm.confirmPassword, signupForm);
+      }
+      return nextErrors;
+    });
+  };
 
   // Password strength calculation
   const getPasswordStrength = (pass: string) => {
@@ -142,42 +247,65 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
 
   async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
 
-    const firstName = firstNameSchema.safeParse(fd.get("first_name"));
-    const lastName = lastNameSchema.safeParse(fd.get("last_name"));
-    const phone = phoneSchema.safeParse(fd.get("phone"));
-    const email = emailSchema.safeParse(fd.get("email"));
-    const password = signupPasswordSchema.safeParse(fd.get("password"));
-    const confirmPassword = fd.get("confirm_password");
+    setSignupTouched({
+      firstName: true,
+      lastName: true,
+      phone: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+    });
 
-    if (!firstName.success) return toast.error(firstName.error.issues[0].message);
-    if (!lastName.success) return toast.error(lastName.error.issues[0].message);
-    if (!phone.success) return toast.error(phone.error.issues[0].message);
-    if (!email.success) return toast.error(email.error.issues[0].message);
-    if (!password.success) return toast.error(password.error.issues[0].message);
-    if (password.data !== confirmPassword) return toast.error("Las contraseñas no coinciden");
+    const fNameErr = validateSignupField("firstName", signupForm.firstName);
+    const lNameErr = validateSignupField("lastName", signupForm.lastName);
+    const phoneErr = validateSignupField("phone", signupForm.phone);
+    const emailErr = validateSignupField("email", signupForm.email);
+    const passErr = validateSignupField("password", signupForm.password);
+    const confirmErr = validateSignupField("confirmPassword", signupForm.confirmPassword);
 
-    const fullName = `${firstName.data} ${lastName.data}`;
+    const newErrors = {
+      firstName: fNameErr,
+      lastName: lNameErr,
+      phone: phoneErr,
+      email: emailErr,
+      password: passErr,
+      confirmPassword: confirmErr,
+    };
+    setSignupErrors(newErrors);
+
+    if (fNameErr || lNameErr || phoneErr || emailErr || passErr || confirmErr || !isSignupValid) {
+      const firstError = fNameErr || lNameErr || phoneErr || emailErr || passErr || confirmErr;
+      if (firstError) toast.error(firstError);
+      return;
+    }
+
+    const cleanEmail = signupForm.email.trim().toLowerCase();
+    const cleanFirstName = signupForm.firstName.trim();
+    const cleanLastName = signupForm.lastName.trim();
+    const cleanPhone = signupForm.phone.trim();
+    const fullName = `${cleanFirstName} ${cleanLastName}`;
 
     setLoading(true);
     try {
       // 0. Validación MX del dominio del correo en el servidor
       try {
-        await validateDomainMx({ data: { email: email.data.trim().toLowerCase() } });
+        await validateDomainMx({ data: { email: cleanEmail } });
       } catch (mxErr: any) {
-        toast.error(mxErr?.message ?? "El dominio del correo no es válido. Usa una dirección real.");
+        const msg = mxErr?.message ?? "El dominio del correo no es válido. Usa una dirección real.";
+        setSignupErrors((prev) => ({ ...prev, email: msg }));
+        toast.error(msg);
         return;
       }
 
       // 1. Pre-verificación RPC para comprobar si el correo ya existe
       try {
         const { data: exists } = await (supabase as any).rpc("check_email_exists", {
-          p_email: email.data.trim().toLowerCase(),
+          p_email: cleanEmail,
         });
         if (exists === true) {
-          toast.error("Este correo electrónico ya se encuentra registrado. Por favor inicia sesión.");
-          setTab("login");
+          setSignupErrors((prev) => ({ ...prev, email: "Este correo ya está en uso" }));
+          toast.error("Este correo ya está en uso");
           return;
         }
       } catch {
@@ -185,15 +313,15 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
       }
 
       const { data, error } = await supabase.auth.signUp({
-        email: email.data.trim().toLowerCase(),
-        password: password.data,
+        email: cleanEmail,
+        password: signupForm.password,
         options: {
           emailRedirectTo: `${window.location.origin}/dashboard`,
           data: {
             full_name: fullName,
-            first_name: firstName.data,
-            last_name: lastName.data,
-            phone: phone.data,
+            first_name: cleanFirstName,
+            last_name: cleanLastName,
+            phone: cleanPhone,
           },
         },
       });
@@ -206,8 +334,8 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
           msg.includes("ya está registrado") ||
           msg.includes("unique constraint")
         ) {
-          toast.error("Este correo ya está registrado en el sistema. Por favor inicia sesión.");
-          setTab("login");
+          setSignupErrors((prev) => ({ ...prev, email: "Este correo ya está en uso" }));
+          toast.error("Este correo ya está en uso");
           return;
         }
         toast.error(error.message);
@@ -216,8 +344,8 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
 
       // Supabase retorna identities = [] cuando el correo ya existe y la confirmación de email está activa
       if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-        toast.error("Este correo electrónico ya se encuentra registrado. Por favor inicia sesión con tu contraseña.");
-        setTab("login");
+        setSignupErrors((prev) => ({ ...prev, email: "Este correo ya está en uso" }));
+        toast.error("Este correo ya está en uso");
         return;
       }
 
@@ -226,7 +354,7 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
           const { error: profileError } = await (supabase as any).from("profiles").upsert({
             id: data.user.id,
             full_name: fullName,
-            phone: phone.data,
+            phone: cleanPhone,
             updated_at: new Date().toISOString(),
           });
           if (profileError) {
@@ -421,10 +549,16 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
                         id="first_name"
                         name="first_name"
                         placeholder="Juan"
+                        value={signupForm.firstName}
+                        onChange={(e) => handleSignupChange("firstName", e.target.value)}
+                        onBlur={() => handleSignupBlur("firstName")}
                         required
-                        className="pl-9 text-sm h-10"
+                        className={`pl-9 text-sm h-10 ${signupTouched.firstName && signupErrors.firstName ? "border-destructive focus-visible:ring-destructive" : ""}`}
                       />
                     </div>
+                    {signupTouched.firstName && signupErrors.firstName && (
+                      <p className="text-xs text-destructive mt-1 font-medium">{signupErrors.firstName}</p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="last_name" className="text-xs font-medium">Apellido</Label>
@@ -432,9 +566,15 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
                       id="last_name"
                       name="last_name"
                       placeholder="Pérez"
+                      value={signupForm.lastName}
+                      onChange={(e) => handleSignupChange("lastName", e.target.value)}
+                      onBlur={() => handleSignupBlur("lastName")}
                       required
-                      className="px-3 text-sm h-10"
+                      className={`px-3 text-sm h-10 ${signupTouched.lastName && signupErrors.lastName ? "border-destructive focus-visible:ring-destructive" : ""}`}
                     />
+                    {signupTouched.lastName && signupErrors.lastName && (
+                      <p className="text-xs text-destructive mt-1 font-medium">{signupErrors.lastName}</p>
+                    )}
                   </div>
                 </div>
 
@@ -447,11 +587,17 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
                       id="phone"
                       name="phone"
                       type="tel"
-                      placeholder="+57 300 123 4567"
+                      placeholder="3001234567 o +573001234567"
+                      value={signupForm.phone}
+                      onChange={(e) => handleSignupChange("phone", e.target.value)}
+                      onBlur={() => handleSignupBlur("phone")}
                       required
-                      className="pl-9 text-sm h-10"
+                      className={`pl-9 text-sm h-10 ${signupTouched.phone && signupErrors.phone ? "border-destructive focus-visible:ring-destructive" : ""}`}
                     />
                   </div>
+                  {signupTouched.phone && signupErrors.phone && (
+                    <p className="text-xs text-destructive mt-1 font-medium">{signupErrors.phone}</p>
+                  )}
                 </div>
 
                 {/* Correo Electrónico */}
@@ -465,10 +611,16 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
                       type="email"
                       placeholder="juan.perez@agrifarm.com"
                       autoComplete="email"
+                      value={signupForm.email}
+                      onChange={(e) => handleSignupChange("email", e.target.value)}
+                      onBlur={() => handleSignupBlur("email")}
                       required
-                      className="pl-9 text-sm h-10"
+                      className={`pl-9 text-sm h-10 ${signupTouched.email && signupErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}`}
                     />
                   </div>
+                  {signupTouched.email && signupErrors.email && (
+                    <p className="text-xs text-destructive mt-1 font-medium">{signupErrors.email}</p>
+                  )}
                 </div>
 
                 {/* Contraseña */}
@@ -481,11 +633,12 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
                       name="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
+                      value={signupForm.password}
+                      onChange={(e) => handleSignupChange("password", e.target.value)}
+                      onBlur={() => handleSignupBlur("password")}
                       autoComplete="new-password"
                       required
-                      className="pl-9 pr-10 text-sm h-10"
+                      className={`pl-9 pr-10 text-sm h-10 ${signupTouched.password && signupErrors.password ? "border-destructive focus-visible:ring-destructive" : ""}`}
                     />
                     <button
                       type="button"
@@ -496,6 +649,9 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
                       {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
+                  {signupTouched.password && signupErrors.password && (
+                    <p className="text-xs text-destructive mt-1 font-medium">{signupErrors.password}</p>
+                  )}
                   {signupPassword && (
                     <div className="space-y-1 pt-1">
                       <div className="flex items-center justify-between text-[10px]">
@@ -519,9 +675,12 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
                       name="confirm_password"
                       type={showConfirmPassword ? "text" : "password"}
                       placeholder="••••••••"
+                      value={signupForm.confirmPassword}
+                      onChange={(e) => handleSignupChange("confirmPassword", e.target.value)}
+                      onBlur={() => handleSignupBlur("confirmPassword")}
                       autoComplete="new-password"
                       required
-                      className="pl-9 pr-10 text-sm h-10"
+                      className={`pl-9 pr-10 text-sm h-10 ${signupTouched.confirmPassword && signupErrors.confirmPassword ? "border-destructive focus-visible:ring-destructive" : ""}`}
                     />
                     <button
                       type="button"
@@ -532,9 +691,16 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
                       {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
+                  {signupTouched.confirmPassword && signupErrors.confirmPassword && (
+                    <p className="text-xs text-destructive mt-1 font-medium">{signupErrors.confirmPassword}</p>
+                  )}
                 </div>
 
-                <Button type="submit" className="w-full h-10 text-sm font-semibold gap-2 mt-3" disabled={loading}>
+                <Button
+                  type="submit"
+                  className="w-full h-10 text-sm font-semibold gap-2 mt-3"
+                  disabled={loading || !isSignupValid}
+                >
                   {loading ? <Loader2 className="size-4 animate-spin" /> : null}
                   {loading ? "Creando cuenta..." : "Registrar Cuenta"}
                   {!loading && <ArrowRight className="size-4" />}

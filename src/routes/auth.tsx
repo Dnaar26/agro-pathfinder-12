@@ -391,18 +391,6 @@ export function AuthPage() {
                 </details>
               </div>
 
-              <div className="text-center pt-4 border-t border-border">
-                <p className="text-xs text-muted-foreground">
-                  ¿Aún no tienes una cuenta?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setTab("signup")}
-                    className="font-semibold text-primary hover:underline ml-1"
-                  >
-                    Crear cuenta aquí
-                  </button>
-                </p>
-              </div>
             </TabsContent>
 
             {/* FORMULARIO CREAR CUENTA */}

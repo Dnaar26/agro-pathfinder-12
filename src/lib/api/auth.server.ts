@@ -4,21 +4,40 @@ import { z } from "zod";
 import { promises as dnsPromises } from "dns";
 import { phoneSchema, optionalPhoneSchema } from "@/lib/schemas/phone";
 
-/** Verifica que el dominio del correo tiene registros MX válidos. */
+const TYPO_DOMAINS = new Set([
+  "gnil.com", "gmaill.com", "gmai.com", "gamil.com", "gmial.com",
+  "hotmial.com", "hotmai.com", "yaho.com", "yahooo.com", "outlok.com",
+  "outloo.com", "icwoud.com", "con.com", "gm.com",
+]);
+
+/** Verifica que el dominio del correo es válido y tiene registros MX. */
 async function validateEmailDomain(email: string): Promise<void> {
-  const domain = email.split("@")[1]?.toLowerCase();
-  if (!domain) throw new Error("Formato de correo inválido.");
+  const parts = email.trim().toLowerCase().split("@");
+  if (parts.length !== 2) throw new Error("Formato de correo electrónico inválido.");
+  
+  const domain = parts[1];
+  if (!domain || !domain.includes(".")) {
+    throw new Error(`El dominio '${domain}' no es válido. Usa un correo real.`);
+  }
+
+  // 1. Detección inmediata de dominios con error tipográfico común
+  if (TYPO_DOMAINS.has(domain)) {
+    throw new Error(`El dominio '${domain}' no existe o está mal escrito. Verifica si quisiste escribir gmail.com, hotmail.com u otro.`);
+  }
+
+  // 2. Validación de registros MX vía DNS
   try {
     const records = await dnsPromises.resolveMx(domain);
     if (!records || records.length === 0) {
-      throw new Error(`El dominio '${domain}' no tiene servidores de correo válidos. Verifica que el correo sea real.`);
+      throw new Error(`El dominio '${domain}' no tiene servidores de correo válidos. Usa una dirección real.`);
     }
   } catch (err: any) {
-    if (err.code === "ENOTFOUND" || err.code === "ENODATA") {
-      throw new Error(`El dominio '${domain}' no existe o no tiene servidores de correo. Usa un correo real.`);
+    if (err.code === "ENOTFOUND" || err.code === "ENODATA" || err.code === "SERVFAIL") {
+      throw new Error(`El dominio '${domain}' no existe o no puede recibir correos. Usa un correo real.`);
     }
-    // Si la resolución falla por otro motivo (red, timeout), no bloqueamos el registro
-    if (err.message?.startsWith("El dominio")) throw err;
+    if (err.message && err.message.startsWith("El dominio")) throw err;
+    // Si hay un error de resolución DNS, rechazar por seguridad
+    throw new Error(`No se pudo verificar el dominio '${domain}'. Asegúrate de usar un correo válido.`);
   }
 }
 

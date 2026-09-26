@@ -541,18 +541,6 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
                 </Button>
               </form>
 
-              <div className="text-center pt-3 border-t border-border">
-                <p className="text-xs text-muted-foreground">
-                  ¿Ya tienes una cuenta registrada?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setTab("login")}
-                    className="font-semibold text-primary hover:underline ml-1"
-                  >
-                    Iniciar sesión aquí
-                  </button>
-                </p>
-              </div>
             </TabsContent>
           </Tabs>
         </div>

@@ -115,7 +115,7 @@ export async function listAllCropsPage(params: PaginationParams) {
 export async function listAlerts() {
   const { data, error } = await supabase
     .from("alerts")
-    .select("*, profiles!user_id(full_name)")
+    .select("*, profiles!user_id(full_name), sender:profiles!sender_id(full_name)")
     .order("scheduled_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -280,6 +280,12 @@ export async function listFarmerSummaries(): Promise<FarmerSummary[]> {
 export async function runGenerateAlerts() {
   const { error } = await supabase.rpc("generate_automatic_alerts");
   if (error) throw error;
+}
+
+export async function deleteParcelCascade(id: string) {
+  const { data, error } = await supabase.rpc("delete_parcel_cascade", { p_parcel_id: id });
+  if (error) throw error;
+  if (data !== id) throw new Error("El servidor no confirmó la eliminación de la parcela");
 }
 
 async function getCropIdsForOwner(ownerId?: string): Promise<string[]> {

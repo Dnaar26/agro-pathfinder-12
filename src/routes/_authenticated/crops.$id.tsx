@@ -293,6 +293,22 @@ function CropDetail() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const confirmPlanting = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("crops").update({
+        status: "SEMBRADO",
+        planting_confirmed_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Inicio de siembra confirmado");
+      qc.invalidateQueries({ queryKey: ["crop", id] });
+      qc.invalidateQueries({ queryKey: ["crops"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const activitySubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -346,7 +362,12 @@ function CropDetail() {
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
           </Button>
         </div>
-        <div className="flex items-center gap-2">
+         <div className="flex items-center gap-2">
+           {crop.data.status === "PLANEADO" && !crop.data.planting_confirmed_at && crop.data.planting_date <= format(new Date(), "yyyy-MM-dd") && (
+             <Button size="sm" onClick={() => confirmPlanting.mutate()} disabled={confirmPlanting.isPending}>
+               Confirmar inicio
+             </Button>
+           )}
           <Select defaultValue={crop.data.status} onValueChange={(v) => { if (v !== crop.data.status) setPendingStatus(v); }}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>

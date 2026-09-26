@@ -66,6 +66,8 @@ export type Database = {
           status: Database["public"]["Enums"]["alert_status"]
           title: string
           user_id: string
+          sender_id: string | null
+          origin: string
         }
         Insert: {
           body?: string | null
@@ -77,6 +79,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["alert_status"]
           title: string
           user_id: string
+          sender_id?: string | null
+          origin?: string
         }
         Update: {
           body?: string | null
@@ -88,6 +92,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["alert_status"]
           title?: string
           user_id?: string
+          sender_id?: string | null
+          origin?: string
         }
         Relationships: [
           {
@@ -176,6 +182,7 @@ export type Database = {
           notes: string | null
           parcel_id: string
           planting_date: string
+          planting_confirmed_at: string | null
           status: Database["public"]["Enums"]["crop_status"]
           updated_at: string
         }
@@ -187,6 +194,7 @@ export type Database = {
           notes?: string | null
           parcel_id: string
           planting_date: string
+          planting_confirmed_at?: string | null
           status?: Database["public"]["Enums"]["crop_status"]
           updated_at?: string
         }
@@ -198,6 +206,7 @@ export type Database = {
           notes?: string | null
           parcel_id?: string
           planting_date?: string
+          planting_confirmed_at?: string | null
           status?: Database["public"]["Enums"]["crop_status"]
           updated_at?: string
         }
@@ -344,6 +353,7 @@ export type Database = {
         Returns: undefined
       }
       generate_automatic_alerts: { Args: never; Returns: undefined }
+      delete_parcel_cascade: { Args: { p_parcel_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -361,7 +371,7 @@ export type Database = {
         | "INSUMOS"
         | "COSECHA"
         | "MONITOREO"
-      alert_kind: "RIEGO" | "FERTILIZACION" | "COSECHA" | "CLIMA" | "VENCIDA"
+      alert_kind: "RIEGO" | "FERTILIZACION" | "COSECHA" | "CLIMA" | "VENCIDA" | "STOCK"
       alert_status: "PENDIENTE" | "ATENDIDA" | "DESCARTADA"
       app_role: "agricultor" | "tecnico" | "admin"
       crop_status:

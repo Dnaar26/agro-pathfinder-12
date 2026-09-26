@@ -14,6 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Shield, UserCog, X, Users, MapPin, Sprout, ClipboardList,
   BellRing, Activity, FileBarChart2, RefreshCcw, Search, Trash2,
@@ -24,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { useMemo, useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const ROLES = ["agricultor", "tecnico", "admin"] as const;
 type AppRole = (typeof ROLES)[number];
@@ -45,10 +48,24 @@ function AdminPage() {
   const farmers = useQuery({ queryKey: ["admin-farmers"], queryFn: listFarmerSummaries });
   const users = useQuery({ queryKey: ["admin-users"], queryFn: listAllUsersWithRoles });
   const alerts = useQuery({ queryKey: ["alerts"], queryFn: listAlerts });
+  const alertSettings = useQuery({
+    queryKey: ["alert-settings"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("alert_settings").select("*").eq("id", true).single();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const assignments = useQuery({ queryKey: ["technician-assignments"], queryFn: async () => {
+    const { data, error } = await (supabase as any).from("technician_farmer_assignments").select("*");
+    if (error) throw error; return data ?? [];
+  }});
 
   const [farmerSearch, setFarmerSearch] = useState("");
   const [farmerPage, setFarmerPage] = useState(1);
   const [userPage, setUserPage] = useState(1);
+  const [assignmentTechnician, setAssignmentTechnician] = useState("");
+  const [assignmentFarmer, setAssignmentFarmer] = useState("");
   const pageSize = 20;
 
   const filteredFarmers = useMemo(() => {
@@ -98,6 +115,25 @@ function AdminPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const saveAlertSettings = useMutation({
+    mutationFn: async (input: { planting_reminder_days: number; stock_alerts_enabled: boolean }) => {
+      const { data: auth } = await supabase.auth.getUser();
+      const { error } = await (supabase as any).from("alert_settings").update({ ...input, updated_by: auth.user?.id }).eq("id", true);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Configuración de alertas guardada"); qc.invalidateQueries({ queryKey: ["alert-settings"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const assignFarmer = useMutation({
+    mutationFn: async () => {
+      if (!assignmentTechnician || !assignmentFarmer) throw new Error("Selecciona técnico y agricultor");
+      const { data: auth } = await supabase.auth.getUser();
+      const { error } = await (supabase as any).from("technician_farmer_assignments").upsert({ technician_id: assignmentTechnician, farmer_id: assignmentFarmer, created_by: auth.user?.id });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Agricultor asignado al técnico"); qc.invalidateQueries({ queryKey: ["technician-assignments"] }); setAssignmentFarmer(""); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const pendingAlerts = (alerts.data ?? []).filter((a) => a.status === "PENDIENTE").slice(0, 5);
   const m = metrics.data;
@@ -130,14 +166,38 @@ function AdminPage() {
         <MetricCard icon={ClipboardList} label="Actividades" value={m?.activities ?? "—"} />
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Farmers */}
         <section className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Users className="size-4 text-primary" />
               <h2 className="font-semibold">Agricultores ({filteredFarmers.length})</h2>
-            </div>
+       </div>
+
+       <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+         <div><h2 className="font-semibold">Configuración automática de alertas</h2><p className="text-sm text-muted-foreground">Los cambios se aplican al regenerar alertas o en la siguiente ejecución programada.</p></div>
+         <div className="flex flex-wrap items-end gap-4">
+           <div className="space-y-1.5"><Label htmlFor="reminder-days">Días de anticipación para siembra</Label><Input id="reminder-days" type="number" min="0" max="30" defaultValue={alertSettings.data?.planting_reminder_days ?? 1} key={alertSettings.data?.updated_at} className="w-36" onChange={(e) => { (e.currentTarget.dataset.value = e.currentTarget.value); }} /></div>
+           <div className="flex items-center gap-2 pb-2"><Switch id="stock-alerts" defaultChecked={alertSettings.data?.stock_alerts_enabled ?? true} key={`stock-${alertSettings.data?.updated_at}`} /><Label htmlFor="stock-alerts">Alertas de stock mínimo</Label></div>
+           <Button size="sm" disabled={saveAlertSettings.isPending || alertSettings.isLoading} onClick={() => {
+             const days = Number((document.getElementById("reminder-days") as HTMLInputElement)?.value);
+             const stock = (document.getElementById("stock-alerts") as HTMLButtonElement)?.getAttribute("data-state") === "checked";
+             if (!Number.isInteger(days) || days < 0 || days > 30) return toast.error("Indica entre 0 y 30 días");
+             saveAlertSettings.mutate({ planting_reminder_days: days, stock_alerts_enabled: stock });
+           }}>Guardar configuración</Button>
+         </div>
+       </section>
+
+       <section className="rounded-xl border border-border bg-card p-5 space-y-3">
+         <div><h2 className="font-semibold">Asignación técnico–agricultor</h2><p className="text-sm text-muted-foreground">Los técnicos sólo podrán consultar los agricultores asignados aquí.</p></div>
+         <div className="flex flex-wrap gap-2 items-center">
+           <Select value={assignmentTechnician} onValueChange={setAssignmentTechnician}><SelectTrigger className="w-56"><SelectValue placeholder="Seleccionar técnico" /></SelectTrigger><SelectContent>{(users.data ?? []).filter(u => u.roles.includes("tecnico")).map(u => <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>)}</SelectContent></Select>
+           <Select value={assignmentFarmer} onValueChange={setAssignmentFarmer}><SelectTrigger className="w-56"><SelectValue placeholder="Seleccionar agricultor" /></SelectTrigger><SelectContent>{(users.data ?? []).filter(u => u.roles.includes("agricultor")).map(u => <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>)}</SelectContent></Select>
+           <Button size="sm" disabled={assignFarmer.isPending} onClick={() => assignFarmer.mutate()}>Asignar acceso</Button>
+         </div>
+         <p className="text-xs text-muted-foreground">Asignaciones activas: {assignments.data?.length ?? 0}</p>
+       </section>
             <div className="relative">
               <Search className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input

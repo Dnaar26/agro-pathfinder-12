@@ -104,11 +104,12 @@ function CultivosPage() {
         catalog_id: input.catalog_id,
         planting_date: format(planting, "yyyy-MM-dd"),
         estimated_harvest_date: format(harvest, "yyyy-MM-dd"),
-        status: "SEMBRADO",
+        // El trigger de BD es la fuente de verdad: futuro=PLANEADO, hoy/pasado=SEMBRADO.
+        status: input.planting_date > format(new Date(), "yyyy-MM-dd") ? "PLANEADO" : "SEMBRADO",
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Cultivo creado"); qc.invalidateQueries({ queryKey: ["crops"] }); setCreateOpen(false); },
+    onSuccess: () => { toast.success("Cultivo creado con estado calculado según su fecha de siembra"); qc.invalidateQueries({ queryKey: ["crops"] }); setCreateOpen(false); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -207,7 +208,7 @@ function CultivosPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="planting_date">Fecha de siembra</Label>
+              <Label htmlFor="planting_date">Fecha de siembra (futura: PLANEADO; hoy o anterior: SEMBRADO)</Label>
               <Input id="planting_date" name="planting_date" type="date" required defaultValue={format(new Date(), "yyyy-MM-dd")} />
             </div>
             <DialogFooter><Button type="submit" disabled={createCrop.isPending}>Crear cultivo</Button></DialogFooter>

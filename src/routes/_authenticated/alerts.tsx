@@ -63,6 +63,7 @@ function AlertsPage() {
         title: alertTitle.trim(),
         body: alertBody.trim() || null,
         scheduled_at: new Date().toISOString(),
+        origin: "MANUAL",
       });
       if (error) throw error;
     },
@@ -156,9 +157,11 @@ function AlertsPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-xs px-2 py-0.5 rounded-full bg-warning/20 text-warning-foreground font-medium">{a.kind}</span>
                     <span className="font-medium">{a.title}</span>
+                    <span className="text-xs text-muted-foreground">{a.origin === "MANUAL" ? "Manual" : "Automática"}</span>
                     {a.profiles?.full_name && isStaff && <span className="text-xs text-primary flex items-center gap-0.5"><User className="size-3" />{a.profiles.full_name}</span>}
                   </div>
-                  {a.body && <p className="text-sm text-muted-foreground mt-1">{a.body}</p>}
+                   {a.body && <p className="text-sm text-muted-foreground mt-1">{a.body}</p>}
+                   {a.sender?.full_name && <p className="text-xs text-muted-foreground mt-1">Enviada por: {a.sender.full_name}</p>}
                   <p className="text-xs text-muted-foreground mt-1">{format(new Date(a.scheduled_at), "dd MMM yyyy HH:mm", { locale: es })}</p>
                 </div>
                 <div className="flex gap-1">

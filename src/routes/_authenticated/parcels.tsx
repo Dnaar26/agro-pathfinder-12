@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { listParcels, listParcelsPage, listSoils } from "@/lib/queries";
+import { deleteParcelCascade, listParcels, listParcelsPage, listSoils } from "@/lib/queries";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,10 +75,14 @@ function ParcelsPage() {
 
   const deleteParcel = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("parcels").delete().eq("id", id);
-      if (error) throw error;
+      await deleteParcelCascade(id);
     },
-    onSuccess: () => { toast.success("Parcela eliminada"); qc.invalidateQueries({ queryKey: ["parcels"] }); },
+    onSuccess: () => {
+      toast.success("Parcela y sus dependencias eliminadas");
+      setDeleteConfirmId(null);
+      qc.invalidateQueries({ queryKey: ["parcels"] });
+      qc.invalidateQueries({ queryKey: ["crops"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -235,7 +239,16 @@ function ParcelsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteConfirmId(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (deleteConfirmId) { deleteParcel.mutate(deleteConfirmId); setDeleteConfirmId(null); } }}>Eliminar</AlertDialogAction>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteParcel.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleteConfirmId) deleteParcel.mutate(deleteConfirmId);
+              }}
+            >
+              {deleteParcel.isPending ? "Eliminando…" : "Eliminar"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -22,8 +22,8 @@ function Landing() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Logo />
           <div className="flex items-center gap-2">
-            <Button asChild variant="ghost"><Link to="/auth" search={{ mode: "login" }}>Iniciar sesión</Link></Button>
-            <Button asChild><Link to="/auth" search={{ mode: "signup" }}>Crear cuenta</Link></Button>
+            <Button asChild variant="ghost"><Link to="/login">Iniciar sesión</Link></Button>
+            <Button asChild><Link to="/register">Crear cuenta</Link></Button>
           </div>
         </div>
       </header>
@@ -40,8 +40,8 @@ function Landing() {
             SIGIC acompaña al agricultor en todo el ciclo productivo: planeación, siembra, mantenimiento y cosecha. Registra actividades, recibe alertas y toma mejores decisiones.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild size="lg"><Link to="/auth" search={{ mode: "signup" }}>Comenzar gratis</Link></Button>
-            <Button asChild size="lg" variant="outline"><Link to="/auth" search={{ mode: "login" }}>Ver demo</Link></Button>
+            <Button asChild size="lg"><Link to="/register">Comenzar gratis</Link></Button>
+            <Button asChild size="lg" variant="outline"><Link to="/login">Ver demo</Link></Button>
           </div>
         </div>
 

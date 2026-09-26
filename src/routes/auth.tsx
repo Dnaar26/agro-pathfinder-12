@@ -11,6 +11,7 @@ import { Eye, EyeOff, Mail, Lock, User, Phone, Sprout, ShieldCheck, CheckCircle2
 import { Logo } from "@/components/logo";
 import { requestPasswordReset, validateDomainMx } from "@/lib/api/auth.server";
 import { phoneSchema } from "@/lib/schemas/phone";
+import { emailSchema } from "@/lib/schemas/email";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -21,28 +22,28 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-const emailSchema = z.string().trim().email("Correo electrónico inválido").max(180);
 const loginPasswordSchema = z.string().min(1, "Ingresa tu contraseña").max(72);
 const firstNameSchema = z.string().trim().min(2, "Ingresa tu nombre (mínimo 2 caracteres)").max(60);
 const lastNameSchema = z.string().trim().min(2, "Ingresa tu apellido (mínimo 2 caracteres)").max(60);
-// phoneSchema importado arriba desde @/lib/schemas/phone (centralizado)
 const signupPasswordSchema = z
   .string()
   .min(8, "La contraseña debe tener al menos 8 caracteres")
   .max(72);
 
-export function AuthPage() {
-  const search = useSearch({ from: "/auth" });
+export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {}) {
+  const search = useSearch({ from: "/auth", strict: false }) as any;
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"login" | "signup">(search.mode || "login");
+  const [tab, setTab] = useState<"login" | "signup">(initialTab || search?.mode || "login");
   const [loading, setLoading] = useState(false);
 
-  // Sync tab if URL search parameter changes
+  // Sync tab if initialTab or URL search parameter changes
   useEffect(() => {
-    if (search.mode && (search.mode === "login" || search.mode === "signup")) {
+    if (initialTab) {
+      setTab(initialTab);
+    } else if (search?.mode && (search.mode === "login" || search.mode === "signup")) {
       setTab(search.mode);
     }
-  }, [search.mode]);
+  }, [initialTab, search?.mode]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -76,20 +77,34 @@ export function AuthPage() {
     const parsed = emailSchema.safeParse(resetEmail);
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
     setLoading(true);
+    const cleanEmail = parsed.data.trim().toLowerCase();
     try {
-      const res = await requestPasswordReset({
-        data: {
-          email: parsed.data,
+      // 1. Validar existencia del usuario en la base de datos (RPC)
+      let exists = false;
+      try {
+        const { data: hasAccount, error } = await (supabase as any).rpc("check_email_exists", {
+          p_email: cleanEmail,
+        });
+        if (!error && hasAccount === true) {
+          exists = true;
+        }
+      } catch (err) {
+        console.warn("RPC check_email_exists:", err);
+      }
+
+      // 2. Solo despacha si el correo realmente existe
+      if (exists) {
+        await supabase.auth.resetPasswordForEmail(cleanEmail, {
           redirectTo: `${window.location.origin}/reset-password`,
-        },
-      });
-      toast.success(res.message);
-      setResetEmail("");
-    } catch {
-      toast.success("Si el correo está registrado, recibirás un enlace de recuperación.");
-      setResetEmail("");
+        });
+      }
+    } catch (e) {
+      console.warn("Error en recuperación de contraseña:", e);
     } finally {
       setLoading(false);
+      // Responder SIEMPRE con mensaje neutral uniforme
+      toast.success("Si el correo está registrado, recibirás un código de recuperación.");
+      setResetEmail("");
     }
   }
 
@@ -223,7 +238,7 @@ export function AuthPage() {
       }
 
       if (!data?.session) {
-        toast.success("¡Registro exitoso! Por favor confirma el correo de verificación enviado.");
+        toast.success("¡Registro exitoso! Revisa tu correo electrónico para confirmar tu cuenta.");
         setTab("login");
         return;
       }

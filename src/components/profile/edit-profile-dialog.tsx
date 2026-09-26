@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { User, Phone, Mail, Shield, Loader2, Save } from "lucide-react";
-import { optionalPhoneSchema } from "@/lib/schemas/phone";
+import { phoneSchema } from "@/lib/schemas/phone";
 
 interface EditProfileDialogProps {
   open: boolean;
@@ -63,7 +63,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
 
       if (!trimmedName) throw new Error("El nombre no puede estar vacío");
 
-      const phoneValidation = optionalPhoneSchema.safeParse(trimmedPhone);
+      const phoneValidation = phoneSchema.safeParse(trimmedPhone);
       if (!phoneValidation.success) {
         throw new Error(phoneValidation.error.issues[0].message);
       }
@@ -104,12 +104,12 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const phoneValidation = optionalPhoneSchema.safeParse(phone.trim());
+    const phoneValidation = phoneSchema.safeParse(phone.trim());
     if (!phoneValidation.success) {
       toast.error(phoneValidation.error.issues[0].message);
       return;
     }
-    updateProfileMutation.mutate({ name: fullName, phoneNumber: phone });
+    updateProfileMutation.mutate({ name: fullName, phoneNumber: phone.trim() });
   };
 
   const primaryRole = userQuery.data?.roles?.includes("admin")
@@ -183,6 +183,8 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+57 300 123 4567"
+                  minLength={7}
+                  maxLength={20}
                   className="pl-9 h-10 text-sm"
                 />
               </div>

@@ -4,11 +4,7 @@ import { z } from "zod";
 import { promises as dnsPromises } from "dns";
 import { phoneSchema, optionalPhoneSchema } from "@/lib/schemas/phone";
 
-const TYPO_DOMAINS = new Set([
-  "gnil.com", "gmaill.com", "gmai.com", "gamil.com", "gmial.com",
-  "hotmial.com", "hotmai.com", "yaho.com", "yahooo.com", "outlok.com",
-  "outloo.com", "icwoud.com", "con.com", "gm.com",
-]);
+import { TYPO_DOMAINS } from "@/lib/schemas/email";
 
 /** Verifica que el dominio del correo es válido y tiene registros MX. */
 async function validateEmailDomain(email: string): Promise<void> {
@@ -20,9 +16,10 @@ async function validateEmailDomain(email: string): Promise<void> {
     throw new Error(`El dominio '${domain}' no es válido. Usa un correo real.`);
   }
 
-  // 1. Detección inmediata de dominios con error tipográfico común
-  if (TYPO_DOMAINS.has(domain)) {
-    throw new Error(`El dominio '${domain}' no existe o está mal escrito. Verifica si quisiste escribir gmail.com, hotmail.com u otro.`);
+  // 1. Detección inmediata de dominios con error tipográfico común (ej: gnil.com)
+  if (TYPO_DOMAINS[domain]) {
+    const suggested = TYPO_DOMAINS[domain];
+    throw new Error(`El dominio '${domain}' no existe o está mal escrito. ¿Quisiste escribir ${suggested}?`);
   }
 
   // 2. Validación de registros MX vía DNS
@@ -31,12 +28,26 @@ async function validateEmailDomain(email: string): Promise<void> {
     if (!records || records.length === 0) {
       throw new Error(`El dominio '${domain}' no tiene servidores de correo válidos. Usa una dirección real.`);
     }
+
+    // 3. Detección de servidores MX estacionados o no receptores de correo (ej: getontheweb para gnil.com)
+    const isParked = records.some((r) => {
+      const ex = r.exchange.toLowerCase();
+      return (
+        ex.includes("getontheweb") ||
+        ex.includes("parklogic") ||
+        ex.includes("sedoparking") ||
+        ex.includes("bodis") ||
+        ex.includes("localhost")
+      );
+    });
+    if (isParked) {
+      throw new Error(`El dominio '${domain}' no es un servicio de correo electrónico real.`);
+    }
   } catch (err: any) {
     if (err.code === "ENOTFOUND" || err.code === "ENODATA" || err.code === "SERVFAIL") {
       throw new Error(`El dominio '${domain}' no existe o no puede recibir correos. Usa un correo real.`);
     }
     if (err.message && err.message.startsWith("El dominio")) throw err;
-    // Si hay un error de resolución DNS, rechazar por seguridad
     throw new Error(`No se pudo verificar el dominio '${domain}'. Asegúrate de usar un correo válido.`);
   }
 }

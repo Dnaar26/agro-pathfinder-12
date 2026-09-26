@@ -16,7 +16,7 @@ import { es } from "date-fns/locale";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/alerts")({
-  head: () => ({ meta: [{ title: "Alertas — SIGIC" }] }),
+  head: () => ({ meta: [{ title: "Notificaciones y Avisos — SIGIC" }] }),
   component: AlertsPage,
 });
 
@@ -142,11 +142,11 @@ function AlertsPage() {
       </header>
 
       <section>
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Bell className="size-4 text-warning" /> Pendientes ({pending.length})</h2>
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Bell className="size-4 text-warning" /> Avisos pendientes ({pending.length})</h2>
         {pending.length === 0 ? (
           <div className="p-8 border border-dashed border-border rounded-xl text-center">
             <BellOff className="size-8 mx-auto text-muted-foreground" />
-            <p className="mt-2 text-muted-foreground">No tienes alertas pendientes.</p>
+            <p className="mt-2 text-muted-foreground">No tienes avisos ni notificaciones pendientes.</p>
           </div>
         ) : (
           <><ul className="space-y-2">
@@ -175,7 +175,7 @@ function AlertsPage() {
 
       {handled.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold mb-3 text-muted-foreground">Historial ({handled.length})</h2>
+          <h2 className="text-lg font-semibold mb-3 text-muted-foreground">Historial de avisos ({handled.length})</h2>
           <ul className="space-y-2">
             {paginatedHandled.map((a) => (
               <li key={a.id} className="p-3 rounded-lg border border-border bg-card text-sm flex items-center justify-between">

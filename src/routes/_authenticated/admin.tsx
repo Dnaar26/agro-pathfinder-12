@@ -116,7 +116,7 @@ function AdminPage() {
     onError: (e: Error) => toast.error(e.message),
   });
   const saveAlertSettings = useMutation({
-    mutationFn: async (input: { planting_reminder_days: number; stock_alerts_enabled: boolean }) => {
+    mutationFn: async (input: { planting_reminder_days: number; stock_alerts_enabled: boolean; stock_alert_threshold: number }) => {
       const { data: auth } = await supabase.auth.getUser();
       const { error } = await (supabase as any).from("alert_settings").update({ ...input, updated_by: auth.user?.id }).eq("id", true);
       if (error) throw error;
@@ -179,12 +179,15 @@ function AdminPage() {
          <div><h2 className="font-semibold">Configuración automática de alertas</h2><p className="text-sm text-muted-foreground">Los cambios se aplican al regenerar alertas o en la siguiente ejecución programada.</p></div>
          <div className="flex flex-wrap items-end gap-4">
            <div className="space-y-1.5"><Label htmlFor="reminder-days">Días de anticipación para siembra</Label><Input id="reminder-days" type="number" min="0" max="30" defaultValue={alertSettings.data?.planting_reminder_days ?? 1} key={alertSettings.data?.updated_at} className="w-36" onChange={(e) => { (e.currentTarget.dataset.value = e.currentTarget.value); }} /></div>
-           <div className="flex items-center gap-2 pb-2"><Switch id="stock-alerts" defaultChecked={alertSettings.data?.stock_alerts_enabled ?? true} key={`stock-${alertSettings.data?.updated_at}`} /><Label htmlFor="stock-alerts">Alertas de stock mínimo</Label></div>
+            <div className="space-y-1.5"><Label htmlFor="stock-threshold">Umbral global de stock</Label><Input id="stock-threshold" type="number" min="0" step="any" defaultValue={alertSettings.data?.stock_alert_threshold ?? 0} key={`threshold-${alertSettings.data?.updated_at}`} className="w-36" /><p className="text-xs text-muted-foreground">Se compara con el mínimo propio del insumo.</p></div>
+            <div className="flex items-center gap-2 pb-2"><Switch id="stock-alerts" defaultChecked={alertSettings.data?.stock_alerts_enabled ?? true} key={`stock-${alertSettings.data?.updated_at}`} /><Label htmlFor="stock-alerts">Alertas de stock bajo</Label></div>
            <Button size="sm" disabled={saveAlertSettings.isPending || alertSettings.isLoading} onClick={() => {
-             const days = Number((document.getElementById("reminder-days") as HTMLInputElement)?.value);
-             const stock = (document.getElementById("stock-alerts") as HTMLButtonElement)?.getAttribute("data-state") === "checked";
-             if (!Number.isInteger(days) || days < 0 || days > 30) return toast.error("Indica entre 0 y 30 días");
-             saveAlertSettings.mutate({ planting_reminder_days: days, stock_alerts_enabled: stock });
+              const days = Number((document.getElementById("reminder-days") as HTMLInputElement)?.value);
+              const threshold = Number((document.getElementById("stock-threshold") as HTMLInputElement)?.value);
+              const stock = (document.getElementById("stock-alerts") as HTMLButtonElement)?.getAttribute("data-state") === "checked";
+              if (!Number.isInteger(days) || days < 0 || days > 30) return toast.error("Indica entre 0 y 30 días");
+              if (!Number.isFinite(threshold) || threshold < 0) return toast.error("Indica un umbral de stock válido");
+              saveAlertSettings.mutate({ planting_reminder_days: days, stock_alerts_enabled: stock, stock_alert_threshold: threshold });
            }}>Guardar configuración</Button>
          </div>
        </section>

@@ -5,7 +5,9 @@ import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from "react
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { supabase } from "@/integrations/supabase/client";
 import { listParcels } from "@/lib/queries";
+import { deleteParcelCascade } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { MapPin, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -26,6 +28,7 @@ function MapaPage() {
   const [selectedId, setSelectedId] = useState<string>("__all__");
   const [pending, setPending] = useState<{ parcelId: string; geometry: any; area: number } | null>(null);
   const [cardPage, setCardPage] = useState(1);
+  const [parcelToDelete, setParcelToDelete] = useState<{ id: string; name: string } | null>(null);
   const cardPageSize = 12;
 
   const parcelRows = parcels.data ?? EMPTY_PARCELS;
@@ -50,6 +53,17 @@ function MapaPage() {
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["parcels"] }); toast.success("Geometría guardada"); setPending(null); },
     onError: (e: Error) => toast.error(e.message),
+  });
+  const deleteParcel = useMutation({
+    mutationFn: deleteParcelCascade,
+    onSuccess: () => {
+      toast.success("Parcela y cultivos eliminados");
+      setParcelToDelete(null);
+      setSelectedId("__all__");
+      qc.invalidateQueries({ queryKey: ["parcels"] });
+      qc.invalidateQueries({ queryKey: ["crops"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const handlePolygonCreated = useCallback((geo: any, area: number) => {
@@ -85,8 +99,15 @@ function MapaPage() {
       </header>
 
       <Suspense fallback={<div className="h-[400px] rounded-xl bg-muted animate-pulse" />}>
-        <ParcelMap parcels={displayParcels} onPolygonCreated={handlePolygonCreated} editGeometry={pending?.geometry} />
+        <ParcelMap parcels={displayParcels} onPolygonCreated={handlePolygonCreated} editGeometry={pending?.geometry} onDeleteParcel={setParcelToDelete} />
       </Suspense>
+
+      <AlertDialog open={!!parcelToDelete} onOpenChange={(open) => !open && setParcelToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Eliminar parcela</AlertDialogTitle><AlertDialogDescription>Se eliminarán “{parcelToDelete?.name}” y todos sus cultivos y dependencias. Esta acción no se puede deshacer.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={deleteParcel.isPending} onClick={(event) => { event.preventDefault(); if (parcelToDelete) deleteParcel.mutate(parcelToDelete.id); }}>{deleteParcel.isPending ? "Eliminando…" : "Eliminar"}</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {paginatedCards.map((p) => (

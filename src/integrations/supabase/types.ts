@@ -353,6 +353,8 @@ export type Database = {
         Returns: undefined
       }
       generate_automatic_alerts: { Args: never; Returns: undefined }
+      create_manual_alert: { Args: { p_recipient_id: string; p_kind: Database["public"]["Enums"]["alert_kind"]; p_title: string; p_body?: string | null }; Returns: string }
+      list_manual_alert_recipients: { Args: never; Returns: { id: string; full_name: string; role: Database["public"]["Enums"]["app_role"] }[] }
       delete_parcel_cascade: { Args: { p_parcel_id: string }; Returns: string }
       has_role: {
         Args: {

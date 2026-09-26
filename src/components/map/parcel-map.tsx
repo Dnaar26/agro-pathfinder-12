@@ -6,7 +6,7 @@ import "leaflet-draw/dist/leaflet.draw.css";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Layers, Satellite, Map as MapIcon } from "lucide-react";
+import { MapPin, Satellite, Map as MapIcon } from "lucide-react";
 
 type ParcelGeometry = { type: "Polygon"; coordinates: number[][][] };
 
@@ -14,10 +14,12 @@ export function ParcelMap({
   parcels,
   onPolygonCreated,
   editGeometry,
+  onDeleteParcel,
 }: {
   parcels: { id: string; name: string; geometry?: ParcelGeometry | null; latitude?: number; longitude?: number; area_m2: number }[];
   onPolygonCreated?: (geo: ParcelGeometry, area: number) => void;
   editGeometry?: ParcelGeometry | null;
+  onDeleteParcel?: (parcel: { id: string; name: string }) => void;
 }) {
   const mapRef = useRef<L.Map | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
@@ -27,13 +29,21 @@ export function ParcelMap({
   const onPolygonRef = useRef(onPolygonCreated);
   onPolygonRef.current = onPolygonCreated;
 
-  function buildPopup(name: string, areaM2: number) {
+  function buildPopup(parcel: { id: string; name: string; area_m2: number }) {
     const container = document.createElement("div");
     const title = document.createElement("strong");
-    title.textContent = name;
+    title.textContent = parcel.name;
     const area = document.createElement("div");
-    area.textContent = `${(areaM2 / 10000).toFixed(2)} ha`;
+    area.textContent = `${(parcel.area_m2 / 10000).toFixed(2)} ha`;
     container.append(title, area);
+    if (onDeleteParcel) {
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "Eliminar parcela";
+      remove.className = "mt-2 text-xs text-red-600 underline";
+      remove.onclick = () => onDeleteParcel({ id: parcel.id, name: parcel.name });
+      container.append(remove);
+    }
     return container;
   }
 
@@ -88,12 +98,12 @@ export function ParcelMap({
       if (p.geometry?.coordinates) {
         const coords = p.geometry.coordinates[0].map((c) => [c[1], c[0]] as [number, number]);
         const poly = L.polygon(coords, { color: "#22c55e", fillOpacity: 0.2, weight: 2 });
-        poly.bindPopup(buildPopup(p.name, p.area_m2));
+        poly.bindPopup(buildPopup(p));
         drawn.addLayer(poly);
         coords.forEach((c) => bounds.extend(c));
       } else if (p.latitude && p.longitude) {
         const m = L.marker([p.latitude, p.longitude], { icon: L.divIcon({ html: `<div class="size-4 bg-primary rounded-full border-2 border-white shadow" />`, className: "" }) });
-        m.bindPopup(buildPopup(p.name, p.area_m2));
+        m.bindPopup(buildPopup(p));
         drawn.addLayer(m);
         bounds.extend([p.latitude, p.longitude]);
       }
@@ -101,7 +111,7 @@ export function ParcelMap({
 
     if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
     return () => { map.removeLayer(drawn); };
-  }, [parcels, mapReady]);
+  }, [parcels, mapReady, onDeleteParcel]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current || !editGeometry) return;

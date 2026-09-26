@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Bell, BellOff, Check, Plus, Trash2, User } from "lucide-react";
+import { Bell, BellOff, Check, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -26,11 +26,12 @@ function AlertsPage() {
   const qc = useQueryClient();
   const isStaff = (roles.data ?? []).some((r) => ["tecnico", "admin"].includes(r));
 
-  const farmers = useQuery({
-    queryKey: ["farmers-for-alerts"],
+  const recipients = useQuery({
+    queryKey: ["manual-alert-recipients"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("id, full_name").order("full_name");
-      return data ?? [];
+      const { data, error } = await supabase.rpc("list_manual_alert_recipients");
+      if (error) throw error;
+      return data;
     },
     enabled: isStaff,
   });
@@ -44,11 +45,10 @@ function AlertsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const [pendingPage, setPendingPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
   const pageSize = 15;
   const [newOpen, setNewOpen] = useState(false);
-  const [alertFarmer, setAlertFarmer] = useState("__self__");
+  const [alertFarmer, setAlertFarmer] = useState("");
   const [alertKind, setAlertKind] = useState("RIEGO");
   const [alertTitle, setAlertTitle] = useState("");
   const [alertBody, setAlertBody] = useState("");
@@ -56,14 +56,12 @@ function AlertsPage() {
   const createAlert = useMutation({
     mutationFn: async () => {
       if (!alertTitle.trim()) throw new Error("El título es obligatorio");
-      const targetUser = isStaff && alertFarmer && alertFarmer !== "__self__" ? alertFarmer : (await supabase.auth.getUser()).data.user!.id;
-      const { error } = await supabase.from("alerts").insert({
-        user_id: targetUser,
-        kind: alertKind as any,
-        title: alertTitle.trim(),
-        body: alertBody.trim() || null,
-        scheduled_at: new Date().toISOString(),
-        origin: "MANUAL",
+      if (!alertFarmer) throw new Error("Selecciona un destinatario");
+      const { error } = await supabase.rpc("create_manual_alert", {
+        p_recipient_id: alertFarmer,
+        p_kind: alertKind as any,
+        p_title: alertTitle.trim(),
+        p_body: alertBody.trim() || null,
       });
       if (error) throw error;
     },
@@ -72,7 +70,7 @@ function AlertsPage() {
       setNewOpen(false);
       setAlertTitle("");
       setAlertBody("");
-      setAlertFarmer("__self__");
+      setAlertFarmer("");
       setAlertKind("RIEGO");
       qc.invalidateQueries({ queryKey: ["alerts"] });
     },
@@ -80,10 +78,10 @@ function AlertsPage() {
   });
 
   const pending = (alerts.data ?? []).filter((a) => a.status === "PENDIENTE");
+  const automatic = pending.filter((a) => a.origin === "AUTOMATICA");
+  const manual = pending.filter((a) => a.origin === "MANUAL");
   const handled = (alerts.data ?? []).filter((a) => a.status !== "PENDIENTE");
-  const pendingPages = Math.max(1, Math.ceil(pending.length / pageSize));
   const historyPages = Math.max(1, Math.ceil(handled.length / pageSize));
-  const paginatedPending = useMemo(() => pending.slice((pendingPage - 1) * pageSize, pendingPage * pageSize), [pending, pendingPage]);
   const paginatedHandled = useMemo(() => handled.slice((historyPage - 1) * pageSize, historyPage * pageSize), [handled, historyPage]);
 
   return (
@@ -93,7 +91,7 @@ function AlertsPage() {
           <h1 className="text-3xl font-bold">Alertas y Notificaciones</h1>
           <p className="text-sm text-muted-foreground">Avisos y recordatorios del sistema.</p>
         </div>
-        <Dialog open={newOpen} onOpenChange={setNewOpen}>
+        {isStaff && <Dialog open={newOpen} onOpenChange={setNewOpen}>
           <DialogTrigger asChild>
             <Button><Plus className="size-4 mr-1" /> Enviar aviso</Button>
           </DialogTrigger>
@@ -108,12 +106,9 @@ function AlertsPage() {
                   <Combobox
                     value={alertFarmer}
                     onChange={setAlertFarmer}
-                    options={[
-                      { value: "__self__", label: "A mí mismo" },
-                      ...(farmers.data ?? []).map((f: any) => ({ value: f.id, label: f.full_name })),
-                    ]}
-                    placeholder="A mí mismo"
-                    searchPlaceholder="Buscar agricultor…"
+                    options={(recipients.data ?? []).map((person) => ({ value: person.id, label: `${person.full_name} (${person.role})` }))}
+                    placeholder="Seleccionar destinatario"
+                    searchPlaceholder="Buscar destinatario…"
                   />
                 </div>
               )}
@@ -139,43 +134,17 @@ function AlertsPage() {
               <Button type="submit" className="w-full" disabled={createAlert.isPending}>Enviar aviso ahora</Button>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </header>
 
-      <section>
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Bell className="size-4 text-warning" /> Avisos pendientes ({pending.length})</h2>
-        {pending.length === 0 ? (
-          <div className="p-8 border border-dashed border-border rounded-xl text-center">
-            <BellOff className="size-8 mx-auto text-muted-foreground" />
-            <p className="mt-2 text-muted-foreground">No tienes avisos ni notificaciones pendientes.</p>
-          </div>
-        ) : (
-          <><ul className="space-y-2">
-            {paginatedPending.map((a: any) => (
-              <li key={a.id} className="p-4 rounded-lg border border-warning/30 bg-warning/5 flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-warning/20 text-warning-foreground font-medium">{a.kind}</span>
-                    <span className="font-medium">{a.title}</span>
-                    <span className="text-xs text-muted-foreground">{a.origin === "MANUAL" ? "Manual" : "Automática"}</span>
-                    {a.profiles?.full_name && isStaff && <span className="text-xs text-primary flex items-center gap-0.5"><User className="size-3" />{a.profiles.full_name}</span>}
-                  </div>
-                   {a.body && <p className="text-sm text-muted-foreground mt-1">{a.body}</p>}
-                   {a.sender?.full_name && <p className="text-xs text-muted-foreground mt-1">Enviada por: {a.sender.full_name}</p>}
-                  <p className="text-xs text-muted-foreground mt-1">{format(new Date(a.scheduled_at), "dd MMM yyyy HH:mm", { locale: es })}</p>
-                </div>
-                <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => setStatus.mutate({ id: a.id, status: "ATENDIDA" })}><Check className="size-4" /></Button>
-                  <Button size="icon" variant="ghost" onClick={() => setStatus.mutate({ id: a.id, status: "DESCARTADA" })}><Trash2 className="size-4" /></Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {pending.length > pageSize && <PaginationBar page={pendingPage} totalPages={pendingPages} onPageChange={setPendingPage} />}
-          </>
-        )}
-      </section>
-
+      <AlertSection title="Automáticas" alerts={automatic} onStatus={(id, status) => setStatus.mutate({ id, status })} />
+      <AlertSection title={isStaff ? "Manuales enviadas/recibidas" : "De tu técnico"} alerts={manual} onStatus={(id, status) => setStatus.mutate({ id, status })} />
+      {pending.length === 0 && (
+        <section>
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Bell className="size-4 text-warning" /> Avisos pendientes</h2>
+          <div className="p-8 border border-dashed border-border rounded-xl text-center"><BellOff className="size-8 mx-auto text-muted-foreground" /><p className="mt-2 text-muted-foreground">No tienes avisos ni notificaciones pendientes.</p></div>
+        </section>
+      )}
       {handled.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold mb-3 text-muted-foreground">Historial de avisos ({handled.length})</h2>
@@ -192,4 +161,12 @@ function AlertsPage() {
       )}
     </div>
   );
+}
+
+function AlertSection({ title, alerts, onStatus }: { title: string; alerts: any[]; onStatus: (id: string, status: string) => void }) {
+  if (alerts.length === 0) return null;
+  return <section>
+    <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Bell className="size-4 text-warning" /> {title} ({alerts.length})</h2>
+    <ul className="space-y-2">{alerts.map((a) => <li key={a.id} className="p-4 rounded-lg border border-warning/30 bg-warning/5 flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><span className="text-xs px-2 py-0.5 rounded-full bg-warning/20 text-warning-foreground font-medium">{a.kind}</span><span className="font-medium">{a.title}</span></div>{a.body && <p className="text-sm text-muted-foreground mt-1">{a.body}</p>}{a.sender?.full_name && <p className="text-xs text-muted-foreground mt-1">Enviada por: {a.sender.full_name}</p>}<p className="text-xs text-muted-foreground mt-1">{format(new Date(a.scheduled_at), "dd MMM yyyy HH:mm", { locale: es })}</p></div><div className="flex gap-1"><Button size="icon" variant="ghost" onClick={() => onStatus(a.id, "ATENDIDA")}><Check className="size-4" /></Button><Button size="icon" variant="ghost" onClick={() => onStatus(a.id, "DESCARTADA")}><Trash2 className="size-4" /></Button></div></li>)}</ul>
+  </section>;
 }

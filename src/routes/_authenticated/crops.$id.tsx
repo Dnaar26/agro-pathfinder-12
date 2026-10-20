@@ -1,3 +1,4 @@
+import { coordsOrDefault } from "@/lib/geo";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useMemo } from "react";
@@ -260,8 +261,13 @@ function CropDetail() {
   });
 
   const updateCrop = useMutation({
-    mutationFn: async (data: { crop_catalog_id?: number; planting_date?: string; estimated_harvest_date?: string; notes?: string }) => {
-      const { error } = await supabase.from("crops").update(data).eq("id", id);
+    mutationFn: async (data: { crop_catalog_id?: number; catalog_id?: number; planting_date?: string; estimated_harvest_date?: string; notes?: string }) => {
+      const payload: any = { ...data };
+      if (payload.crop_catalog_id !== undefined) {
+        payload.catalog_id = payload.crop_catalog_id;
+        delete payload.crop_catalog_id;
+      }
+      const { error } = await supabase.from("crops").update(payload).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -363,12 +369,12 @@ function CropDetail() {
           </Button>
         </div>
          <div className="flex items-center gap-2">
-           {crop.data.status === "PLANEADO" && !crop.data.planting_confirmed_at && crop.data.planting_date <= format(new Date(), "yyyy-MM-dd") && (
+           {crop.data && crop.data.status === "PLANEADO" && !crop.data.planting_confirmed_at && crop.data.planting_date <= format(new Date(), "yyyy-MM-dd") && (
              <Button size="sm" onClick={() => confirmPlanting.mutate()} disabled={confirmPlanting.isPending}>
                Confirmar inicio
              </Button>
            )}
-          <Select defaultValue={crop.data.status} onValueChange={(v) => { if (v !== crop.data.status && v !== "PLANEADO") setPendingStatus(v); }}>
+          <Select defaultValue={crop.data?.status} onValueChange={(v) => { if (crop.data && v !== crop.data.status && v !== "PLANEADO") setPendingStatus(v); }}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -591,7 +597,7 @@ function CropDetail() {
         </TabsContent>
 
         <TabsContent value="weather" className="mt-4">
-          <Card className="p-4"><WeatherForecast lat={Number((crop.data as any).parcels?.latitude) || -16.5} lng={Number((crop.data as any).parcels?.longitude) || -68.15} parcelName={(crop.data as any).crop_catalog?.name} /></Card>
+          <Card className="p-4"><WeatherForecast {...coordsOrDefault((crop.data as any).parcels?.latitude, (crop.data as any).parcels?.longitude)} parcelName={(crop.data as any).crop_catalog?.name} /></Card>
         </TabsContent>
 
         <TabsContent value="ndvi" className="mt-4">

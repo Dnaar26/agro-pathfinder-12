@@ -6,6 +6,36 @@ import { phoneSchema, optionalPhoneSchema } from "@/lib/schemas/phone";
 import { TYPO_DOMAINS, emailSchema } from "@/lib/schemas/email";
 import { firstNameSchema, lastNameSchema, passwordBaseSchema, validatePasswordSecurity } from "@/lib/schemas/user";
 
+// Constants (safe for both client and server)
+export const ACCESS_COOKIE = "sigic_access_token";
+export const REFRESH_COOKIE = "sigic_refresh_token";
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+};
+
+function authClient() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!supabaseUrl || !publishableKey) {
+    const missing = [
+      ...(!supabaseUrl ? ["SUPABASE_URL / VITE_SUPABASE_URL"] : []),
+      ...(!publishableKey ? ["SUPABASE_PUBLISHABLE_KEY / VITE_SUPABASE_PUBLISHABLE_KEY"] : []),
+    ];
+    throw new Error(`Configuracion Supabase incompleta: ${missing.join(", ")}`);
+  }
+
+  return createClient(
+    supabaseUrl,
+    publishableKey,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+}
+
 /** Verifica que el dominio del correo es válido y tiene registros MX. */
 async function validateEmailDomain(email: string): Promise<void> {
   const parts = email.trim().toLowerCase().split("@");
@@ -52,49 +82,20 @@ async function validateEmailDomain(email: string): Promise<void> {
   }
 }
 
-export const ACCESS_COOKIE = "sigic_access_token";
-export const REFRESH_COOKIE = "sigic_refresh_token";
-
-const cookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
-  path: "/",
-};
-
-function authClient() {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!supabaseUrl || !publishableKey) {
-    const missing = [
-      ...(!supabaseUrl ? ["SUPABASE_URL / VITE_SUPABASE_URL"] : []),
-      ...(!publishableKey ? ["SUPABASE_PUBLISHABLE_KEY / VITE_SUPABASE_PUBLISHABLE_KEY"] : []),
-    ];
-    throw new Error(`Configuracion Supabase incompleta: ${missing.join(", ")}`);
-  }
-
-  return createClient(
-    supabaseUrl,
-    publishableKey,
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
-}
-
 export async function requireCookieUser(): Promise<User> {
-  const { deleteCookie, getCookie, setCookie } = await import("@tanstack/react-start/server");
-  let accessToken = getCookie(ACCESS_COOKIE);
+  // Dynamic import of server-only cookie utilities
+  const { getAccessToken, getRefreshToken, deleteAuthCookies, refreshAuthCookies } = await import("./auth-cookie.server");
+  
+  let accessToken = getAccessToken();
   if (!accessToken) {
-    const refreshToken = getCookie(REFRESH_COOKIE);
+    const refreshToken = getRefreshToken();
     if (!refreshToken) throw new Error("No autorizado");
     const { data, error } = await authClient().auth.refreshSession({ refresh_token: refreshToken });
     if (error || !data.session) {
-      deleteCookie(ACCESS_COOKIE, cookieOptions);
-      deleteCookie(REFRESH_COOKIE, cookieOptions);
+      deleteAuthCookies();
       throw new Error("No autorizado");
     }
-    setCookie(ACCESS_COOKIE, data.session.access_token, { ...cookieOptions, maxAge: data.session.expires_in ?? 3600 });
-    setCookie(REFRESH_COOKIE, data.session.refresh_token, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
+    refreshAuthCookies(data.session.access_token, data.session.refresh_token, data.session.expires_in);
     accessToken = data.session.access_token;
   }
 
@@ -120,22 +121,20 @@ export const syncHttpOnlySession = createServerFn({ method: "POST" })
     expiresIn: z.number().int().positive().max(60 * 60 * 24).optional(),
   }))
   .handler(async ({ data }) => {
-    const { setCookie } = await import("@tanstack/react-start/server");
+    const { setAuthCookies } = await import("./auth-cookie.server");
     const { data: auth, error } = await authClient().auth.getUser(data.accessToken);
     if (error || !auth.user) throw new Error("No autorizado");
-    setCookie(ACCESS_COOKIE, data.accessToken, { ...cookieOptions, maxAge: data.expiresIn ?? 3600 });
-    setCookie(REFRESH_COOKIE, data.refreshToken, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
+    setAuthCookies(data.accessToken, data.refreshToken, data.expiresIn);
     return { user: auth.user };
   });
 
 export const signInWithHttpOnlyCookie = createServerFn({ method: "POST" })
   .inputValidator(z.object({ email: emailSchema, password: loginPasswordSchema }))
   .handler(async ({ data }) => {
-    const { setCookie } = await import("@tanstack/react-start/server");
+    const { setAuthCookies } = await import("./auth-cookie.server");
     const { data: auth, error } = await authClient().auth.signInWithPassword(data);
     if (error || !auth.session) throw new Error(error?.message ?? "No se pudo iniciar sesion");
-    setCookie(ACCESS_COOKIE, auth.session.access_token, { ...cookieOptions, maxAge: auth.session.expires_in ?? 3600 });
-    setCookie(REFRESH_COOKIE, auth.session.refresh_token, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
+    setAuthCookies(auth.session.access_token, auth.session.refresh_token, auth.session.expires_in);
     return { user: auth.user };
   });
 
@@ -150,6 +149,7 @@ export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
     redirectTo: z.string().url().optional(),
   }))
   .handler(async ({ data }) => {
+    const { setAuthCookies } = await import("./auth-cookie.server");
     const cleanEmail = data.email.trim().toLowerCase();
     // Validación de dominio MX antes de intentar el registro
     await validateEmailDomain(cleanEmail);
@@ -168,7 +168,6 @@ export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
       throw new Error(passCheck.error || "Contraseña no válida");
     }
 
-    const { setCookie } = await import("@tanstack/react-start/server");
     const { data: auth, error } = await authClient().auth.signUp({
       email: cleanEmail,
       password: data.password,
@@ -201,8 +200,7 @@ export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
     }
 
     if (auth.session) {
-      setCookie(ACCESS_COOKIE, auth.session.access_token, { ...cookieOptions, maxAge: auth.session.expires_in ?? 3600 });
-      setCookie(REFRESH_COOKIE, auth.session.refresh_token, { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
+      setAuthCookies(auth.session.access_token, auth.session.refresh_token, auth.session.expires_in);
     }
     return { user: auth.user, needsEmailConfirmation: !auth.session };
   });
@@ -230,9 +228,8 @@ export const updateProfileServerFn = createServerFn({ method: "POST" })
   });
 
 export const signOutHttpOnlyCookie = createServerFn({ method: "POST" }).handler(async () => {
-  const { deleteCookie } = await import("@tanstack/react-start/server");
-  deleteCookie(ACCESS_COOKIE, cookieOptions);
-  deleteCookie(REFRESH_COOKIE, cookieOptions);
+  const { deleteAuthCookies } = await import("./auth-cookie.server");
+  deleteAuthCookies();
   return { ok: true };
 });
 

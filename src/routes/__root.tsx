@@ -16,6 +16,7 @@ import { signOutHttpOnlyCookie, syncHttpOnlySession } from "@/lib/api/auth.serve
 import { Toaster } from "@/components/ui/sonner";
 import { registerOnlineSync } from "@/lib/services/offline-sync";
 import { Logo } from "@/components/logo";
+import { THEME_INIT_SCRIPT } from "@/components/ui/theme-toggle";
 
 type BrowserSession = {
   access_token: string;
@@ -93,15 +94,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "SIGIC — Gestión Inteligente de Cultivos" },
       { name: "description", content: "Sistema de Gestión Inteligente de Cultivos. Planeación, siembra, mantenimiento, cosecha y alertas." },
-      { name: "theme-color", content: "#2E7D32" },
+      { name: "theme-color", content: "#1f6b3a" },
+      { name: "color-scheme", content: "light dark" },
       { property: "og:title", content: "SIGIC — Gestión Inteligente de Cultivos" },
       { property: "og:description", content: "Acompaña al agricultor en todo el ciclo productivo." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
+    scripts: [{ children: THEME_INIT_SCRIPT }],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
@@ -111,7 +114,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", sizes: "192x192", href: "/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..700&display=swap" },
     ],
   }),
   shellComponent: RootShell,
@@ -122,9 +125,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head><HeadContent /></head>
-      <body>{children}<Scripts /></body>
+      <body>
+        <a href="#contenido" className="skip-link">Saltar al contenido</a>
+        {children}
+        <Scripts />
+      </body>
     </html>
   );
 }
@@ -149,15 +156,6 @@ function RootComponent() {
   }, [queryClient, router]);
 
   useEffect(() => { registerOnlineSync(); }, []);
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

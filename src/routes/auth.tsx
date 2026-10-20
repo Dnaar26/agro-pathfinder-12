@@ -17,8 +17,8 @@ import { firstNameSchema, lastNameSchema, validatePasswordSecurity } from "@/lib
 export const Route = createFileRoute("/auth")({
   ssr: false,
   head: () => ({ meta: [{ title: "Acceder — SIGIC" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({
-    mode: (s.mode as "login" | "signup") || "login",
+  validateSearch: (s: Record<string, unknown>): { mode?: "login" | "signup" } => ({
+    mode: s.mode === "signup" ? "signup" : s.mode === "login" ? "login" : undefined,
   }),
   component: () => <AuthPage />,
 });
@@ -396,56 +396,36 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      {/* Banner Izquierdo */}
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-emerald-900 via-emerald-800 to-green-950 text-white relative overflow-hidden">
-        <div className="absolute -right-20 -top-20 size-96 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute -left-20 -bottom-20 size-96 rounded-full bg-green-400/10 blur-3xl pointer-events-none" />
+      {/* Panel de marca */}
+      <aside className="relative isolate hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-sidebar-foreground lg:flex">
+        <div aria-hidden="true" className="surcos-on-dark absolute inset-0 -z-10" />
+        <Link to="/" aria-label="SIGIC — Inicio">
+          <Logo size="lg" variant="light" />
+        </Link>
 
-        <div className="relative z-10">
-          <Link to="/">
-            <Logo size="lg" variant="light" />
-          </Link>
-        </div>
-
-        <div className="relative z-10 max-w-lg space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-xs font-medium backdrop-blur-md border border-white/15">
-            <Sprout className="size-3.5 text-emerald-300" />
-            <span>Sistema Agrícola Inteligente</span>
-          </div>
-
-          <h2 className="text-4xl font-bold leading-tight tracking-tight">
-            Control total de tus cultivos en un solo lugar.
+        <div className="max-w-lg space-y-6">
+          <h2 className="text-4xl font-bold leading-tight text-white">
+            Tus parcelas, tus labores y tus cosechas, siempre al día
           </h2>
-
-          <p className="text-emerald-100/80 text-sm leading-relaxed">
-            Administra tus parcelas, optimiza insumos, recibe alertas agroclimáticas oportunas y toma decisiones fundamentadas con IA.
-          </p>
-
-          <div className="space-y-3 pt-2">
+          <ul className="space-y-3 text-base text-white/80">
             {[
-              "Diagnósticos y recomendaciones inteligentes por IA",
-              "Control riguroso de inventarios y finanzas",
-              "Acceso continuo y trabajo sin conexión a internet",
-            ].map((feature, i) => (
-              <div key={i} className="flex items-center gap-2.5 text-xs text-emerald-100/90 font-medium">
-                <CheckCircle2 className="size-4 text-emerald-400 shrink-0" />
+              "Calendario de labores con avisos antes de cada fecha",
+              "Inventario de insumos con alerta de stock mínimo",
+              "Asistente agronómico para consultar dudas del cultivo",
+            ].map((feature) => (
+              <li key={feature} className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-highlight" aria-hidden="true" />
                 <span>{feature}</span>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
 
-        <div className="relative z-10 flex items-center justify-between text-xs text-emerald-200/60 border-t border-white/10 pt-4">
-          <span>© SIGIC — Gestión Inteligente de Cultivos</span>
-          <div className="flex items-center gap-1">
-            <ShieldCheck className="size-3.5 text-emerald-400" />
-            <span>Conexión Encriptada SSL</span>
-          </div>
-        </div>
-      </div>
+        <p className="border-t border-white/10 pt-4 text-sm text-white/55">© {new Date().getFullYear()} SIGIC</p>
+      </aside>
 
       {/* Formulario Derecho */}
-      <div className="flex items-center justify-center p-6 md:p-12 bg-card">
+      <main id="contenido" tabIndex={-1} className="flex items-center justify-center bg-card p-6 outline-none md:p-12">
         <div className="w-full max-w-md space-y-6">
           <div className="lg:hidden flex justify-center mb-4">
             <Link to="/">
@@ -455,12 +435,12 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
 
           <div className="text-center space-y-1">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              {tab === "login" ? "Bienvenido de nuevo" : "Crear tu cuenta agrícola"}
+              {tab === "login" ? "Bienvenido de nuevo" : "Crea tu cuenta"}
             </h1>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {tab === "login"
-                ? "Ingresa tus credenciales para acceder al panel de gestión"
-                : "Completa tus datos personales para registrarte en la plataforma"}
+                ? "Ingresa tu correo y contraseña para continuar"
+                : "Completa tus datos para crear tu cuenta"}
             </p>
           </div>
 
@@ -724,7 +704,7 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
             </TabsContent>
           </Tabs>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

@@ -24,7 +24,14 @@
     "map": "Map",
     "crops": "Crops",
     "chat": "AI Assistant",
-    "sign_out": "Sign out"
+    "sign_out": "Sign out",
+    "group_field": "Field",
+    "group_manage": "Management",
+    "group_insights": "Insights",
+    "group_admin": "Administration",
+    "audit": "Audit log",
+    "more": "More",
+    "main": "Main navigation"
   },
   "parcels": {
     "title": "Parcels",
@@ -135,5 +142,21 @@
     "frost": "Frost alert",
     "rain": "Rain alert",
     "stock": "Stock alert"
+  },
+  "shell": {
+    "search_placeholder": "Search parcels or crops…",
+    "search_button": "Search",
+    "no_results": "No results",
+    "crops": "Crops",
+    "parcels": "Parcels",
+    "edit_profile": "Edit profile",
+    "open_menu": "Open menu",
+    "role_admin": "Administrator",
+    "role_tecnico": "Technician",
+    "role_agricultor": "Farmer",
+    "notifications": "Notifications",
+    "online": "Online",
+    "offline": "Offline",
+    "language": "Language"
   }
 }

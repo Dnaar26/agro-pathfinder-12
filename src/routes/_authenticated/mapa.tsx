@@ -99,7 +99,7 @@ function MapaPage() {
       </header>
 
       <Suspense fallback={<div className="h-[400px] rounded-xl bg-muted animate-pulse" />}>
-        <ParcelMap parcels={displayParcels} onPolygonCreated={handlePolygonCreated} editGeometry={pending?.geometry} onDeleteParcel={setParcelToDelete} />
+        <ParcelMap parcels={displayParcels as any} onPolygonCreated={handlePolygonCreated} editGeometry={pending?.geometry} onDeleteParcel={setParcelToDelete} />
       </Suspense>
 
       <AlertDialog open={!!parcelToDelete} onOpenChange={(open) => !open && setParcelToDelete(null)}>

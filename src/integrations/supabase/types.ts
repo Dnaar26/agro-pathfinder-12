@@ -231,36 +231,42 @@ export type Database = {
         Row: {
           area_m2: number
           created_at: string
+          geometry: Json | null
           id: string
           latitude: number | null
           longitude: number | null
           name: string
           notes: string | null
           owner_id: string
+          polygon_area_m2: number | null
           soil_type_id: number | null
           updated_at: string
         }
         Insert: {
           area_m2: number
           created_at?: string
+          geometry?: Json | null
           id?: string
           latitude?: number | null
           longitude?: number | null
           name: string
           notes?: string | null
           owner_id: string
+          polygon_area_m2?: number | null
           soil_type_id?: number | null
           updated_at?: string
         }
         Update: {
           area_m2?: number
           created_at?: string
+          geometry?: Json | null
           id?: string
           latitude?: number | null
           longitude?: number | null
           name?: string
           notes?: string | null
           owner_id?: string
+          polygon_area_m2?: number | null
           soil_type_id?: number | null
           updated_at?: string
         }
@@ -276,6 +282,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           full_name: string
           id: string
@@ -283,6 +290,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           full_name?: string
           id: string
@@ -290,6 +298,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           full_name?: string
           id?: string
@@ -336,6 +345,441 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      alert_settings: {
+        Row: {
+          id: boolean
+          planting_reminder_days: number
+          stock_alerts_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          planting_reminder_days?: number
+          stock_alerts_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          planting_reminder_days?: number
+          stock_alerts_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          new_data: Json | null
+          old_data: Json | null
+          record_id: string | null
+          table_name: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      batches: {
+        Row: {
+          batch_code: string
+          created_at: string
+          crop_id: string
+          globalgap_cert: boolean | null
+          harvest_date: string | null
+          id: string
+          notes: string | null
+          qr_code: string | null
+          qty: number | null
+          quantity: number | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          batch_code: string
+          created_at?: string
+          crop_id: string
+          globalgap_cert?: boolean | null
+          harvest_date?: string | null
+          id?: string
+          notes?: string | null
+          qr_code?: string | null
+          qty?: number | null
+          quantity?: number | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          batch_code?: string
+          created_at?: string
+          crop_id?: string
+          globalgap_cert?: boolean | null
+          harvest_date?: string | null
+          id?: string
+          notes?: string | null
+          qr_code?: string | null
+          qty?: number | null
+          quantity?: number | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batches_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crop_costs: {
+        Row: {
+          created_at: string
+          crop_id: string
+          description: string | null
+          id: string
+          kind: string | null
+          notes: string | null
+          qty: number | null
+          total: number
+          unit: string | null
+          unit_cost: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          crop_id: string
+          description?: string | null
+          id?: string
+          kind?: string | null
+          notes?: string | null
+          qty?: number | null
+          total: number
+          unit?: string | null
+          unit_cost?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          crop_id?: string
+          description?: string | null
+          id?: string
+          kind?: string | null
+          notes?: string | null
+          qty?: number | null
+          total?: number
+          unit?: string | null
+          unit_cost?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crop_costs_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crop_harvests: {
+        Row: {
+          created_at: string
+          crop_id: string
+          harvested_qty: number
+          id: string
+          notes: string | null
+          performed_at: string
+          sale_price: number | null
+          total_revenue: number | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          crop_id: string
+          harvested_qty: number
+          id?: string
+          notes?: string | null
+          performed_at?: string
+          sale_price?: number | null
+          total_revenue?: number | null
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          crop_id?: string
+          harvested_qty?: number
+          id?: string
+          notes?: string | null
+          performed_at?: string
+          sale_price?: number | null
+          total_revenue?: number | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crop_harvests_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_items: {
+        Row: {
+          alerts_sent_today: number | null
+          category: string | null
+          created_at: string
+          id: string
+          min_stock: number
+          name: string
+          owner_id: string
+          stock_qty: number
+          unit: string
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          alerts_sent_today?: number | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          min_stock?: number
+          name: string
+          owner_id: string
+          stock_qty?: number
+          unit?: string
+          unit_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          alerts_sent_today?: number | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          min_stock?: number
+          name?: string
+          owner_id?: string
+          stock_qty?: number
+          unit?: string
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      inventory_movements: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          kind: string
+          notes: string | null
+          qty: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          kind: string
+          notes?: string | null
+          qty: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          kind?: string
+          notes?: string | null
+          qty?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_movements_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pest_incidents: {
+        Row: {
+          created_at: string
+          crop_id: string
+          date: string
+          id: string
+          notes: string | null
+          pest_name: string
+          severity: string
+          treatment: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          crop_id: string
+          date?: string
+          id?: string
+          notes?: string | null
+          pest_name: string
+          severity: string
+          treatment?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          crop_id?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          pest_name?: string
+          severity?: string
+          treatment?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pest_incidents_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_reports: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          recipients: string[]
+          schedule: string
+          template: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          recipients: string[]
+          schedule: string
+          template: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          recipients?: string[]
+          schedule?: string
+          template?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      technician_farmer_assignments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          farmer_id: string
+          technician_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          farmer_id: string
+          technician_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          farmer_id?: string
+          technician_id?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          created_at: string
+          id: string
+          subscription: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          subscription: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          subscription?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ndvi_cache: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          ndvi: number
+          parcel_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          ndvi: number
+          parcel_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          ndvi?: number
+          parcel_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ndvi_cache_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "parcels"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

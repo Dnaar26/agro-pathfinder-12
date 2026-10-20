@@ -59,7 +59,7 @@ export function validatePasswordSecurity(
   if (!/[0-9]/.test(pass)) {
     return { valid: false, error: "La contraseña debe incluir al menos un número" };
   }
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(pass)) {
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(pass)) {
     return { valid: false, error: "La contraseña debe incluir al menos un carácter especial (!@#$%^&* etc.)" };
   }
 

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useMemo, useState, useEffect } from "react";
 import { listParcels, listAlerts, getMyProfile, getMyRoles, getMonthlyYield, getTotalPandL, getUpcomingActivities, getTotalInventoryValue } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
-import { MapPin, BellRing, Sprout, ArrowRight, TrendingUp, DollarSign, CalendarDays, Warehouse, Sun, User, FileSpreadsheet, Plus, Download, Droplet, Package, Bug, Scissors, Wheat, Eye, ChevronUp, ChevronDown, Activity, TrendingDown, Zap, Star, Map as MapIcon, BarChart } from "lucide-react";
+import { MapPin, BellRing, Sprout, ArrowRight, TrendingUp, DollarSign, CalendarDays, Warehouse, Sun, User, FileSpreadsheet, Plus, Download, Droplet, Package, Bug, Scissors, Wheat, Eye, ChevronUp, ChevronDown, Activity, TrendingDown, Zap, Map as MapIcon, BarChart, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,6 +19,7 @@ import { CropHealthWidget } from "@/components/dashboard/crop-health";
 import { exportParcelsToExcel } from "@/lib/services/excel-export";
 import { generatePdfReport } from "@/lib/pdf-report";
 import { cn } from "@/lib/utils";
+import { coordsOrDefault } from "@/lib/geo";
 
 import { AiCropAdvisor } from "@/components/dashboard/ai-crop-advisor";
 import { MarketPrices } from "@/components/dashboard/market-prices";
@@ -34,7 +35,7 @@ function useCollapsible(key: string, defaultValue = false) {
     try { return localStorage.getItem(key) === 'true'; } catch { return defaultValue; }
   });
   useEffect(() => {
-    try { localStorage.setItem(key, String(collapsed)); } catch {}
+    try { localStorage.setItem(key, String(collapsed)); } catch { /* almacenamiento no disponible */ }
   }, [collapsed, key]);
   const toggle = () => setCollapsed(v => !v);
   return { collapsed, toggle };
@@ -45,11 +46,17 @@ function CollapsibleSection({ title, icon: Icon, children, storageKey, defaultCo
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2"><Icon className="size-5 text-primary" />{title}</h2>
+        <h2 className="flex items-center gap-2 text-lg font-bold"><Icon className="size-5 text-primary" aria-hidden="true" />{title}</h2>
         <div className="flex items-center gap-2">
           {actions}
-          <button onClick={toggle} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground">
-            {collapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={!collapsed}
+            aria-label={`${collapsed ? "Mostrar" : "Ocultar"} ${title}`}
+            className="grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted"
+          >
+            {collapsed ? <ChevronDown className="size-4" aria-hidden="true" /> : <ChevronUp className="size-4" aria-hidden="true" />}
           </button>
         </div>
       </div>
@@ -134,7 +141,18 @@ function Dashboard() {
   const activeCrops = filteredParcels.reduce((s, p) => s + (p.crops ?? []).filter((c: any) =>
     ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO"].includes(c.status)
   ).length, 0);
-  const name = profile.data?.full_name || "Agricultor";
+  const firstName = (profile.data?.full_name || "").trim().split(/\s+/)[0] || "";
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+  const totalCrops = filteredParcels.reduce((s, p: any) => s + (p.crops ?? []).length, 0);
+  const totalAreaHa = filteredParcels.reduce((s: number, p: any) => s + Number(p.area_m2 || 0), 0) / 10000;
+  const upcomingCount = (upcoming.data ?? []).length;
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const summary = pendingAlerts.length > 0
+    ? `${plural(pendingAlerts.length, "alerta pendiente", "alertas pendientes")} por revisar.`
+    : upcomingCount > 0
+      ? `${plural(upcomingCount, "labor programada", "labores programadas")} para los próximos 7 días.`
+      : "No hay alertas pendientes ni labores próximas.";
 
   const yieldByMonth = useMemo(() => {
     const map = new Map<string, number>();
@@ -146,7 +164,6 @@ function Dashboard() {
   }, [yields.data]);
 
   const firstParcel = filteredParcels[0];
-  const { collapsed: heroCollapsed, toggle: toggleHero } = useCollapsible('dashboard-hero-collapsed', false);
 
   const exportPDF = async () => {
     const areaHa = (filteredParcels.reduce((s: number, p: any) => s + Number(p.area_m2), 0) / 10000).toFixed(2);
@@ -183,38 +200,18 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden bg-gradient-to-br from-green-600 to-emerald-800 text-white rounded-2xl shadow-md transition-all duration-300">
-        <button onClick={toggleHero} className="absolute top-4 right-4 p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors z-10">
-          {heroCollapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
-        </button>
-        {!heroCollapsed ? (
-          <div className="p-6 relative z-0">
-            <p className="text-sm text-green-100 mb-1">{new Date().toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" })}</p>
-            <h1 className="text-3xl font-bold mt-1">Hola, {name} 👋</h1>
-            <p className="mt-2 text-green-50/90 italic flex items-center gap-2">
-              <Star className="size-4" />
-              {isStaff
-                ? `Gestionando ${filteredParcels.length} parcela${filteredParcels.length !== 1 ? "s" : ""} · ${activeCrops} cultivo${activeCrops !== 1 ? "s" : ""} activo${activeCrops !== 1 ? "s" : ""}`
-                : "\"El éxito de tu cosecha comienza hoy.\""}
-            </p>
-            {roles.data && roles.data.length > 0 && (
-              <div className="mt-4 flex gap-2">
-                {roles.data.map((r) => (
-                  <span key={r} className="text-xs px-2.5 py-1 rounded-full bg-white/20 text-white font-medium capitalize border border-white/30">{r}</span>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="p-4 flex items-center justify-between cursor-pointer" onClick={toggleHero}>
-            <h1 className="text-lg font-bold">Hola, {name} 👋</h1>
-          </div>
-        )}
-      </div>
+      <header className="relative isolate overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground">
+        <div aria-hidden="true" className="surcos-on-dark absolute inset-0 -z-10" />
+        <div className="p-6 md:p-8">
+          <p className="text-sm capitalize text-white/65">{new Date().toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" })}</p>
+          <h1 className="mt-1 text-3xl font-bold text-white md:text-4xl">{greeting}{firstName ? `, ${firstName}` : ""}</h1>
+          <p className="mt-2 max-w-xl text-white/75">{summary}</p>
+        </div>
+      </header>
 
       <RoleGate roles={["tecnico", "admin"]}>
-        <div className="flex items-center gap-2 bg-card p-3 rounded-xl border border-border">
-          <User className="size-4 text-muted-foreground" />
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3">
+          <User className="size-4 text-muted-foreground" aria-hidden="true" />
           <Combobox
             value={farmerFilter}
             onChange={setFarmerFilter}
@@ -242,28 +239,34 @@ function Dashboard() {
         </div>
       </RoleGate>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Parcelas" value={filteredParcels.length} numericValue={filteredParcels.length} icon={MapPin} to="/parcels" gradient="bg-gradient-to-br from-blue-500/10 to-blue-600/5" iconColor="bg-blue-500/20 text-blue-600" />
-        <StatCard label="Cultivos activos" value={activeCrops} numericValue={activeCrops} icon={Sprout} to="/cultivos" search={{ status: "activos" }} gradient="bg-gradient-to-br from-green-500/10 to-green-600/5" iconColor="bg-green-500/20 text-green-600" />
-        <StatCard label="Alertas" value={pendingAlerts.length} numericValue={pendingAlerts.length} icon={BellRing} to="/alerts" highlight={pendingAlerts.length > 0} gradient="bg-gradient-to-br from-orange-500/10 to-red-600/5" iconColor="bg-orange-500/20 text-orange-600" />
-        <StatCard label="Valor inventario" value={invValue.isError ? "Error" : formatCOP(invValue.data ?? 0)} numericValue={0} icon={Warehouse} to="/inventory" gradient="bg-gradient-to-br from-violet-500/10 to-violet-600/5" iconColor="bg-violet-500/20 text-violet-600" />
-      </div>
+      <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4">
+        {parcels.isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
+        ) : (
+          <>
+            <Kpi label="Parcelas" value={String(filteredParcels.length)} hint={`${totalAreaHa.toLocaleString("es-CO", { maximumFractionDigits: 1 })} ha en total`} icon={MapPin} to="/parcels" />
+            <Kpi label="Cultivos activos" value={String(activeCrops)} hint={`de ${totalCrops} registrados`} icon={Sprout} to="/cultivos" search={{ status: "activos" }} />
+            <Kpi label="Alertas" value={String(pendingAlerts.length)} hint={pendingAlerts.length > 0 ? "requieren atención" : "todo al día"} icon={BellRing} to="/alerts" attention={pendingAlerts.length > 0} />
+            <Kpi label="Valor del inventario" value={invValue.isError ? "Error" : formatCOP(invValue.data ?? 0)} hint="costo de lo que hay en bodega" icon={Warehouse} to="/inventory" />
+          </>
+        )}
+      </ul>
 
       <div className="flex flex-wrap gap-2">
         {isStaff ? (
           <>
-            <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/parcels"><MapPin className="size-4 mr-1.5" /> Nueva parcela</Link></Button>
-            <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/cultivos"><Sprout className="size-4 mr-1.5" /> Nuevo cultivo</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link to="/parcels"><MapPin className="size-4 mr-1.5" /> Nueva parcela</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link to="/cultivos"><Sprout className="size-4 mr-1.5" /> Nuevo cultivo</Link></Button>
           </>
         ) : (
           <>
-            <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/parcels"><MapPin className="size-4 mr-1.5" /> Mis parcelas</Link></Button>
-            <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/cultivos"><Sprout className="size-4 mr-1.5" /> Mis cultivos</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link to="/parcels"><MapPin className="size-4 mr-1.5" /> Mis parcelas</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link to="/cultivos"><Sprout className="size-4 mr-1.5" /> Mis cultivos</Link></Button>
           </>
         )}
-        <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/mapa"><MapIcon className="size-4 mr-1.5" /> Ver mapa</Link></Button>
-        <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/chat"><Zap className="size-4 mr-1.5" /> Asesor IA</Link></Button>
-        <Button asChild variant="secondary" size="sm" className="rounded-full"><Link to="/reports"><BarChart className="size-4 mr-1.5" /> Ver reportes</Link></Button>
+        <Button asChild variant="outline" size="sm"><Link to="/mapa"><MapIcon className="size-4 mr-1.5" /> Ver mapa</Link></Button>
+        <Button asChild variant="outline" size="sm"><Link to="/chat"><Zap className="size-4 mr-1.5" /> Asistente IA</Link></Button>
+        <Button asChild variant="outline" size="sm"><Link to="/reports"><BarChart className="size-4 mr-1.5" /> Ver reportes</Link></Button>
       </div>
 
       <AiCropAdvisor />
@@ -305,7 +308,7 @@ function Dashboard() {
                       <td className="text-right py-3 px-2 tabular-nums">{f.parcels}</td>
                       <td className="text-right py-3 px-2 tabular-nums">{(f.area / 10000).toFixed(1)}</td>
                       <td className="text-right py-3 px-2 tabular-nums">{f.crops}</td>
-                      <td className="text-right py-3 px-2 tabular-nums text-green-600 font-medium">{f.active}</td>
+                      <td className="text-right py-3 px-2 tabular-nums text-success font-medium">{f.active}</td>
                       <td className="text-right py-3 px-2 tabular-nums">{f.activities}</td>
                     </tr>
                   ))}
@@ -318,17 +321,17 @@ function Dashboard() {
 
       <CollapsibleSection title="Resumen Financiero" icon={DollarSign} storageKey="dashboard-pnl-collapsed">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-5 rounded-xl border border-border bg-card hover:shadow-md transition-all">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Costos totales</p>
-            <p className="text-2xl font-bold tabular-nums text-red-600">{pnl.isError ? "Error" : formatCOP(pnl.data?.totalCost ?? 0)}</p>
+          <div className="rounded-xl border border-border bg-card p-5">
+            <p className="text-sm text-muted-foreground mb-1">Costos totales</p>
+            <p className="text-2xl font-bold tabular-nums text-destructive">{pnl.isError ? "Error" : formatCOP(pnl.data?.totalCost ?? 0)}</p>
           </div>
-          <div className="p-5 rounded-xl border border-border bg-card hover:shadow-md transition-all">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Ingresos totales</p>
-            <p className="text-2xl font-bold tabular-nums text-green-600">{pnl.isError ? "Error" : formatCOP(pnl.data?.totalRevenue ?? 0)}</p>
+          <div className="rounded-xl border border-border bg-card p-5">
+            <p className="text-sm text-muted-foreground mb-1">Ingresos totales</p>
+            <p className="text-2xl font-bold tabular-nums text-success">{pnl.isError ? "Error" : formatCOP(pnl.data?.totalRevenue ?? 0)}</p>
           </div>
-          <div className="p-5 rounded-xl border border-border bg-card hover:shadow-md transition-all">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Margen</p>
-            <p className={`text-2xl font-bold tabular-nums flex items-center gap-1 ${pnl.isError ? "" : (pnl.data?.totalRevenue ?? 0) - (pnl.data?.totalCost ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+          <div className="rounded-xl border border-border bg-card p-5">
+            <p className="text-sm text-muted-foreground mb-1">Margen</p>
+            <p className={`text-2xl font-bold tabular-nums flex items-center gap-1 ${pnl.isError ? "" : (pnl.data?.totalRevenue ?? 0) - (pnl.data?.totalCost ?? 0) >= 0 ? "text-success" : "text-destructive"}`}>
               {!pnl.isError && ((pnl.data?.totalRevenue ?? 0) - (pnl.data?.totalCost ?? 0) >= 0 ? <TrendingUp className="size-5" /> : <TrendingDown className="size-5" />)}
               {pnl.isError ? "Error" : formatCOP((pnl.data?.totalRevenue ?? 0) - (pnl.data?.totalCost ?? 0))}
             </p>
@@ -349,11 +352,11 @@ function Dashboard() {
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={yieldByMonth}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v) => { const [y, m] = v.split("-"); return `${m}/${y.slice(2)}`; }} />
-                  <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{ stroke: "hsl(var(--muted))", strokeWidth: 2 }} contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} formatter={(v: number) => [`${v} KG`, "Cosecha"]} />
-                  <Line type="monotone" dataKey="qty" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: "hsl(var(--background))" }} activeDot={{ r: 6 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} tickFormatter={(v) => { const [y, m] = v.split("-"); return `${m}/${y.slice(2)}`; }} />
+                  <YAxis tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} />
+                  <Tooltip cursor={{ stroke: "var(--color-muted)", strokeWidth: 2 }} contentStyle={{ borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-card)", color: "var(--color-foreground)" }} formatter={(v: number) => [`${v} kg`, "Cosecha"]} />
+                  <Line type="monotone" dataKey="qty" stroke="var(--color-primary)" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: "var(--color-background)" }} activeDot={{ r: 6 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -379,9 +382,9 @@ function Dashboard() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {filteredParcels.slice(0, 4).map((p: any) => (
-                  <Link key={p.id} to="/parcels/$id" params={{ id: p.id }} className="block rounded-xl border border-border bg-card hover:border-primary transition-all duration-300 hover:scale-[1.02] hover:shadow-md overflow-hidden relative h-36 group">
+                  <Link key={p.id} to="/parcels/$id" params={{ id: p.id }} className="group relative block h-36 overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary">
                     {p.image_url ? (
-                      <div className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: `url(${p.image_url})` }}>
+                      <div className="absolute inset-0 bg-cover bg-center " style={{ backgroundImage: `url(${p.image_url})` }}>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-colors" />
                       </div>
                     ) : (
@@ -396,7 +399,7 @@ function Dashboard() {
                           <p className={cn("text-xs mt-1 font-medium", p.image_url ? "text-white/90 drop-shadow-md" : "text-muted-foreground")}>{p.area_m2} m² · {(p as any).soil_types?.name ?? "—"}</p>
                         </div>
                       </div>
-                      {isStaff && (p as any).profiles?.full_name && <p className={cn("text-xs font-semibold", p.image_url ? "text-green-300 drop-shadow-md" : "text-primary")}>👤 {(p as any).profiles.full_name}</p>}
+                      {isStaff && (p as any).profiles?.full_name && <p className={cn("text-xs font-semibold", p.image_url ? "text-green-300 drop-shadow-md" : "text-primary")}><User className="mr-1 inline size-3" aria-hidden="true" />{(p as any).profiles.full_name}</p>}
                     </div>
                   </Link>
                 ))}
@@ -430,7 +433,7 @@ function Dashboard() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate text-foreground">
-                            {kindLabels[a.kind as keyof typeof kindLabels] ?? a.kind}
+                            {a.title || kindLabels[a.kind as keyof typeof kindLabels] || "Labor"}
                             {a.crops?.crop_catalog?.name && <span className="text-muted-foreground font-normal ml-1">— {a.crops.crop_catalog.name}</span>}
                           </p>
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
@@ -460,13 +463,13 @@ function Dashboard() {
                 {filteredParcels.slice(0, 6).map((p: any) => (
                   <Card key={p.id} className="p-4 border-border hover:border-primary/50 transition-colors">
                     <p className="text-sm font-bold mb-2 flex items-center gap-2"><MapPin className="size-3 text-primary" />{p.name}</p>
-                    <WeatherForecast lat={Number(p.latitude) || -16.5} lng={Number(p.longitude) || -68.15} parcelName="" />
+                    <WeatherForecast {...coordsOrDefault(p.latitude, p.longitude)} parcelName="" />
                   </Card>
                 ))}
               </div>
             ) : firstParcel ? (
               <Card className="p-4 border-border">
-                <WeatherForecast lat={Number(firstParcel.latitude) || -16.5} lng={Number(firstParcel.longitude) || -68.15} parcelName={firstParcel.name} />
+                <WeatherForecast {...coordsOrDefault(firstParcel.latitude, firstParcel.longitude)} parcelName={firstParcel.name} />
               </Card>
             ) : null}
           </CollapsibleSection>
@@ -516,20 +519,20 @@ function FarmerDetail({ farmerId }: { farmerId: string }) {
     <div className="space-y-5 mt-2">
       <div className="grid grid-cols-2 gap-3">
         <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Teléfono</p>
+          <p className="text-sm text-muted-foreground mb-1">Teléfono</p>
           <p className="font-bold">{d.profile?.phone ?? "—"}</p>
         </div>
         <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Área total</p>
+          <p className="text-sm text-muted-foreground mb-1">Área total</p>
           <p className="font-bold">{(d.area / 10000).toFixed(2)} ha</p>
         </div>
         <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Parcelas</p>
+          <p className="text-sm text-muted-foreground mb-1">Parcelas</p>
           <p className="font-bold">{d.parcels.length}</p>
         </div>
         <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Cultivos</p>
-          <p className="font-bold text-green-600">{d.activeCrops} <span className="text-muted-foreground font-medium text-sm">/ {d.totalCrops} activos</span></p>
+          <p className="text-sm text-muted-foreground mb-1">Cultivos</p>
+          <p className="font-bold text-success">{d.activeCrops} <span className="text-muted-foreground font-medium text-sm">/ {d.totalCrops} activos</span></p>
         </div>
       </div>
       <div>
@@ -550,25 +553,34 @@ function FarmerDetail({ farmerId }: { farmerId: string }) {
   );
 }
 
-function StatCard({ label, value, icon: Icon, to, search, highlight, gradient, iconColor, numericValue }: any) {
-  const isTrendingUp = typeof numericValue === 'number' && numericValue > 0;
+function Kpi({ label, value, hint, icon: Icon, to, search, attention }: {
+  label: string; value: string; hint: string; icon: LucideIcon; to: string; search?: Record<string, string>; attention?: boolean;
+}) {
   return (
-    <Link to={to} search={search} className={cn("p-5 rounded-xl border bg-card transition-all duration-300 hover:scale-105 hover:shadow-lg block", gradient, highlight ? "border-red-400" : "border-border")}>
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-muted-foreground">{label}</span>
-        <div className={cn("p-2 rounded-lg", iconColor)}>
-          <Icon className="size-5" />
+    <li className="bg-card">
+      <Link to={to} search={search as never} className="group block h-full p-5 transition-colors hover:bg-accent/60">
+        <span className="flex items-center justify-between text-sm text-muted-foreground">
+          {label}
+          <Icon className={cn("size-4", attention ? "text-warning-foreground" : "text-primary")} aria-hidden="true" />
+        </span>
+        <span className={cn("mt-2 block font-display text-3xl font-bold tabular", attention && "text-destructive")}>{value}</span>
+        <span className="mt-1 block text-xs text-muted-foreground">{hint}</span>
+      </Link>
+    </li>
+  );
+}
+
+function KpiSkeleton() {
+  return (
+    <li className="bg-card p-5" aria-hidden="true">
+      <div className="animate-pulse space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="h-3.5 w-24 rounded bg-muted" />
+          <div className="size-4 rounded bg-muted" />
         </div>
+        <div className="h-9 w-16 rounded bg-muted" />
+        <div className="h-3 w-32 rounded bg-muted" />
       </div>
-      <div className="mt-4 flex items-end justify-between">
-        <div className="text-3xl font-bold text-foreground">{value}</div>
-        {isTrendingUp && (
-          <div className="flex items-center text-xs font-bold text-green-600 bg-green-600/10 px-2 py-1 rounded-full">
-            <TrendingUp className="size-3 mr-1" />
-            <span>+{numericValue}</span>
-          </div>
-        )}
-      </div>
-    </Link>
+    </li>
   );
 }

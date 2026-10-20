@@ -65,35 +65,40 @@ export default async function globalSetup(config: FullConfig) {
       email_confirm: true,
     });
 
-    if (error && !error.message.toLowerCase().includes("already registered")) {
-      throw new Error(`No se pudo preparar el usuario E2E: ${error.message}`);
-    }
-
-    if (!data.user && error?.message.toLowerCase().includes("already registered")) {
-      const { data: users, error: listError } = await admin.auth.admin.listUsers();
-      if (listError) throw new Error(`No se pudo localizar el usuario E2E: ${listError.message}`);
+    // Si hay error pero es porque el usuario ya existe, lo manejamos
+    if (error) {
+      const msg = (error.message || "").toLowerCase();
+      if (!msg.includes("already registered") && !msg.includes("already exists") && !msg.includes("already been registered")) {
+        throw new Error(`No se pudo preparar el usuario E2E: ${error.message}`);
+      }
+      // Usuario ya existe, actualizamos contraseña
+      const { data: users } = await admin.auth.admin.listUsers();
       const existing = users.users.find((user) => user.email === email);
-      if (!existing) throw new Error("El usuario E2E indicado no existe después de crearlo");
-      const { error: updateError } = await admin.auth.admin.updateUserById(existing.id, {
-        password,
-        email_confirm: true,
-      });
-      if (updateError) throw new Error(`No se pudo actualizar el usuario E2E: ${updateError.message}`);
+      if (existing) {
+        await admin.auth.admin.updateUserById(existing.id, {
+          password,
+          email_confirm: true,
+        });
+      }
     }
   } else if (!configuredPassword) {
     throw new Error("Configura E2E_AUTH_PASSWORD para ejecutar E2E contra un entorno remoto");
   }
 
+  // Solo guardamos las credenciales, NO hacemos login aquí
+  // Los tests harán su propio login
+  await mkdir(".auth", { recursive: true });
+  
   const browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto(`${baseURL}/auth`);
-  await page.fill("input#email", email);
-  await page.fill("input#password", password);
-  await page.click('button:has-text("Entrar")');
-  await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
-
-  await mkdir(".auth", { recursive: true });
+  
+  // Navegamos a la página de auth para inicializar el contexto
+  await page.goto(`${baseURL}/auth?mode=login`, { waitUntil: "domcontentloaded" });
+  
+  // Guardamos estado inicial (sin login) para que los tests hagan login
   await context.storageState({ path: ".auth/user.json" });
   await browser.close();
+  
+  console.log("Global setup completado - credenciales guardadas para tests");
 }

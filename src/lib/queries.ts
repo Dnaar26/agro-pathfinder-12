@@ -333,22 +333,34 @@ export async function getTotalPandL(ownerId?: string) {
   };
 }
 
+/**
+ * Labores programadas (calendario) de los próximos N días que aún no se marcan como hechas.
+ * Antes consultaba `activities` (labores ya realizadas) y el dashboard esperaba `startsAt`,
+ * un campo que esa consulta no devolvía: el widget fallaba con "Invalid time value".
+ */
 export async function getUpcomingActivities(days = 7, ownerId?: string) {
   const now = new Date().toISOString();
   const limit = new Date(Date.now() + days * 86400000).toISOString();
   const cropIds = await getCropIdsForOwner(ownerId);
   if (ownerId && cropIds.length === 0) return [];
   let q = supabase
-    .from("activities")
-    .select("id, kind, performed_at, notes, crop_id, crops(id, crop_catalog(name), parcels(name))")
-    .gte("performed_at", now)
-    .lte("performed_at", limit);
+    .from("calendar_events")
+    .select("id, title, kind, starts_at, crop_id, crops(id, crop_catalog(name), parcels(name))")
+    .eq("done", false)
+    .gte("starts_at", now)
+    .lte("starts_at", limit);
   if (ownerId) {
     q = q.in("crop_id", cropIds);
   }
-  const { data, error } = await q.order("performed_at").limit(5);
+  const { data, error } = await q.order("starts_at").limit(5);
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map((e: any) => ({
+    id: e.id as string,
+    title: (e.title as string) ?? "",
+    kind: (e.kind as string | null) ?? null,
+    startsAt: e.starts_at as string,
+    crops: e.crops ?? null,
+  }));
 }
 
 export async function getTotalInventoryValue(ownerId?: string) {

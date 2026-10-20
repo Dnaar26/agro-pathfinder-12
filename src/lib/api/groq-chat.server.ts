@@ -101,6 +101,97 @@ REGLAS ESTRICTAS DE SEGURIDAD Y DOMINIO DE CONVERSACIÓN (INQUEBRANTABLES):
    - Sé profesional, claro, conciso y de alta utilidad para el agricultor en el campo.
    - Si recomiendas productos agroquímicos, recuerda siempre consultar la etiqueta comercial y a un técnico agrónomo colegiado.`;
 
+type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+
+/** Código estable que la interfaz usa para distinguir "IA sin configurar" de otros fallos. */
+export const AI_NOT_CONFIGURED = "AI_NOT_CONFIGURED";
+
+const MAX_RETRIES = 3;
+const TIMEOUT_MS = 30_000;
+
+/** Reintenta con espera exponencial ante 429/502/503 y corta por tiempo. */
+async function fetchWithRetry(url: string, init: RequestInit, providerName: string): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { ...init, signal: controller.signal });
+      clearTimeout(timer);
+
+      if ((res.status === 429 || res.status === 503 || res.status === 502) && attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** (attempt - 1), 8000)));
+        continue;
+      }
+      if (res.status === 429) throw new Error("Límite de solicitudes de IA alcanzado. Espera unos segundos y vuelve a intentarlo.");
+      if (res.status === 502 || res.status === 503) throw new Error("El asistente de IA no está disponible en este momento. Inténtalo de nuevo en unos segundos.");
+      if (res.status === 401 || res.status === 403) {
+        console.error(`[${providerName}] credencial rechazada (${res.status})`);
+        throw new Error("El servicio de IA rechazó la credencial configurada en el servidor. Avisa al administrador.");
+      }
+      if (res.status === 400) {
+        console.error(`[${providerName}] 400:`, await res.text().catch(() => ""));
+        throw new Error("El asistente de IA no pudo procesar la solicitud.");
+      }
+      if (!res.ok) throw new Error(`Error en el servicio de IA (código ${res.status}). Intenta nuevamente.`);
+      return res;
+    } catch (err: any) {
+      clearTimeout(timer);
+      if (err?.name === "AbortError") {
+        lastError = new Error("El asistente tardó demasiado en responder. Inténtalo con una pregunta más corta.");
+        if (attempt < MAX_RETRIES) continue;
+        throw lastError;
+      }
+      throw err;
+    }
+  }
+  throw lastError ?? new Error("El asistente de IA no pudo procesar tu solicitud. Inténtalo más tarde.");
+}
+
+async function askGroq(apiKey: string, system: string, convo: ChatMessage[], maxTokens: number): Promise<string> {
+  const res = await fetchWithRetry(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+        messages: [{ role: "system", content: system }, ...convo],
+        max_tokens: maxTokens,
+        temperature: 0.4,
+      }),
+    },
+    "GROQ",
+  );
+  const json = await res.json();
+  return String(json.choices?.[0]?.message?.content ?? "").trim();
+}
+
+async function askGemini(apiKey: string, system: string, convo: ChatMessage[], maxTokens: number): Promise<string> {
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const res = await fetchWithRetry(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    {
+      method: "POST",
+      // La clave va en cabecera: en la URL quedaba registrada en logs de proxies y del servidor.
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        contents: convo.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+        systemInstruction: { parts: [{ text: system }] },
+        generationConfig: { maxOutputTokens: maxTokens, temperature: 0.4 },
+      }),
+    },
+    "GEMINI",
+  );
+  const json = await res.json();
+  const parts: { text?: string }[] = json.candidates?.[0]?.content?.parts ?? [];
+  return parts.map((p) => p.text ?? "").join("").trim();
+}
+
+/**
+ * Asistente agronómico. Usa Groq si hay GROQ_API_KEY (proveedor documentado en el manual y en
+ * render.yaml); si no, cae a Gemini con GEMINI_API_KEY. El modelo lo decide el servidor, no el cliente.
+ */
 export const chatWithGroq = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
@@ -110,105 +201,30 @@ export const chatWithGroq = createServerFn({ method: "POST" })
           content: z.string().trim().min(1).max(4000),
         })
       ).min(1).max(25),
-      model: z.string().default("gemini-2.5-flash"),
+      // Se acepta por compatibilidad con los clientes actuales, pero se ignora.
+      model: z.string().optional(),
       max_tokens: z.number().int().min(1).max(2048).default(1024),
     })
   )
   .handler(async ({ data }) => {
     verifySameOriginRequest();
     await requireAuth();
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY no configurada en el servidor. Por favor configura tu clave de Google Gemini en las variables de entorno.");
+
+    const groqKey = process.env.GROQ_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!groqKey && !geminiKey) {
+      throw new Error(`${AI_NOT_CONFIGURED}: define GROQ_API_KEY (o GEMINI_API_KEY) en las variables de entorno del servidor.`);
     }
 
-    // Separar y combinar el system prompt con las reglas estrictas agronómicas
     const clientSystemMsg = data.messages.find((m) => m.role === "system");
-    const combinedSystemPrompt = clientSystemMsg
+    const system = clientSystemMsg
       ? `${STRICT_AGRONOMY_RULES}\n\n[CONTEXTO ESPECÍFICO ADICIONAL]:\n${clientSystemMsg.content}`
       : STRICT_AGRONOMY_RULES;
+    const convo = data.messages.filter((m) => m.role !== "system");
 
-    const conversationMsgs = data.messages.filter((m) => m.role !== "system");
+    const text = groqKey
+      ? await askGroq(groqKey, system, convo, data.max_tokens)
+      : await askGemini(geminiKey as string, system, convo, data.max_tokens);
 
-    // Convertir al formato de Gemini (user/model)
-    const geminiContents = conversationMsgs.map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
-
-    const body: Record<string, unknown> = {
-      contents: geminiContents,
-      systemInstruction: { parts: [{ text: combinedSystemPrompt }] },
-      generationConfig: {
-        maxOutputTokens: data.max_tokens,
-        temperature: 0.4,
-      },
-    };
-
-    // Asegurar que el modelo activo sea gemini-3.6-flash
-    let model = data.model;
-    if (!model || !model.startsWith("gemini")) {
-      model = "gemini-2.5-flash";
-    }
-
-    // Llamada a Gemini con timeout y reintento exponencial (hasta 3 intentos para 503/502/429)
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const requestInit: RequestInit = {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    };
-
-    const MAX_RETRIES = 3;
-    const TIMEOUT_MS = 30_000;
-    let lastError: Error | null = null;
-
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-      try {
-        const res = await fetch(endpoint, { ...requestInit, signal: controller.signal });
-        clearTimeout(timer);
-
-        if (res.status === 429 || res.status === 503 || res.status === 502) {
-          const retryAfterMs = Math.min(1000 * 2 ** (attempt - 1), 8000);
-          if (attempt < MAX_RETRIES) {
-            await new Promise((r) => setTimeout(r, retryAfterMs));
-            lastError = new Error(`El servicio de IA respondió con código ${res.status}. Reintentando…`);
-            continue;
-          }
-          throw new Error(
-            res.status === 429
-              ? "Límite de solicitudes de IA alcanzado. Por favor, espera unos segundos y vuelve a intentarlo."
-              : "El asistente de IA no está disponible en este momento (error 503/502). Inténtalo de nuevo en unos segundos."
-          );
-        }
-        if (res.status === 400) {
-          const errBody = await res.text().catch(() => "");
-          console.error("[GEMINI ERROR 400]", errBody);
-          throw new Error("Solicitud no procesada por el asistente de IA. Verifica los datos enviados.");
-        }
-        if (res.status === 401 || res.status === 403) {
-          throw new Error("La GEMINI_API_KEY es inválida o no tiene permisos. Verifica tu clave en Google AI Studio (aistudio.google.com).");
-        }
-        if (!res.ok) {
-          throw new Error(`Error en el servicio de IA (código ${res.status}). Intenta nuevamente.`);
-        }
-
-        const json = await res.json();
-        const parts = json.candidates?.[0]?.content?.parts || [];
-        const fullText = parts.map((p: any) => p.text || "").join("").trim();
-        return fullText || "Sin respuesta del asistente.";
-      } catch (err: any) {
-        clearTimeout(timer);
-        if (err.name === "AbortError") {
-          lastError = new Error("El asistente tardó demasiado en responder (timeout 30s). Inténtalo de nuevo con una pregunta más corta.");
-          if (attempt < MAX_RETRIES) continue;
-          throw lastError;
-        }
-        throw err;
-      }
-    }
-
-    throw lastError ?? new Error("El asistente de IA no pudo procesar tu solicitud. Inténtalo más tarde.");
+    return text || "Sin respuesta del asistente.";
   });

@@ -23,7 +23,14 @@
     "map": "Mapa",
     "crops": "Cultivos",
     "chat": "Assistente IA",
-    "sign_out": "Sair"
+    "sign_out": "Sair",
+    "group_field": "Campo",
+    "group_manage": "Gestão",
+    "group_insights": "Análises",
+    "group_admin": "Administração",
+    "audit": "Auditoria",
+    "more": "Mais",
+    "main": "Navegação principal"
   },
   "parcels": {
     "title": "Fazendas",
@@ -56,5 +63,21 @@
     "frost": "Geada",
     "rain": "Chuva",
     "stock": "Estoque"
+  },
+  "shell": {
+    "search_placeholder": "Buscar parcelas ou cultivos…",
+    "search_button": "Buscar",
+    "no_results": "Sem resultados",
+    "crops": "Cultivos",
+    "parcels": "Parcelas",
+    "edit_profile": "Editar perfil",
+    "open_menu": "Abrir menu",
+    "role_admin": "Administrador",
+    "role_tecnico": "Técnico",
+    "role_agricultor": "Agricultor",
+    "notifications": "Notificações",
+    "online": "Online",
+    "offline": "Sem conexão",
+    "language": "Idioma"
   }
 }

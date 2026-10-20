@@ -47,5 +47,5 @@ try {
 
 Write-Host "`n=== ADMIN CREADO ===" -ForegroundColor Cyan
 Write-Host "  Email:    $Email" -ForegroundColor White
-Write-Host "  Password: $Password" -ForegroundColor White
+Write-Host "  Password: (configurada — no se muestra en logs)" -ForegroundColor White
 Write-Host "  Ingresa en http://localhost:8080" -ForegroundColor Green

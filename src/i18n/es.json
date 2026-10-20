@@ -24,7 +24,14 @@
     "map": "Mapa",
     "crops": "Cultivos",
     "chat": "Asistente IA",
-    "sign_out": "Cerrar sesión"
+    "sign_out": "Cerrar sesión",
+    "group_field": "Campo",
+    "group_manage": "Gestión",
+    "group_insights": "Análisis",
+    "group_admin": "Administración",
+    "audit": "Auditoría",
+    "more": "Más",
+    "main": "Navegación principal"
   },
   "parcels": {
     "title": "Parcelas",
@@ -134,5 +141,21 @@
     "frost": "Alerta de helada",
     "rain": "Alerta de lluvia",
     "stock": "Alerta de stock"
+  },
+  "shell": {
+    "search_placeholder": "Buscar parcelas o cultivos…",
+    "search_button": "Buscar",
+    "no_results": "Sin resultados",
+    "crops": "Cultivos",
+    "parcels": "Parcelas",
+    "edit_profile": "Editar perfil",
+    "open_menu": "Abrir menú",
+    "role_admin": "Administrador",
+    "role_tecnico": "Técnico",
+    "role_agricultor": "Agricultor",
+    "notifications": "Notificaciones",
+    "online": "En línea",
+    "offline": "Sin conexión",
+    "language": "Idioma"
   }
 }

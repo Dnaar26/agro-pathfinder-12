@@ -41,3 +41,15 @@ dist-ssr
 *.sln
 *.sw?
 supabase/.temp/
+
+# Binarios, ejecutables y extras de seguridad
+*.msi
+coverage/
+.env.local
+
+# E2E debug artifacts
+e2e/debug-*
+e2e/*.html
+e2e/*.png
+e2e/*.txt
+

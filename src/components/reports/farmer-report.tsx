@@ -274,7 +274,6 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
             },
             { role: "user", content: prompt },
           ],
-          model: "gemini-3.6-flash",
           max_tokens: 700,
         },
       });
@@ -723,23 +722,23 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={monthlyChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                   <XAxis
                     dataKey="month"
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      borderColor: "hsl(var(--border))",
+                      backgroundColor: "var(--color-card)",
+                      borderColor: "var(--color-border)",
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}

@@ -157,11 +157,11 @@ function ParcelsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="latitude">Latitud</Label>
-                  <Input id="latitude" name="latitude" type="number" step="any" inputMode="decimal" placeholder="-16.5 a -17.5 (aprox.)" />
+                  <Input id="latitude" name="latitude" type="number" step="any" inputMode="decimal" placeholder="Ej. 7.88" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="longitude">Longitud</Label>
-                  <Input id="longitude" name="longitude" type="number" step="any" inputMode="decimal" placeholder="-68.0 a -69.0 (aprox.)" />
+                  <Input id="longitude" name="longitude" type="number" step="any" inputMode="decimal" placeholder="Ej. -76.63" />
                 </div>
               </div>
               <Button type="button" variant="outline" size="sm" disabled={gpsLoading} onClick={() => requestGps((lat, lng) => {

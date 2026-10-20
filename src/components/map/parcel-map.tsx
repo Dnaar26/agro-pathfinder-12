@@ -1,3 +1,4 @@
+import { DEFAULT_COORDS } from "@/lib/geo";
 import { useEffect, useRef, useState, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -16,7 +17,7 @@ export function ParcelMap({
   editGeometry,
   onDeleteParcel,
 }: {
-  parcels: { id: string; name: string; geometry?: ParcelGeometry | null; latitude?: number; longitude?: number; area_m2: number }[];
+  parcels: { id: string; name: string; geometry?: ParcelGeometry | null; latitude?: number | null; longitude?: number | null; area_m2: number }[];
   onPolygonCreated?: (geo: ParcelGeometry, area: number) => void;
   editGeometry?: ParcelGeometry | null;
   onDeleteParcel?: (parcel: { id: string; name: string }) => void;
@@ -29,27 +30,30 @@ export function ParcelMap({
   const onPolygonRef = useRef(onPolygonCreated);
   onPolygonRef.current = onPolygonCreated;
 
-  function buildPopup(parcel: { id: string; name: string; area_m2: number }) {
-    const container = document.createElement("div");
-    const title = document.createElement("strong");
-    title.textContent = parcel.name;
-    const area = document.createElement("div");
-    area.textContent = `${(parcel.area_m2 / 10000).toFixed(2)} ha`;
-    container.append(title, area);
-    if (onDeleteParcel) {
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.textContent = "Eliminar parcela";
-      remove.className = "mt-2 text-xs text-red-600 underline";
-      remove.onclick = () => onDeleteParcel({ id: parcel.id, name: parcel.name });
-      container.append(remove);
-    }
-    return container;
-  }
+  const buildPopup = useCallback(
+    (parcel: { id: string; name: string; area_m2: number }) => {
+      const container = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = parcel.name;
+      const area = document.createElement("div");
+      area.textContent = `${(parcel.area_m2 / 10000).toFixed(2)} ha`;
+      container.append(title, area);
+      if (onDeleteParcel) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "Eliminar parcela";
+        remove.className = "mt-2 text-xs text-red-600 underline";
+        remove.onclick = () => onDeleteParcel({ id: parcel.id, name: parcel.name });
+        container.append(remove);
+      }
+      return container;
+    },
+    [onDeleteParcel],
+  );
 
   useEffect(() => {
     if (mapRef.current) return;
-    const map = L.map("parcel-map", { center: [-16.5, -68.15], zoom: 7, zoomControl: true });
+    const map = L.map("parcel-map", { center: [DEFAULT_COORDS.lat, DEFAULT_COORDS.lng], zoom: 8, zoomControl: true });
     const tile = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",
       maxZoom: 19,
@@ -111,7 +115,7 @@ export function ParcelMap({
 
     if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
     return () => { map.removeLayer(drawn); };
-  }, [parcels, mapReady, onDeleteParcel]);
+  }, [parcels, mapReady, buildPopup]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current || !editGeometry) return;

@@ -20,7 +20,7 @@ export async function subscribeToPush() {
 
   sub = await reg.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as any,
   });
 
   const { data: u } = await supabase.auth.getUser();
@@ -28,7 +28,7 @@ export async function subscribeToPush() {
 
   await supabase.from("push_subscriptions").upsert({
     user_id: u.user.id,
-    subscription: sub.toJSON(),
+    subscription: sub.toJSON() as any,
   });
 
   return sub;

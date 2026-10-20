@@ -17,8 +17,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/cultivos")({
   head: () => ({ meta: [{ title: "Cultivos — SIGIC" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({
-    status: (s.status as string) || "all",
+  validateSearch: (s: Record<string, unknown>): { status?: string } => ({
+    status: typeof s.status === "string" && s.status ? s.status : undefined,
   }),
   component: CultivosPage,
 });

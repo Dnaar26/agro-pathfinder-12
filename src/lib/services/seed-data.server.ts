@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
@@ -240,13 +241,15 @@ export const clearAllUsers = createServerFn({ method: "POST" }).handler(async ()
   return { success: true, message: `${deleted} usuarios eliminados. Admin preservado.` };
 });
 
-export const deleteUser = createServerFn({ method: "POST" }).handler(async ({ data }: { data: { userId: string } }) => {
-  await requireAdmin();
-  const supabaseAdmin = adminClient();
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
-  if (error) throw error;
-  return { success: true };
-});
+export const deleteUser = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ userId: z.string() }))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const supabaseAdmin = adminClient();
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
+    if (error) throw error;
+    return { success: true };
+  });
 
 export const seedTestData = createServerFn({ method: "POST" }).handler(async () => {
   await requireAdmin();

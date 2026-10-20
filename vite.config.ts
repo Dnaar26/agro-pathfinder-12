@@ -11,13 +11,20 @@ const useVercel = process.env.VERCEL === "1" || process.env.NITRO_PRESET === "ve
 export default defineConfig({
   nitro: useVercel
     ? { preset: "vercel" }
-    : { preset: "node-server", defaultPreset: "node-server" },
+    : { preset: "node-server" },
   tanstackStart: {
     server: { entry: "server" },
   },
   vite: {
     server: {
       allowedHosts: true,
+      // Headers de seguridad en desarrollo (producción los maneja Render/Vercel a nivel de plataforma)
+      headers: {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(self)",
+      },
     },
   },
 });

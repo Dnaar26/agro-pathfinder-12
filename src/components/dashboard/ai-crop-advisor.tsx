@@ -57,14 +57,13 @@ Formatéalo en puntos breves y directos enfocados en optimización de agua, fert
             },
             { role: "user", content: prompt },
           ],
-          model: "gemini-2.5-flash",
-          max_tokens: 350,
+                    max_tokens: 350,
         },
       });
       setAdvice(reply);
     } catch (e: any) {
       const msg = e?.message ?? "Error al consultar la IA";
-      setError(msg.includes("GEMINI_API_KEY") ? "El servicio de IA no está configurado en el servidor." : msg);
+      setError(msg.includes("AI_NOT_CONFIGURED") ? "El servicio de IA no está configurado en el servidor." : msg);
     } finally {
       setLoading(false);
     }
@@ -81,7 +80,7 @@ Formatéalo en puntos breves y directos enfocados en optimización de agua, fert
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               Recomendación Agronómica Inteligente
             </h3>
-            <p className="text-[11px] text-muted-foreground">Potenciado por Gemini 3.6 AI</p>
+            <p className="text-xs text-muted-foreground">Basado en tus parcelas y cultivos</p>
           </div>
         </div>
         <Button

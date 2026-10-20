@@ -37,6 +37,16 @@ const eventSchema = z.object({
   crop_id: z.string().uuid().optional(),
 });
 
+const KIND_STYLE: Record<string, { dot: string; card: string; label: string }> = {
+  siembra: { dot: "bg-primary", card: "border-primary/30 bg-primary-soft", label: "Siembra" },
+  cosecha: { dot: "bg-highlight", card: "border-highlight/50 bg-highlight/15", label: "Cosecha estimada" },
+  actividad: { dot: "bg-info", card: "border-info/30 bg-info/10", label: "Labor realizada" },
+  event: { dot: "bg-foreground/70", card: "border-border bg-card", label: "Evento" },
+};
+
+// En edición, una fecha ya vencida es válida si no se cambió (p. ej. corregir el título de un evento atrasado)
+const editSchema = eventSchema.extend({ starts_at: z.string().min(1, "La fecha es obligatoria") });
+
 function CalendarPage() {
   const [cursor, setCursor] = useState(new Date());
   const [open, setOpen] = useState(false);
@@ -80,12 +90,13 @@ function CalendarPage() {
   const cropEvents = useQuery({
     queryKey: ["crop-events", monthStart.toISOString()],
     queryFn: async () => {
-      const s = gridStart.toISOString();
-      const e = gridEnd.toISOString();
+      // planting_date y estimated_harvest_date son columnas `date`: se comparan con yyyy-MM-dd
+      const s = format(gridStart, "yyyy-MM-dd");
+      const e = format(gridEnd, "yyyy-MM-dd");
       const { data } = await supabase
         .from("crops")
         .select("id, planting_date, estimated_harvest_date, status, crop_catalog(name), parcels(name)")
-        .or(`planting_date.gte.${s},planting_date.lte.${e},estimated_harvest_date.gte.${s},estimated_harvest_date.lte.${e}`)
+        .or(`and(planting_date.gte.${s},planting_date.lte.${e}),and(estimated_harvest_date.gte.${s},estimated_harvest_date.lte.${e})`)
         .not("planting_date", "is", null);
       return data ?? [];
     },
@@ -124,13 +135,13 @@ function CalendarPage() {
         }
       }
       
-      const { error } = await supabase.from("calendar_events").insert({
+      const { data: created, error } = await supabase.from("calendar_events").insert({
         user_id: u.user.id,
         title: payload.event.title,
         description: payload.event.description ?? null,
         crop_id: payload.event.crop_id ?? null,
         starts_at: eventDate.toISOString(),
-      });
+      }).select("id").single();
       if (error) throw error;
       
       // Descontar del inventario
@@ -142,7 +153,11 @@ function CalendarPage() {
           p_notes: `Uso en evento: ${payload.event.title}`,
           p_delta: -payload.invQty,
         });
-        if (rpcErr) throw new Error(rpcErr.message || "Error al descontar insumo del inventario");
+        if (rpcErr) {
+          // No dejar un evento huérfano si el descuento falló
+          await supabase.from("calendar_events").delete().eq("id", created.id);
+          throw new Error(rpcErr.message || "Error al descontar insumo del inventario");
+        }
       }
     },
     onSuccess: () => {
@@ -167,9 +182,10 @@ function CalendarPage() {
   const [editOpen, setEditOpen] = useState(false);
 
   const updateEvent = useMutation({
-    mutationFn: async (payload: { id: string; title: string; description?: string; starts_at: string; crop_id?: string; editInvItemId?: string; editInvQty?: number }) => {
+    mutationFn: async (payload: { id: string; originalStartsAt?: string; title: string; description?: string; starts_at: string; crop_id?: string; editInvItemId?: string; editInvQty?: number }) => {
       const eventDate = new Date(payload.starts_at);
-      if (isNaN(eventDate.getTime()) || eventDate.getTime() < Date.now() - 2 * 60 * 1000) {
+      const dateChanged = !payload.originalStartsAt || new Date(payload.originalStartsAt).getTime() !== eventDate.getTime();
+      if (isNaN(eventDate.getTime()) || (dateChanged && eventDate.getTime() < Date.now() - 2 * 60 * 1000)) {
         throw new Error("No se pueden programar eventos en fechas u horas pasadas");
       }
 
@@ -275,15 +291,15 @@ function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">Calendario</h1>
           <p className="text-sm text-muted-foreground capitalize">{format(cursor, "MMMM yyyy", { locale: es })}</p>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" onClick={() => setCursor(addMonths(cursor, -1))}><ChevronLeft className="size-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => setCursor(addMonths(cursor, -1))} aria-label="Mes anterior"><ChevronLeft className="size-4" /></Button>
           <Button variant="outline" size="sm" onClick={() => setCursor(new Date())}>Hoy</Button>
-          <Button variant="outline" size="icon" onClick={() => setCursor(addMonths(cursor, 1))}><ChevronRight className="size-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => setCursor(addMonths(cursor, 1))} aria-label="Mes siguiente"><ChevronRight className="size-4" /></Button>
 
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button className="ml-2"><Plus className="size-4 mr-1" /> Evento</Button></DialogTrigger>
@@ -354,7 +370,7 @@ function CalendarPage() {
                     const remaining = Number(it.stock_qty) - Number(invQty);
                     return (
                       <p className={`text-xs ${remaining < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                        Stock tras uso: {remaining.toFixed(1)} {it.unit} {remaining < 0 ? '⚠️ Insuficiente' : '✓'}
+                        Stock tras uso: {remaining.toFixed(1)} {it.unit} {remaining < 0 ? '· Insuficiente' : ''}
                       </p>
                     );
                   })()}
@@ -380,6 +396,10 @@ function CalendarPage() {
           return (
             <button
               key={key}
+              type="button"
+              aria-pressed={isSelected}
+              aria-current={isToday ? "date" : undefined}
+              aria-label={`${format(d, "EEEE d 'de' MMMM", { locale: es })}, ${items.length === 0 ? "sin eventos" : items.length === 1 ? "1 evento" : `${items.length} eventos`}`}
               onClick={() => setSelected(d)}
               className={cn(
                 "min-h-20 bg-card p-2 text-left transition-colors hover:bg-primary-soft",
@@ -387,10 +407,10 @@ function CalendarPage() {
                 isSelected && "ring-2 ring-primary ring-inset",
               )}
             >
-              <div className={cn("text-sm font-medium", isToday && "text-primary")}>{format(d, "d")}</div>
+              <div className={cn("grid size-6 place-items-center rounded-full text-sm font-medium tabular", isToday && "bg-primary text-primary-foreground")}>{format(d, "d")}</div>
               <div className="mt-1 flex gap-0.5 flex-wrap">
                 {items.slice(0, 4).map((it: any, i: number) => (
-                  <span key={i} className={cn("size-1.5 rounded-full", it.type === "siembra" && "bg-green-500", it.type === "cosecha" && "bg-amber-500", it.type === "actividad" && "bg-blue-500", it.type === "event" && "bg-primary")} />
+                  <span key={i} aria-hidden="true" className={cn("size-2 rounded-full", KIND_STYLE[it.type]?.dot, it.done && "opacity-40")} />
                 ))}
               </div>
             </button>
@@ -405,20 +425,21 @@ function CalendarPage() {
         ) : (
           <ul className="space-y-2">
             {selectedItems.map((it: any, i: number) => (
-              <li key={`${it.type}-${it.id ?? i}`} className={cn("p-4 rounded-lg border", it.type === "siembra" && "border-green-200 bg-green-50 dark:bg-green-950/20", it.type === "cosecha" && "border-amber-200 bg-amber-50 dark:bg-amber-950/20", it.type === "actividad" && "border-blue-200 bg-blue-50 dark:bg-blue-950/20", it.type === "event" && "border-border bg-card")}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {it.type === "siembra" && <Sprout className="size-4 text-green-600 shrink-0" />}
-                    {it.type === "cosecha" && <Wheat className="size-4 text-amber-600 shrink-0" />}
-                    <span className="font-medium">{it.title}</span>
+              <li key={`${it.type}-${it.id ?? i}`} className={cn("rounded-lg border p-4", KIND_STYLE[it.type]?.card)}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {it.type === "siembra" && <Sprout className="size-4 text-primary shrink-0" />}
+                    {it.type === "cosecha" && <Wheat className="size-4 text-earth shrink-0" />}
+                    <span className={cn("font-medium", it.done && "text-muted-foreground line-through")}>{it.title}</span>
+                    <span className="rounded-full bg-background/70 px-2 py-0.5 text-xs text-muted-foreground">{it.done ? "Realizado" : KIND_STYLE[it.type]?.label}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {it.starts_at && <span className="text-xs text-muted-foreground">{format(new Date(it.starts_at), "HH:mm")}</span>}
                     {it.type === "event" && (
                       <>
                         {!it.done && <Button variant="outline" size="sm" onClick={() => markDone.mutate(it.id)} disabled={markDone.isPending}>Realizado</Button>}
-                        <button onClick={() => { setEditEvent(it); setEditOpen(true); }} className="text-muted-foreground hover:text-foreground" title="Editar"><Pencil className="size-3.5" /></button>
-                        <button onClick={() => setDeleteConfirm(it.id)} className="text-destructive hover:text-destructive/80" title="Eliminar"><Trash2 className="size-3.5" /></button>
+                        <button type="button" onClick={() => { setEditEvent(it); setEditOpen(true); }} aria-label={`Editar ${it.title}`} className="grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"><Pencil className="size-4" aria-hidden="true" /></button>
+                        <button type="button" onClick={() => setDeleteConfirm(it.id)} aria-label={`Eliminar ${it.title}`} className="grid size-9 place-items-center rounded-md text-destructive transition-colors hover:bg-destructive/10"><Trash2 className="size-4" aria-hidden="true" /></button>
                       </>
                     )}
                   </div>
@@ -431,14 +452,14 @@ function CalendarPage() {
       </section>
 
       {/* Edit event dialog */}
-      <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) setEditEvent(null); }}>
+      <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) { setEditEvent(null); setEditInvItemId(""); setEditInvQty(""); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Editar evento</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { 
             e.preventDefault(); 
             if (!editEvent) return; 
             const fd = new FormData(e.currentTarget); 
-            const parsed = eventSchema.safeParse({
+            const parsed = editSchema.safeParse({
               title: fd.get("title"),
               starts_at: fd.get("starts_at"),
               description: (fd.get("description") as string) || undefined,
@@ -447,6 +468,7 @@ function CalendarPage() {
             if (!parsed.success) return toast.error(parsed.error.issues[0].message);
             updateEvent.mutate({ 
               id: editEvent.id, 
+              originalStartsAt: editEvent.starts_at,
               title: parsed.data.title, 
               description: parsed.data.description, 
               crop_id: parsed.data.crop_id, 
@@ -466,7 +488,6 @@ function CalendarPage() {
                 name="starts_at"
                 type="datetime-local"
                 required
-                min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
                 defaultValue={editEvent?.starts_at ? format(new Date(editEvent.starts_at), "yyyy-MM-dd'T'HH:mm") : ""}
               />
             </div>
@@ -519,7 +540,7 @@ function CalendarPage() {
                 const remaining = Number(it.stock_qty) - Number(editInvQty);
                 return (
                   <p className={`text-xs ${remaining < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                    Stock tras uso: {remaining.toFixed(1)} {it.unit} {remaining < 0 ? '⚠️ Insuficiente' : '✓'}
+                    Stock tras uso: {remaining.toFixed(1)} {it.unit} {remaining < 0 ? '· Insuficiente' : ''}
                   </p>
                 );
               })()}

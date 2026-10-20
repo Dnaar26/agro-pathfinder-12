@@ -5,7 +5,7 @@ import { fixtures } from "./fixtures";
 // CONFIGURATION: Run before all TDD tests
 // ============================================================
 
-test.beforeAll(async ({}, testInfo) => {
+test.beforeAll(async (_fixtures, testInfo) => {
   testInfo.attach("environment", {
     contentType: "text",
     body: "TDD Critical Flows — SIGIC\nFramework: Playwright + Supabase Local\nDate: " + new Date().toISOString(),
@@ -170,13 +170,13 @@ test("TDD-06 / HU-07: idempotencia alertas stock-bajo por día", async ({ agricu
   });
 
   // Act: check alerts_sent_today twice
-  let { data: first } = await agricultor.supabase
+  const { data: first } = await agricultor.supabase
     .from("inventory_items")
     .select("alerts_sent_today")
     .eq("name", "TDD-06-Fertilizante-Test")
     .single();
 
-  let { data: second } = await agricultor.supabase
+  const { data: second } = await agricultor.supabase
     .from("inventory_items")
     .select("alerts_sent_today")
     .eq("name", "TDD-06-Fertilizante-Test")
@@ -196,7 +196,7 @@ test("TDD-06 / HU-07: idempotencia alertas stock-bajo por día", async ({ agricu
 // TDD-07 / HU-08: Agricultor no puede insertar aviso manual
 // ============================================================
 
-test("TDD-07 / HU-08: RLS prohíbe insert directo a alerts por agricultor", async ({ request }) => => {
+test("TDD-07 / HU-08: RLS prohíbe insert directo a alerts por agricultor", async ({ request }) => {
   // Act: try direct insert as farmer
   const { error } = await request.post("/rest/v1/alerts", {
     headers: {
@@ -273,7 +273,7 @@ test("TDD-09 / HU-09: RLS alert_settings prohíbe edición no-admin", async ({ r
       Authorization: `Bearer ${agricultor.token}`,
       "Content-Type": "application/json",
     },
-    body {
+    body: {
       id: true,
       umbral_stock_minimo: 5,
       enabled: true,

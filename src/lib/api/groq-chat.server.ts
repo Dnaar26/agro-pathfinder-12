@@ -133,7 +133,11 @@ async function fetchWithRetry(url: string, init: RequestInit, providerName: stri
         console.error(`[${providerName}] 400:`, await res.text().catch(() => ""));
         throw new Error("El asistente de IA no pudo procesar la solicitud.");
       }
-      if (!res.ok) throw new Error(`Error en el servicio de IA (código ${res.status}). Intenta nuevamente.`);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        console.error(`[${providerName} ERROR ${res.status}]`, errBody);
+        throw new Error(`Error en el servicio de IA (código ${res.status}). Intenta nuevamente.`);
+      }
       return res;
     } catch (err: any) {
       clearTimeout(timer);
@@ -168,7 +172,10 @@ async function askGroq(apiKey: string, system: string, convo: ChatMessage[], max
 }
 
 async function askGemini(apiKey: string, system: string, convo: ChatMessage[], maxTokens: number): Promise<string> {
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  let model = process.env.GEMINI_MODEL || "gemini-flash-latest";
+  if (model === "gemini-2.5-flash" || model === "gemini-1.5-flash") {
+    model = "gemini-flash-latest";
+  }
   const res = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {

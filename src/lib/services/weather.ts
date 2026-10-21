@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type DailyForecast = {
   date: string;
   tempMax: number;
@@ -14,35 +16,101 @@ export type WeatherAlerts = {
   days: { date: string; alerts: string[] }[];
 };
 
-export async function fetchWeatherForecast(lat: number, lng: number): Promise<{ daily: DailyForecast[]; alerts: WeatherAlerts } | null> {
+export type WeatherForecastResult = {
+  daily: DailyForecast[];
+  alerts: WeatherAlerts;
+  source: "open-meteo";
+  fetchedAt: string;
+};
+
+const dailySchema = z.object({
+  time: z.array(z.string()),
+  temperature_2m_max: z.array(z.number().nullable()).optional(),
+  temperature_2m_min: z.array(z.number().nullable()).optional(),
+  precipitation_sum: z.array(z.number().nullable()).optional(),
+  precipitation_probability_max: z.array(z.number().nullable()).optional(),
+  wind_speed_10m_max: z.array(z.number().nullable()).optional(),
+});
+
+const weatherResponseSchema = z.object({ daily: dailySchema });
+
+export async function fetchWeatherForecast(lat: number, lng: number): Promise<WeatherForecastResult | null> {
+  if (!isValidCoordinate(lat, lng)) return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=7`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const daily: DailyForecast[] = (data.daily?.time ?? []).map((date: string, i: number) => ({
-      date,
-      tempMax: data.daily.temperature_2m_max[i],
-      tempMin: data.daily.temperature_2m_min[i],
-      precip: data.daily.precipitation_sum[i] ?? 0,
-      precipProb: data.daily.precipitation_probability_max[i] ?? 0,
-      wind: data.daily.wind_speed_10m_max[i] ?? 0,
-      humidity: 0,
-    }));
+    const params = new URLSearchParams({
+      latitude: String(lat),
+      longitude: String(lng),
+      daily: "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max",
+      timezone: "auto",
+      forecast_days: "7",
+    });
+    const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, {
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
 
-    const days: WeatherAlerts["days"] = [];
-    let hasFrost = false;
-    let hasHeavyRain = false;
+    const parsed = weatherResponseSchema.safeParse(await response.json());
+    if (!parsed.success) return null;
 
-    for (const d of daily) {
-      const alerts: string[] = [];
-      if (d.tempMin < 2) { alerts.push(`FROST_${d.date}`); hasFrost = true; }
-      if (d.precipProb > 70 && d.precip > 10) { alerts.push(`RAIN_${d.date}`); hasHeavyRain = true; }
-      if (alerts.length > 0) days.push({ date: d.date, alerts });
-    }
+    const daily = parsed.data.daily.time.flatMap((date, index) => {
+      const tempMax = readDailyValue(parsed.data.daily.temperature_2m_max, index);
+      const tempMin = readDailyValue(parsed.data.daily.temperature_2m_min, index);
+      if (tempMax === null || tempMin === null) return [];
+      return [{
+        date,
+        tempMax,
+        tempMin,
+        precip: readDailyValue(parsed.data.daily.precipitation_sum, index) ?? 0,
+        precipProb: readDailyValue(parsed.data.daily.precipitation_probability_max, index) ?? 0,
+        wind: readDailyValue(parsed.data.daily.wind_speed_10m_max, index) ?? 0,
+        humidity: 0,
+      }];
+    });
 
-    return { daily, alerts: { hasFrost, hasHeavyRain, days } };
+    if (daily.length === 0) return null;
+
+    return {
+      daily,
+      alerts: buildAlerts(daily),
+      source: "open-meteo",
+      fetchedAt: new Date().toISOString(),
+    };
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+function isValidCoordinate(lat: number, lng: number) {
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}
+
+function readDailyValue(values: number[] | null | undefined, index: number) {
+  const value = values?.[index];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function buildAlerts(daily: DailyForecast[]): WeatherAlerts {
+  const days: WeatherAlerts["days"] = [];
+  let hasFrost = false;
+  let hasHeavyRain = false;
+
+  for (const day of daily) {
+    const alerts: string[] = [];
+    if (day.tempMin < 2) {
+      alerts.push(`FROST_${day.date}`);
+      hasFrost = true;
+    }
+    if (day.precipProb > 70 && day.precip > 10) {
+      alerts.push(`RAIN_${day.date}`);
+      hasHeavyRain = true;
+    }
+    if (alerts.length > 0) days.push({ date: day.date, alerts });
+  }
+
+  return { hasFrost, hasHeavyRain, days };
 }

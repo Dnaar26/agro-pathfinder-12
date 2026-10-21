@@ -15,7 +15,7 @@ export function MarketPrices() {
 
   const filteredPrices = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const data = prices.data ?? [];
+    const data = prices.data?.prices ?? [];
     if (!q) return data.slice(0, 6);
     return data.filter((p) => p.product.toLowerCase().includes(q));
   }, [prices.data, search]);
@@ -76,8 +76,14 @@ export function MarketPrices() {
         )}
       </div>
       <div className="flex items-center justify-between text-[10px] text-muted-foreground px-1">
-        <span>Fuente: SIPSA - DANE / Abastos</span>
-        <span>Act: Hoy</span>
+        <span>
+          {prices.data?.source === "sipsa" ? "Fuente: SIPSA - DANE / Abastos" : "Referencia local: validar antes de decidir"}
+        </span>
+        <span>
+          {prices.data?.fetchedAt
+            ? `Act: ${new Date(prices.data.fetchedAt).toLocaleDateString("es-CO")}`
+            : "Sin fecha"}
+        </span>
       </div>
     </div>
   );

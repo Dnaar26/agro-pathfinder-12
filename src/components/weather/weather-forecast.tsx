@@ -1,23 +1,22 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Sun, CloudRain, CloudDrizzle, CloudSun, Droplets, Wind, AlertTriangle } from "lucide-react";
 import { fetchWeatherForecast, type DailyForecast, type WeatherAlerts } from "@/lib/services/weather";
 
 export function WeatherForecast({ lat, lng, parcelName }: { lat: number; lng: number; parcelName?: string }) {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
-  const [forecast, setForecast] = useState<DailyForecast[]>([]);
-  const [alerts, setAlerts] = useState<WeatherAlerts | null>(null);
+  const forecastQuery = useQuery({
+    queryKey: ["weather-forecast", Number(lat.toFixed(3)), Number(lng.toFixed(3))],
+    queryFn: () => fetchWeatherForecast(lat, lng),
+    staleTime: 30 * 60 * 1000,
+    gcTime: 2 * 60 * 60 * 1000,
+    retry: 1,
+  });
+  const forecast: DailyForecast[] = forecastQuery.data?.daily ?? [];
+  const alerts: WeatherAlerts | null = forecastQuery.data?.alerts ?? null;
 
-  useEffect(() => {
-    setLoading(true);
-    fetchWeatherForecast(lat, lng).then((res) => {
-      if (res) { setForecast(res.daily); setAlerts(res.alerts); }
-      setLoading(false);
-    });
-  }, [lat, lng]);
-
-  if (loading) return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
+  if (forecastQuery.isLoading) return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
+  if (forecastQuery.isError) return <p className="text-sm text-muted-foreground">{t("weather.no_forecast")}</p>;
   if (forecast.length === 0) return <p className="text-sm text-muted-foreground">{t("weather.no_forecast")}</p>;
 
   return (

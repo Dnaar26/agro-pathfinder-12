@@ -65,6 +65,35 @@ jobs:
       - name: Build application
         run: npm run build
 
+      - name: Smoke compiled production server
+        env:
+          APP_ALLOWED_ORIGINS: http://127.0.0.1:4175
+          NODE_ENV: production
+          PORT: "4175"
+          SMOKE_ALLOW_HTTP: "true"
+          SMOKE_BASE_URL: http://127.0.0.1:4175
+        run: |
+          node scripts/start-server.mjs > /tmp/sigic-production.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$SMOKE_BASE_URL/healthz" >/dev/null; then
+              npm run smoke:production
+              exit 0
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat /tmp/sigic-production.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/sigic-production.log
+          exit 1
+
       - name: Lint application
         run: npm run lint
 

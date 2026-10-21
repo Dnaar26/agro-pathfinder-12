@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 
 BEGIN;
 
-SELECT plan(23);
+SELECT plan(25);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.profiles'::regclass),
@@ -98,6 +98,27 @@ SELECT ok(
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.calendar_events'::regclass),
   'calendar_events has RLS enabled'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'public.calendar_events'::regclass
+      AND attname = 'done'
+      AND attnotnull
+      AND NOT attisdropped
+  ),
+  'calendar event completion state cannot be NULL'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_attribute a
+    JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+    WHERE a.attrelid = 'public.calendar_events'::regclass
+      AND a.attname = 'done'
+      AND pg_get_expr(d.adbin, d.adrelid) = 'false'
+  ),
+  'calendar events default to pending'
 );
 SELECT ok(
   EXISTS (

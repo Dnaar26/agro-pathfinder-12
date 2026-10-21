@@ -33,7 +33,3 @@ Ver `.env.example`. La clave del asistente IA es `GROQ_API_KEY` (o `GEMINI_API_K
 ## Diseño
 
 Los tokens de color y tipografía viven en `src/styles.css` (OKLCH, modo claro y oscuro). Paleta: verde hoja del logo, banano (`--highlight`) para destacar y fondo niebla. Tipografías: Bricolage Grotesque (títulos) y Figtree (texto). El motivo de marca son los surcos de cultivo (`.surcos`, `.surcos-on-dark`).
-
-## Documentación
-
-Manuales, historias de usuario y operación en [`docs/`](docs/).

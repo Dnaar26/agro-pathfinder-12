@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 
 BEGIN;
 
-SELECT plan(25);
+SELECT plan(44);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.profiles'::regclass),
@@ -187,6 +187,104 @@ SELECT ok(
 SELECT ok(
   has_function_privilege('authenticated', 'public.transition_crop_statuses(uuid[],public.crop_status)', 'execute'),
   'authenticated can bulk transition crop status through the RPC'
+);
+
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'crop_costs'
+    AND policyname = 'crop costs scoped read' AND cmd = 'SELECT' AND qual LIKE '%is_assigned_technician%'),
+  'technician crop-cost reports are limited to assigned farmers'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'crop_harvests'
+    AND policyname = 'crop harvests scoped read' AND cmd = 'SELECT' AND qual LIKE '%is_assigned_technician%'),
+  'technician harvest reports are limited to assigned farmers'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pest_incidents'
+    AND policyname = 'pest incidents scoped read' AND cmd = 'SELECT' AND qual LIKE '%is_assigned_technician%'),
+  'technician pest reports are limited to assigned farmers'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'crop_costs'
+    AND policyname = 'crop costs owner admin write' AND cmd = 'ALL' AND qual NOT LIKE '%is_assigned_technician%'),
+  'technicians cannot change crop costs through the reporting policy'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'crop_harvests'
+    AND policyname = 'crop harvests owner admin write' AND cmd = 'ALL' AND qual NOT LIKE '%is_assigned_technician%'),
+  'technicians cannot change harvests through the reporting policy'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pest_incidents'
+    AND policyname = 'pest incidents owner admin write' AND cmd = 'ALL' AND qual NOT LIKE '%is_assigned_technician%'),
+  'technicians cannot change pest incidents through the reporting policy'
+);
+SELECT ok(
+  NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'profile staff update'),
+  'technicians cannot update arbitrary farmer profiles'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'parcels'
+    AND policyname = 'parcels owner read' AND cmd = 'SELECT' AND qual LIKE '%is_assigned_technician%')
+  AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'parcels' AND policyname = 'parcels select own or staff'),
+  'technician parcel reads are limited to assigned farmers'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'inventory_items'
+    AND policyname = 'inventory owner read' AND cmd = 'SELECT' AND qual LIKE '%is_assigned_technician%')
+  AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'inventory_items' AND policyname = 'inventory select own or staff'),
+  'technician inventory reads are limited to assigned farmers'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'inventory_movements'
+    AND policyname = 'movements owner read' AND cmd = 'SELECT' AND qual LIKE '%is_assigned_technician%'),
+  'technician inventory movement reads are limited to assigned farmers'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'batches'
+    AND policyname = 'batches scoped read' AND cmd = 'SELECT' AND qual LIKE '%can_access_crop%'),
+  'technician traceability reads are limited to assigned crops'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'batches'
+    AND policyname = 'batches owner admin write' AND cmd = 'ALL' AND qual NOT LIKE '%tecnico%'),
+  'technicians cannot change traceability batches'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'ndvi_cache'
+    AND policyname = 'ndvi scoped read' AND cmd = 'SELECT' AND qual LIKE '%is_assigned_technician%'),
+  'technician vegetation data is limited to assigned farmers'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'ndvi_cache'
+    AND policyname = 'ndvi owner admin write' AND cmd = 'ALL' AND qual NOT LIKE '%tecnico%'),
+  'technicians cannot change vegetation cache records'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'weather_cache'
+    AND policyname = 'weather scoped read' AND cmd = 'SELECT' AND qual LIKE '%is_assigned_technician%'),
+  'technician weather data is limited to assigned farmers'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'weather_cache'
+    AND policyname = 'weather owner admin write' AND cmd = 'ALL' AND qual NOT LIKE '%tecnico%'),
+  'technicians cannot change weather cache records'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects'
+    AND policyname = 'evidences owner read' AND cmd = 'SELECT' AND qual LIKE '%can_access_crop%'),
+  'technician evidence access is limited to assigned crops'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'activities'
+    AND policyname = 'activities assigned technician insert' AND cmd = 'INSERT'
+    AND with_check LIKE '%responsible_id%' AND with_check LIKE '%can_access_crop%'),
+  'assigned technicians can record field visits on accessible crops'
+);
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pest_incidents'
+    AND policyname = 'pest incidents assigned technician insert' AND cmd = 'INSERT' AND with_check LIKE '%can_access_crop%'),
+  'assigned technicians can report pests on accessible crops'
 );
 
 SELECT * FROM finish();

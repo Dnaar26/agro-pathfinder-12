@@ -77,6 +77,8 @@ function SummaryBarChart({ title, data, loading, formatValue = (value) => value.
 export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" }) {
   const [activeTab, setActiveTab] = useState(userRole === "tecnico" ? "plagas-zonales" : "ranking");
   const [exporting, setExporting] = useState(false);
+  const [pestSearch, setPestSearch] = useState("");
+  const [pestSeverityFilter, setPestSeverityFilter] = useState("ALL");
 
   // 1. Monitoreo Fitosanitario Zonal
   const pestsQuery = useQuery({
@@ -182,14 +184,34 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
     return { items, totalVal, byCategory };
   }, [inventoryQuery.data]);
 
+  const visiblePests = useMemo(() => {
+    const query = pestSearch.trim().toLocaleLowerCase("es-CO");
+    const severityRank: Record<string, number> = { CRITICA: 0, ALTA: 1, MEDIA: 2, BAJA: 3 };
+    return [...(pestsQuery.data ?? [])]
+      .filter((pest: any) => {
+        const matchesSeverity = pestSeverityFilter === "ALL" || pest.severity === pestSeverityFilter;
+        const searchText = [
+          pest.pest_name,
+          pest.crops?.crop_catalog?.name,
+          pest.crops?.parcels?.name,
+          pest.crops?.parcels?.profiles?.full_name,
+        ].filter(Boolean).join(" ").toLocaleLowerCase("es-CO");
+        return matchesSeverity && (!query || searchText.includes(query));
+      })
+      .sort((a: any, b: any) => (severityRank[a.severity] ?? 4) - (severityRank[b.severity] ?? 4)
+        || new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+  }, [pestsQuery.data, pestSearch, pestSeverityFilter]);
+
   const pestSeverityChart = useMemo(() => {
     const severityOrder = ["CRITICA", "ALTA", "MEDIA", "BAJA"];
     const counts = new Map<string, number>();
-    for (const pest of pestsQuery.data ?? []) counts.set(pest.severity || "SIN CLASIFICAR", (counts.get(pest.severity || "SIN CLASIFICAR") ?? 0) + 1);
+    for (const pest of visiblePests) counts.set(pest.severity || "SIN CLASIFICAR", (counts.get(pest.severity || "SIN CLASIFICAR") ?? 0) + 1);
     return [...severityOrder, ...[...counts.keys()].filter((severity) => !severityOrder.includes(severity))]
       .map((severity) => ({ label: severity === "CRITICA" ? "Crítica" : severity === "SIN CLASIFICAR" ? "Sin clasificar" : `${severity[0]}${severity.slice(1).toLowerCase()}`, value: counts.get(severity) ?? 0 }))
       .filter((point) => point.value > 0);
-  }, [pestsQuery.data]);
+  }, [visiblePests]);
+
+  const priorityPestCount = visiblePests.filter((pest: any) => ["CRITICA", "ALTA"].includes(pest.severity)).length;
 
   const rankingChart = useMemo(() => {
     const totals = new Map<string, number>();
@@ -216,22 +238,22 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
       const dateStr = format(new Date(), "dd/MM/yyyy", { locale: es });
 
       if (activeTab === "plagas-zonales") {
-        const pests = pestsQuery.data ?? [];
+        const pests = visiblePests;
         const doc = await generatePdfReport({
           template: "resumen",
           title: "Monitoreo Fitosanitario y Epidemiológico Zonal",
           subtitle: `Generado el ${dateStr} • SIGIC Staff Report`,
           orientation: "landscape",
           summary: [
-            { label: "Incidencias", value: String(pestsQuery.data?.length ?? 0) },
-            { label: "Severidad crítica/alta", value: String((pestSeverityChart.find((row) => row.label === "Crítica")?.value ?? 0) + (pestSeverityChart.find((row) => row.label === "Alta")?.value ?? 0)) },
-            { label: "Parcelas afectadas", value: String(new Set((pestsQuery.data ?? []).map((p: any) => p.crops?.parcels?.id).filter(Boolean)).size) },
+            { label: "Incidencias filtradas", value: String(pests.length) },
+            { label: "Severidad crítica/alta", value: String(priorityPestCount) },
+            { label: "Parcelas afectadas", value: String(new Set(pests.map((p: any) => p.crops?.parcels?.id).filter(Boolean)).size) },
           ],
-          charts: [{ title: "Incidencias por severidad", data: pestSeverityChart, color: [180, 83, 9] }],
+          charts: [{ title: "Incidencias por severidad (vista filtrada)", data: pestSeverityChart, color: [180, 83, 9] }],
           sections: [
             {
               title: "Incidencias Reportadas por Lote y Productor",
-              head: ["Fecha", "Plaga", "Severidad", "Cultivo", "Parcela", "Productor", "Tratamiento"],
+              head: ["Fecha", "Plaga", "Severidad", "Cultivo", "Parcela", "Productor", "Coordenadas", "Tratamiento"],
               body: pests.map((p: any) => [
                 p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—",
                 p.pest_name || "—",
@@ -239,6 +261,8 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                 p.crops?.crop_catalog?.name || "—",
                 p.crops?.parcels?.name || "—",
                 p.crops?.parcels?.profiles?.full_name || "—",
+                p.crops?.parcels?.latitude != null && p.crops?.parcels?.longitude != null
+                  ? `${p.crops.parcels.latitude}, ${p.crops.parcels.longitude}` : "—",
                 p.treatment || "—",
               ]),
             },
@@ -352,14 +376,17 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
         filename = "plagas-zonales";
         rows = [
           ["Monitoreo Fitosanitario Zonal SIGIC"],
-          ["Fecha", "Plaga", "Severidad", "Cultivo", "Parcela", "Productor", "Tratamiento", "Notas"],
-          ...(pestsQuery.data ?? []).map((p: any) => [
+          [`Registros incluidos: ${visiblePests.length}`],
+          ["Fecha", "Plaga", "Severidad", "Cultivo", "Parcela", "Productor", "Latitud", "Longitud", "Tratamiento", "Notas"],
+          ...visiblePests.map((p: any) => [
             p.date || "",
             p.pest_name || "",
             p.severity || "",
             p.crops?.crop_catalog?.name || "",
             p.crops?.parcels?.name || "",
             p.crops?.parcels?.profiles?.full_name || "",
+            p.crops?.parcels?.latitude ?? "",
+            p.crops?.parcels?.longitude ?? "",
             p.treatment || "",
             p.notes || "",
           ]),
@@ -418,7 +445,9 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           .map((r) =>
             r
               .map((val: unknown) => {
-                const s = String(val ?? "").replace(/"/g, '""');
+                let s = String(val ?? "");
+                if (typeof val === "string" && /^[\t\r ]*[=+@-]/.test(s)) s = `'${s}`;
+                s = s.replace(/"/g, '""');
                 return /[",\n]/.test(s) ? `"${s}"` : s;
               })
               .join(",")
@@ -486,11 +515,41 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
 
         {/* Tab 1: Sanidad Zonal */}
         <TabsContent value="plagas-zonales" className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-end">
+            <label className="flex-1 space-y-1 text-xs font-medium">
+              Buscar plaga, cultivo, parcela o productor
+              <input
+                type="search"
+                value={pestSearch}
+                onChange={(event) => setPestSearch(event.target.value)}
+                placeholder="Escribe para filtrar"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </label>
+            <label className="space-y-1 text-xs font-medium sm:w-52">
+              Severidad
+              <select
+                value={pestSeverityFilter}
+                onChange={(event) => setPestSeverityFilter(event.target.value)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="ALL">Todas</option>
+                <option value="CRITICA">Crítica</option>
+                <option value="ALTA">Alta</option>
+                <option value="MEDIA">Media</option>
+                <option value="BAJA">Baja</option>
+              </select>
+            </label>
+          </div>
           <SummaryBarChart title="Incidencias por severidad" data={pestSeverityChart} loading={pestsQuery.isLoading} color="#b45309" />
+          <div className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${priorityPestCount > 0 ? "border-red-500/30 bg-red-500/5" : "border-border bg-muted/20"}`} aria-live="polite">
+            <AlertTriangle className={`size-4 shrink-0 ${priorityPestCount > 0 ? "text-red-600" : "text-muted-foreground"}`} />
+            <span><strong>{priorityPestCount}</strong> registros con severidad crítica o alta entre {visiblePests.length} coincidencias. La lista se ordena primero por mayor severidad.</span>
+          </div>
           <Card className="p-4 border-border">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
               <Bug className="size-4 text-primary" />
-              Incidencias Fitosanitarias Monitoreadas en la Zona ({(pestsQuery.data ?? []).length})
+              Incidencias Fitosanitarias Monitoreadas en la Zona ({visiblePests.length})
             </h3>
             {pestsQuery.isLoading ? (
               <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
@@ -498,8 +557,8 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
               </div>
             ) : pestsQuery.isError ? (
               <div role="alert" className="py-6 text-center text-sm text-destructive">No se pudieron cargar las incidencias. <Button variant="link" size="sm" onClick={() => void pestsQuery.refetch()}>Reintentar</Button></div>
-            ) : (pestsQuery.data ?? []).length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">No hay plagas reportadas en la zona.</p>
+            ) : visiblePests.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-6">No hay incidencias que coincidan con los filtros.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -511,11 +570,12 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                       <th className="py-2 px-3">Cultivo</th>
                       <th className="py-2 px-3">Parcela</th>
                       <th className="py-2 px-3">Productor</th>
+                      <th className="py-2 px-3">Ubicación</th>
                       <th className="py-2 px-3">Tratamiento</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/50">
-                    {(pestsQuery.data ?? []).map((p: any) => (
+                    {visiblePests.map((p: any) => (
                       <tr key={p.id} className="hover:bg-muted/30">
                         <td className="py-2 px-3 whitespace-nowrap text-muted-foreground">
                           {p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—"}
@@ -529,6 +589,19 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                         <td className="py-2 px-3">{p.crops?.crop_catalog?.name ?? "—"}</td>
                         <td className="py-2 px-3 text-muted-foreground">{p.crops?.parcels?.name ?? "—"}</td>
                         <td className="py-2 px-3 font-medium">{p.crops?.parcels?.profiles?.full_name ?? "—"}</td>
+                        <td className="py-2 px-3">
+                          {p.crops?.parcels?.latitude != null && p.crops?.parcels?.longitude != null ? (
+                            <a
+                              href={`https://www.google.com/maps?q=${p.crops.parcels.latitude},${p.crops.parcels.longitude}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline"
+                              aria-label={`Abrir ubicación de ${p.crops?.parcels?.name ?? "la parcela"} en mapa`}
+                            >
+                              <MapPin className="size-3.5" /> Mapa
+                            </a>
+                          ) : <span className="text-muted-foreground">Sin coordenadas</span>}
+                        </td>
                         <td className="py-2 px-3 text-muted-foreground max-w-[200px] truncate">{p.treatment || "—"}</td>
                       </tr>
                     ))}

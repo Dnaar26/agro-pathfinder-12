@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test E2E target safety
+        run: npm run test:e2e:safety
+
       - name: Audit dependencies
         run: npm audit --audit-level=moderate
 

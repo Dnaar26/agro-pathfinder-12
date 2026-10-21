@@ -47,6 +47,9 @@ const statusColors: Record<string, string> = {
 
 export function CropPerformanceReport() {
   const [exporting, setExporting] = useState(false);
+  const [cropSearch, setCropSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [sortBy, setSortBy] = useState("priority");
 
   const cropsQuery = useQuery({
     queryKey: ["my-crop-performance-report"],
@@ -75,18 +78,62 @@ export function CropPerformanceReport() {
       const totalCost = (c.crop_costs ?? []).reduce((s: number, x: any) => s + Number(x.total || 0), 0);
       const totalRevenue = (c.crop_harvests ?? []).reduce((s: number, x: any) => s + Number(x.total_revenue || 0), 0);
       const totalHarvested = (c.crop_harvests ?? []).reduce((s: number, x: any) => s + Number(x.harvested_qty || 0), 0);
+      const harvestByUnit = new Map<string, number>();
+      for (const harvest of c.crop_harvests ?? []) {
+        const unit = String(harvest.unit || "KG").toUpperCase();
+        harvestByUnit.set(unit, (harvestByUnit.get(unit) ?? 0) + Number(harvest.harvested_qty || 0));
+      }
+      const harvestSummary = [...harvestByUnit.entries()]
+        .map(([unit, quantity]) => `${quantity.toLocaleString("es-CO", { maximumFractionDigits: 2 })} ${unit}`)
+        .join(" + ");
       const activityCount = (c.activities ?? []).length;
       const daysInField = c.planting_date ? differenceInDays(new Date(), new Date(c.planting_date)) : 0;
       const daysToHarvest = c.estimated_harvest_date
         ? differenceInDays(new Date(c.estimated_harvest_date), new Date())
         : null;
-      return { ...c, totalCost, totalRevenue, netMargin: totalRevenue - totalCost, totalHarvested, activityCount, daysInField, daysToHarvest };
+      return {
+        ...c,
+        totalCost,
+        totalRevenue,
+        netMargin: totalRevenue - totalCost,
+        totalHarvested,
+        harvestSummary,
+        costPerUnit: harvestByUnit.size === 1 && totalHarvested > 0 ? totalCost / totalHarvested : null,
+        marginRate: totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue) * 100 : null,
+        activityCount,
+        daysInField,
+        daysToHarvest,
+      };
     });
   }, [crops]);
 
   const globalCost = useMemo(() => cropMetrics.reduce((s, c) => s + c.totalCost, 0), [cropMetrics]);
   const globalRevenue = useMemo(() => cropMetrics.reduce((s, c) => s + c.totalRevenue, 0), [cropMetrics]);
-  const activeCrops = useMemo(() => cropMetrics.filter((c) => ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO"].includes(c.status)).length, [cropMetrics]);
+  const activeCrops = useMemo(() => cropMetrics.filter((c) => ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO", "COSECHA"].includes(c.status)).length, [cropMetrics]);
+  const visibleCropMetrics = useMemo(() => {
+    const query = cropSearch.trim().toLocaleLowerCase("es-CO");
+    const filtered = cropMetrics.filter((crop) => {
+      const matchesStatus = statusFilter === "ALL"
+        || (statusFilter === "ACTIVE" && ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO", "COSECHA"].includes(crop.status))
+        || crop.status === statusFilter;
+      const searchText = `${crop.crop_catalog?.name ?? ""} ${crop.parcels?.name ?? ""}`.toLocaleLowerCase("es-CO");
+      return matchesStatus && (!query || searchText.includes(query));
+    });
+
+    return filtered.sort((a, b) => {
+      if (sortBy === "margin-low") return a.netMargin - b.netMargin;
+      if (sortBy === "margin-high") return b.netMargin - a.netMargin;
+      if (sortBy === "harvest-date") return (a.daysToHarvest ?? Infinity) - (b.daysToHarvest ?? Infinity);
+
+      const priority = (crop: typeof filtered[number]) =>
+        crop.daysToHarvest !== null && crop.daysToHarvest < 0 ? 0
+          : crop.daysToHarvest !== null && crop.daysToHarvest <= 7 ? 1
+            : crop.totalCost > 0 && crop.netMargin < 0 ? 2 : 3;
+      return priority(a) - priority(b)
+        || (a.daysToHarvest ?? Infinity) - (b.daysToHarvest ?? Infinity)
+        || a.netMargin - b.netMargin;
+    });
+  }, [cropMetrics, cropSearch, statusFilter, sortBy]);
 
   // ── Export PDF ─────────────────────────────────────────────────────────
   const handleExportPDF = async () => {
@@ -105,6 +152,8 @@ export function CropPerformanceReport() {
         formatCOP(c.totalCost),
         formatCOP(c.totalRevenue),
         c.totalRevenue > 0 || c.totalCost > 0 ? (c.netMargin >= 0 ? `+${formatCOP(c.netMargin)}` : formatCOP(c.netMargin)) : "—",
+        c.harvestSummary || "—",
+        c.costPerUnit !== null ? `${formatCOP(c.costPerUnit)} / ${[...new Set((c.crop_harvests ?? []).map((h: any) => String(h.unit || "KG").toUpperCase()))][0]}` : "—",
       ]);
 
       const doc = await generatePdfReport({
@@ -128,7 +177,7 @@ export function CropPerformanceReport() {
           },
           {
             title: "Rendimiento por Cultivo",
-            head: ["Cultivo", "Parcela", "Estado", "Siembra", "Cosecha Est.", "Actividades", "Costo Total", "Ingreso Total", "Margen"],
+            head: ["Cultivo", "Parcela", "Estado", "Siembra", "Cosecha Est.", "Actividades", "Costo Total", "Ingreso Total", "Margen", "Cosecha", "Costo/Unidad"],
             body: summaryBody,
           },
         ],
@@ -152,7 +201,7 @@ export function CropPerformanceReport() {
         [`Agricultor: ${farmerName}`],
         [`Fecha: ${format(new Date(), "yyyy-MM-dd HH:mm")}`],
         [],
-        ["Cultivo", "Parcela", "Estado", "Fecha Siembra", "Cosecha Estimada", "Días en Campo", "Días Para Cosecha", "N° Actividades", "Costo Total (COP)", "Ingreso Total (COP)", "Margen Neto (COP)"],
+        ["Cultivo", "Parcela", "Estado", "Fecha Siembra", "Cosecha Estimada", "Días en Campo", "Días Para Cosecha", "Cosecha Total", "Costo por unidad cosechada (COP)", "N° Actividades", "Costo Total (COP)", "Ingreso Total (COP)", "Margen Neto (COP)", "Margen sobre ingresos (%)"],
         ...cropMetrics.map((c) => [
           c.crop_catalog?.name ?? "—",
           c.parcels?.name ?? "—",
@@ -161,10 +210,13 @@ export function CropPerformanceReport() {
           c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "yyyy-MM-dd") : "—",
           c.daysInField,
           c.daysToHarvest !== null ? c.daysToHarvest : "—",
+          c.harvestSummary || "—",
+          c.costPerUnit !== null ? c.costPerUnit.toFixed(2) : "—",
           c.activityCount,
           c.totalCost.toFixed(2),
           c.totalRevenue.toFixed(2),
           c.netMargin.toFixed(2),
+          c.marginRate !== null ? c.marginRate.toFixed(1) : "—",
         ]),
       ];
 
@@ -174,7 +226,9 @@ export function CropPerformanceReport() {
           .map((r) =>
             r
               .map((val) => {
-                const s = String(val ?? "").replace(/"/g, '""');
+                let s = String(val ?? "");
+                if (typeof val === "string" && /^[\t\r ]*[=+@-]/.test(s)) s = `'${s}`;
+                s = s.replace(/"/g, '""');
                 return /[",\n]/.test(s) ? `"${s}"` : s;
               })
               .join(",")
@@ -264,15 +318,60 @@ export function CropPerformanceReport() {
         </Card>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_190px_210px]">
+        <label className="space-y-1 text-xs font-medium">
+          Buscar cultivo o parcela
+          <input
+            type="search"
+            value={cropSearch}
+            onChange={(event) => setCropSearch(event.target.value)}
+            placeholder="Nombre del cultivo o parcela"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </label>
+        <label className="space-y-1 text-xs font-medium">
+          Estado
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="ALL">Todos</option>
+            <option value="ACTIVE">Activos en campo</option>
+            {Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+        <label className="space-y-1 text-xs font-medium">
+          Ordenar por
+          <select
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value)}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="priority">Prioridad de atención</option>
+            <option value="harvest-date">Cosecha más próxima</option>
+            <option value="margin-low">Menor margen</option>
+            <option value="margin-high">Mayor margen</option>
+          </select>
+        </label>
+      </div>
+      <p className="text-xs text-muted-foreground" aria-live="polite">
+        Mostrando {visibleCropMetrics.length} de {cropMetrics.length} cultivos. Cifras acumuladas según costos y ventas registrados.
+      </p>
+
       {/* Crop Cards */}
       {cropMetrics.length === 0 ? (
         <Card className="p-8 text-center border-dashed">
           <Sprout className="size-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No tienes cultivos registrados aún.</p>
         </Card>
+      ) : visibleCropMetrics.length === 0 ? (
+        <Card className="p-8 text-center border-dashed">
+          <p className="text-sm text-muted-foreground">No hay cultivos que coincidan con estos filtros.</p>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {cropMetrics.map((c) => (
+          {visibleCropMetrics.map((c) => (
             <Card key={c.id} className="p-5 border-border hover:border-primary/40 transition-all space-y-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -308,8 +407,12 @@ export function CropPerformanceReport() {
                 </div>
               </div>
 
-              {(c.totalCost > 0 || c.totalRevenue > 0) && (
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/50">
+              {(c.totalCost > 0 || c.totalRevenue > 0 || c.totalHarvested > 0) && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-border/50">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase">Cosecha</p>
+                    <p className="text-sm font-bold">{c.harvestSummary || "—"}</p>
+                  </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase">Costo</p>
                     <p className="text-sm font-bold text-red-600">{formatCOP(c.totalCost)}</p>
@@ -323,6 +426,11 @@ export function CropPerformanceReport() {
                     <p className={`text-sm font-bold ${c.netMargin >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                       {c.netMargin >= 0 ? "+" : ""}{formatCOP(c.netMargin)}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase">Costo / {c.costPerUnit !== null ? (c.crop_harvests?.[0]?.unit || "KG").toUpperCase() : "unidad"}</p>
+                    <p className="text-sm font-bold">{c.costPerUnit !== null ? formatCOP(c.costPerUnit) : "—"}</p>
+                    {c.marginRate !== null && <p className="text-[10px] text-muted-foreground">Margen/ingresos: {c.marginRate.toFixed(1)}%</p>}
                   </div>
                 </div>
               )}

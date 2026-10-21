@@ -2,6 +2,7 @@ import { chromium, type FullConfig } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { mkdir } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
+import { assertE2ETargetAllowed } from "./safety.mjs";
 
 function cleanEnvValue(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -41,8 +42,18 @@ export default async function globalSetup(config: FullConfig) {
 
   const baseURL = config.projects[0]?.use.baseURL;
   const configuredPassword = cleanEnvValue(process.env.E2E_AUTH_PASSWORD);
-  const configuredApiURL = process.env.API_URL ?? process.env.SUPABASE_URL;
-  const apiURL = configuredApiURL ? requireHttpUrl(configuredApiURL, "API_URL/SUPABASE_URL") : undefined;
+  const apiURLs = [...new Set([
+    process.env.API_URL,
+    process.env.SUPABASE_URL,
+    process.env.VITE_SUPABASE_URL,
+  ].filter(Boolean).map((value) => requireHttpUrl(value, "API_URL/SUPABASE_URL/VITE_SUPABASE_URL")))];
+  const apiURL = apiURLs[0];
+  assertE2ETargetAllowed({
+    baseURL: String(baseURL ?? ""),
+    apiURLs,
+    allowRemote: process.env.E2E_ALLOW_REMOTE === "true",
+    explicitEmail: Boolean(cleanEnvValue(process.env.E2E_AUTH_EMAIL)),
+  });
   const serviceRoleKey = cleanEnvValue(
     process.env.SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
   );

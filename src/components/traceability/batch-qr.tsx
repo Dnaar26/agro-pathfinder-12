@@ -12,7 +12,7 @@ import { QrCode, Plus, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-export function BatchQR({ cropId, parcelId }: { cropId: string; parcelId?: string }) {
+export function BatchQR({ cropId, parcelId, canManage = false }: { cropId: string; parcelId?: string; canManage?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -46,7 +46,7 @@ export function BatchQR({ cropId, parcelId }: { cropId: string; parcelId?: strin
           <QrCode className="size-4 text-primary" />
           {t("traceability.title")}
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        {canManage && <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button size="sm"><Plus className="size-4 mr-1" /> {t("traceability.create_batch")}</Button></DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>{t("traceability.create_batch")}</DialogTitle></DialogHeader>
@@ -72,7 +72,7 @@ export function BatchQR({ cropId, parcelId }: { cropId: string; parcelId?: strin
               <DialogFooter><Button type="submit">{t("common.create")}</Button></DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       {(batches.data ?? []).length === 0 ? (

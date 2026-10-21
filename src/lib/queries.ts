@@ -685,7 +685,7 @@ export async function getMyUpcomingHarvestsAndTasks() {
 export async function listAllPestIncidentsGlobal() {
   return fetchAllReportPages((from, to) => (supabase as any)
     .from("pest_incidents")
-    .select("id, pest_name, severity, treatment, date, notes, crops(id, status, crop_catalog(name), parcels(id, name, owner_id, profiles!owner_id(full_name, phone)))")
+    .select("id, pest_name, severity, treatment, date, notes, crops(id, status, crop_catalog(name), parcels(id, name, latitude, longitude, owner_id, profiles!owner_id(full_name, phone)))")
     .order("date", { ascending: false })
     .order("id", { ascending: true })
     .range(from, to));

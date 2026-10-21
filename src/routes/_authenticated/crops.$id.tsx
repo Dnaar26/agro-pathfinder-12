@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { getCrop, listPestIncidents, getCropPhotoUrls } from "@/lib/queries";
+import { getCrop, listPestIncidents, getCropPhotoUrls, getMyRoles } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,6 +97,15 @@ async function uploadEvidences(files: File[], cropId: string): Promise<string[]>
 function CropDetail() {
   const { id } = useParams({ from: "/_authenticated/crops/$id" });
   const crop = useQuery({ queryKey: ["crop", id], queryFn: () => getCrop(id) });
+  const roles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
+  const currentUserId = useQuery({
+    queryKey: ["authenticated-user-id"],
+    queryFn: async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      return data.user?.id ?? null;
+    },
+  });
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [costOpen, setCostOpen] = useState(false);
@@ -105,6 +114,11 @@ function CropDetail() {
   const [tab, setTab] = useState("activities");
   const [pestOpen, setPestOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ kind: string; id?: string } | null>(null);
+  const isAdmin = (roles.data ?? []).includes("admin");
+  const isTechnician = (roles.data ?? []).includes("tecnico");
+  const isCropOwner = Boolean(currentUserId.data && (crop.data as any)?.parcels?.owner_id === currentUserId.data);
+  const canManageCrop = roles.isSuccess && currentUserId.isSuccess && (isAdmin || !isTechnician || isCropOwner);
+  const canLogFieldData = roles.isSuccess && (canManageCrop || isTechnician);
 
   const costs = useQuery({
     queryKey: ["crop-costs", id],
@@ -362,25 +376,28 @@ function CropDetail() {
             </p>
             {(crop.data as any).parcels?.profiles?.full_name && <p className="text-xs text-primary mt-1 flex items-center gap-1"><User className="size-3" /> Agricultor: {(crop.data as any).parcels.profiles.full_name}</p>}
           </div>
-          <Button variant="ghost" size="icon" className="size-7 mt-1" onClick={() => setCropEditOpen(true)} title="Editar cultivo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-          </Button>
-          <Button variant="ghost" size="icon" className="size-7 mt-1 text-destructive" onClick={() => setDeleteConfirm({ kind: "crop" })} title="Eliminar cultivo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-          </Button>
+          {canManageCrop && <>
+            <Button variant="ghost" size="icon" className="size-7 mt-1" onClick={() => setCropEditOpen(true)} title="Editar cultivo">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+            </Button>
+            <Button variant="ghost" size="icon" className="size-7 mt-1 text-destructive" onClick={() => setDeleteConfirm({ kind: "crop" })} title="Eliminar cultivo">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            </Button>
+          </>}
         </div>
          <div className="flex items-center gap-2">
-           {crop.data && crop.data.status === "PLANEADO" && !crop.data.planting_confirmed_at && crop.data.planting_date <= format(new Date(), "yyyy-MM-dd") && (
+           {canManageCrop && crop.data && crop.data.status === "PLANEADO" && !crop.data.planting_confirmed_at && crop.data.planting_date <= format(new Date(), "yyyy-MM-dd") && (
              <Button size="sm" onClick={() => confirmPlanting.mutate()} disabled={confirmPlanting.isPending}>
                Confirmar inicio
              </Button>
            )}
-          <Select defaultValue={crop.data?.status} onValueChange={(v) => { if (crop.data && v !== crop.data.status && v !== "PLANEADO") setPendingStatus(v); }}>
+          {canManageCrop && <Select defaultValue={crop.data?.status} onValueChange={(v) => { if (crop.data && v !== crop.data.status && v !== "PLANEADO") setPendingStatus(v); }}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
-          </Select>
+          </Select>}
+          {canLogFieldData && <>
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFiles([]); }}>
             <DialogTrigger asChild><Button><Plus className="size-4 mr-1" /> Actividad</Button></DialogTrigger>
             <DialogContent>
@@ -414,6 +431,7 @@ function CropDetail() {
               </form>
             </DialogContent>
           </Dialog>
+          </>}
         </div>
       </header>
 
@@ -495,7 +513,7 @@ function CropDetail() {
                             <span className="font-medium">{def?.label}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">{format(new Date(a.performed_at), "dd MMM yyyy HH:mm")}</span>
-                              <button onClick={() => setDeleteConfirm({ kind: "activity", id: a.id })} className="text-destructive hover:text-destructive/80 text-xs" title="Eliminar">×</button>
+                              {canManageCrop && <button onClick={() => setDeleteConfirm({ kind: "activity", id: a.id })} className="text-destructive hover:text-destructive/80 text-xs" title="Eliminar">×</button>}
                             </div>
                       </div>
                       {a.notes && <p className="text-sm text-muted-foreground mt-1">{a.notes}</p>}
@@ -513,7 +531,7 @@ function CropDetail() {
             <p className="text-sm font-medium">Costos registrados ({costs.data?.length ?? 0})</p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => exportCostsToExcel(costs.data ?? [], harvests.data ?? [])}>Exportar CSV</Button>
-              <Dialog open={costOpen} onOpenChange={(v) => { setCostOpen(v); if (!v) setEditingCost(null); }}>
+              {canManageCrop && <Dialog open={costOpen} onOpenChange={(v) => { setCostOpen(v); if (!v) setEditingCost(null); }}>
                 <DialogTrigger asChild><Button size="sm"><Plus className="size-4 mr-1" />Agregar costo</Button></DialogTrigger>
                 <DialogContent>
                   <DialogHeader><DialogTitle>{editingCost ? "Editar costo" : "Registrar costo"}</DialogTitle></DialogHeader>
@@ -538,7 +556,7 @@ function CropDetail() {
                     <DialogFooter><Button type="submit">{editingCost ? "Actualizar" : "Guardar"}</Button></DialogFooter>
                   </form>
                 </DialogContent>
-              </Dialog>
+              </Dialog>}
             </div>
           </div>
           {(costs.data ?? []).length === 0 ? (
@@ -549,7 +567,7 @@ function CropDetail() {
                 <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase"><th className="text-left p-2">Tipo</th><th className="text-left p-2">Descripción</th><th className="text-right p-2">Cant.</th><th className="text-right p-2">Costo unit.</th><th className="text-right p-2">Total</th><th className="p-2"></th></tr></thead>
                 <tbody>
                   {costs.data?.map((c) => (
-                    <tr key={c.id} className="border-b border-border"><td className="p-2">{c.kind}</td><td className="p-2 text-muted-foreground">{c.description || "—"}</td><td className="p-2 text-right">{c.qty ? `${c.qty} ${c.unit || ""}` : "—"}</td><td className="p-2 text-right">$ {Number(c.unit_cost).toFixed(2)}</td><td className="p-2 text-right font-medium">$ {Number(c.total).toFixed(2)}</td><td className="p-2 whitespace-nowrap"><button onClick={() => { setEditingCost(c); setCostOpen(true); }} className="text-primary hover:text-primary/80 text-xs mr-2">Editar</button><button onClick={() => setDeleteConfirm({ kind: "cost", id: c.id })} className="text-destructive hover:text-destructive/80 text-xs">×</button></td></tr>
+                    <tr key={c.id} className="border-b border-border"><td className="p-2">{c.kind}</td><td className="p-2 text-muted-foreground">{c.description || "—"}</td><td className="p-2 text-right">{c.qty ? `${c.qty} ${c.unit || ""}` : "—"}</td><td className="p-2 text-right">$ {Number(c.unit_cost).toFixed(2)}</td><td className="p-2 text-right font-medium">$ {Number(c.total).toFixed(2)}</td><td className="p-2 whitespace-nowrap">{canManageCrop && <><button onClick={() => { setEditingCost(c); setCostOpen(true); }} className="text-primary hover:text-primary/80 text-xs mr-2">Editar</button><button onClick={() => setDeleteConfirm({ kind: "cost", id: c.id })} className="text-destructive hover:text-destructive/80 text-xs">×</button></>}</td></tr>
                   ))}
                   <tr className="font-medium"><td colSpan={4} className="p-2 text-right">Total</td><td className="p-2 text-right">$ {totalCost.toFixed(2)}</td></tr>
                 </tbody>
@@ -561,7 +579,7 @@ function CropDetail() {
         <TabsContent value="harvests" className="mt-4 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Cosechas registradas ({harvests.data?.length ?? 0})</p>
-            <Dialog open={harvestOpen} onOpenChange={(v) => { setHarvestOpen(v); if (!v) setEditingHarvest(null); }}>
+            {canManageCrop && <Dialog open={harvestOpen} onOpenChange={(v) => { setHarvestOpen(v); if (!v) setEditingHarvest(null); }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="size-4 mr-1" />Registrar cosecha</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>{editingHarvest ? "Editar cosecha" : "Registrar cosecha"}</DialogTitle></DialogHeader>
@@ -579,7 +597,7 @@ function CropDetail() {
                   <DialogFooter><Button type="submit">{editingHarvest ? "Actualizar" : "Guardar"}</Button></DialogFooter>
                 </form>
               </DialogContent>
-            </Dialog>
+            </Dialog>}
           </div>
           {(harvests.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">Sin cosechas registradas.</p>
@@ -589,7 +607,7 @@ function CropDetail() {
                 <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase"><th className="text-left p-2">Fecha</th><th className="text-right p-2">Cantidad</th><th className="text-right p-2">Precio venta</th><th className="text-right p-2">Ingreso</th><th className="text-left p-2">Notas</th><th className="p-2"></th></tr></thead>
                 <tbody>
                   {harvests.data?.map((h) => (
-                    <tr key={h.id} className="border-b border-border"><td className="p-2">{format(new Date(h.performed_at), "dd MMM yyyy")}</td><td className="p-2 text-right">{Number(h.harvested_qty).toFixed(1)} {h.unit}</td><td className="p-2 text-right">{h.sale_price ? `$ ${Number(h.sale_price).toFixed(2)}` : "—"}</td><td className="p-2 text-right font-medium text-green-600">$ {Number(h.total_revenue || 0).toFixed(2)}</td><td className="p-2 text-muted-foreground">{h.notes || "—"}</td><td className="p-2 whitespace-nowrap"><button onClick={() => { setEditingHarvest(h); setHarvestOpen(true); }} className="text-primary hover:text-primary/80 text-xs mr-2">Editar</button><button onClick={() => setDeleteConfirm({ kind: "harvest", id: h.id })} className="text-destructive hover:text-destructive/80 text-xs">×</button></td></tr>
+                    <tr key={h.id} className="border-b border-border"><td className="p-2">{format(new Date(h.performed_at), "dd MMM yyyy")}</td><td className="p-2 text-right">{Number(h.harvested_qty).toFixed(1)} {h.unit}</td><td className="p-2 text-right">{h.sale_price ? `$ ${Number(h.sale_price).toFixed(2)}` : "—"}</td><td className="p-2 text-right font-medium text-green-600">$ {Number(h.total_revenue || 0).toFixed(2)}</td><td className="p-2 text-muted-foreground">{h.notes || "—"}</td><td className="p-2 whitespace-nowrap">{canManageCrop && <><button onClick={() => { setEditingHarvest(h); setHarvestOpen(true); }} className="text-primary hover:text-primary/80 text-xs mr-2">Editar</button><button onClick={() => setDeleteConfirm({ kind: "harvest", id: h.id })} className="text-destructive hover:text-destructive/80 text-xs">×</button></>}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -608,7 +626,7 @@ function CropDetail() {
         <TabsContent value="pests" className="mt-4 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Incidencias de plagas ({pests.data?.length ?? 0})</p>
-            <Dialog open={pestOpen} onOpenChange={setPestOpen}>
+            {canLogFieldData && <Dialog open={pestOpen} onOpenChange={setPestOpen}>
               <DialogTrigger asChild><Button size="sm"><Plus className="size-4 mr-1" />Registrar plaga</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Registrar incidencia de plaga</DialogTitle></DialogHeader>
@@ -621,7 +639,7 @@ function CropDetail() {
                   <DialogFooter><Button type="submit" disabled={addPest.isPending}>Guardar</Button></DialogFooter>
                 </form>
               </DialogContent>
-            </Dialog>
+            </Dialog>}
           </div>
           {(pests.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">Sin incidencias registradas.</p>
@@ -637,7 +655,7 @@ function CropDetail() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{format(new Date(p.date + "T12:00:00"), "dd MMM yyyy")}</span>
-                      <button onClick={() => setDeleteConfirm({ kind: "pest", id: p.id })} className="text-destructive hover:text-destructive/80 text-xs">×</button>
+                      {canManageCrop && <button onClick={() => setDeleteConfirm({ kind: "pest", id: p.id })} className="text-destructive hover:text-destructive/80 text-xs">×</button>}
                     </div>
                   </div>
                   {p.treatment && <p className="text-sm text-muted-foreground mt-1">Tratamiento: {p.treatment}</p>}
@@ -660,7 +678,7 @@ function CropDetail() {
         </TabsContent>
 
         <TabsContent value="trace" className="mt-4">
-          <BatchQR cropId={id} />
+          <BatchQR cropId={id} canManage={canManageCrop} />
         </TabsContent>
       </Tabs>
 

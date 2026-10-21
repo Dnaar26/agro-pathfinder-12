@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState, useEffect } from "react";
-import { listAllActivitiesForReport, listParcels, listCatalog, listAlerts, getMyRoles, getYearOverYearComparison, listScheduledReports, createScheduledReport, toggleScheduledReport, deleteScheduledReport } from "@/lib/queries";
+import { listAllActivitiesForReport, listParcels, listCatalog, listAlerts, getMyRoles, listScheduledReports, createScheduledReport, toggleScheduledReport, deleteScheduledReport } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Download, FileBarChart, FileText, Filter, FileSpreadsheet, TrendingUp, TrendingDown, AlertTriangle, DollarSign, BarChart3, CalendarClock, Plus, Trash2, Clock, Mail, CheckCircle2, XCircle, Layers } from "lucide-react";
+import { Download, FileBarChart, FileText, Filter, FileSpreadsheet, TrendingUp, TrendingDown, AlertTriangle, DollarSign, BarChart3, CalendarClock, Plus, Trash2, Clock, Mail, CheckCircle2, XCircle, Layers, Save } from "lucide-react";
 import { format } from "date-fns";
 import { generatePdfReport, type PdfReportTemplate } from "@/lib/pdf-report";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,6 +50,7 @@ function download(filename: string, content: BlobPart, mime: string) {
 
 const ALL = "__all__";
 const REPORT_FILTERS_KEY = "sigic:reports:filters";
+const SAVED_REPORT_FILTERS_KEY = "sigic:reports:saved-filters";
 
 type ReportFilterState = {
   template?: PdfReportTemplate;
@@ -59,6 +60,28 @@ type ReportFilterState = {
   to?: string;
   chartYear?: string;
 };
+
+type SavedReportFilter = { id: string; name: string; filters: ReportFilterState };
+
+function validChartYear(value?: string) {
+  const year = Number(value);
+  const currentYear = new Date().getFullYear();
+  return Number.isInteger(year) && year >= currentYear - 4 && year <= currentYear ? String(year) : String(currentYear);
+}
+
+function readSavedReportFilters(): SavedReportFilter[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const saved: unknown = JSON.parse(window.localStorage.getItem(SAVED_REPORT_FILTERS_KEY) ?? "[]");
+    if (!Array.isArray(saved)) return [];
+    return saved.filter((item): item is SavedReportFilter =>
+      item && typeof item.id === "string" && item.id.length > 0 && typeof item.name === "string" &&
+      item.name.trim().length > 0 && item.filters && typeof item.filters === "object",
+    ).slice(0, 20);
+  } catch {
+    return [];
+  }
+}
 
 const kindColors: Record<string, string> = {
   RIEGO: "#2563eb",
@@ -91,6 +114,7 @@ function ReportsPage() {
       return {};
     }
   });
+  const [chartYear, setChartYear] = useState<string>(validChartYear(initialFilters.chartYear));
   const myRoles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
   const isStaff = (myRoles.data ?? []).some((r: string) => ["tecnico", "admin"].includes(r));
   const isAgricultor = !isStaff;
@@ -98,30 +122,53 @@ function ReportsPage() {
   const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
   const catalog = useQuery({ queryKey: ["catalog"], queryFn: listCatalog });
   const alerts = useQuery({ queryKey: ["alerts"], queryFn: listAlerts });
-  const yoyCmp = useQuery({ queryKey: ["yoy"], queryFn: getYearOverYearComparison });
   const schedReports = useQuery({ queryKey: ["sched-reports"], queryFn: listScheduledReports });
 
   const costsQuery = useQuery({
-    queryKey: ["report-costs"],
+    queryKey: ["report-costs", chartYear],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("crop_costs")
-        .select("id, crop_id, kind, description, qty, unit_cost, total, created_at, crops!inner(crop_catalog(name))")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const rows: any[] = [];
+      let totalRows: number | null = null;
+      for (let start = 0; ; start += 1000) {
+        const { data, error, count } = await supabase
+          .from("crop_costs")
+          .select("id, crop_id, kind, description, qty, unit_cost, total, created_at, crops!inner(crop_catalog(name), parcels(name))", { count: "exact" })
+          .gte("created_at", `${Number(chartYear) - 1}-01-01`)
+          .lt("created_at", `${Number(chartYear) + 1}-01-02`)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(start, start + 999);
+        if (error) throw error;
+        const page = data ?? [];
+        totalRows ??= count;
+        rows.push(...page);
+        if (page.length === 0 || (totalRows !== null && rows.length >= totalRows)) return rows;
+        if (totalRows === null && page.length < 1000) return rows;
+      }
     },
   });
 
   const harvestsQuery = useQuery({
-    queryKey: ["report-harvests"],
+    queryKey: ["report-harvests", chartYear],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("crop_harvests")
-        .select("id, crop_id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops!inner(crop_catalog(name))")
-        .order("performed_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const rows: any[] = [];
+      let totalRows: number | null = null;
+      for (let start = 0; ; start += 1000) {
+        const { data, error, count } = await supabase
+          .from("crop_harvests")
+          .select("id, crop_id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops!inner(crop_catalog(name), parcels(name))", { count: "exact" })
+          .gte("performed_at", `${Number(chartYear) - 1}-01-01`)
+          .lt("performed_at", `${Number(chartYear) + 1}-01-02`)
+          .order("performed_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(start, start + 999);
+        if (error) throw error;
+        const page = data ?? [];
+        totalRows ??= count;
+        rows.push(...page);
+        if (page.length === 0 || (totalRows !== null && rows.length >= totalRows)) return rows;
+        if (totalRows === null && page.length < 1000) return rows;
+      }
     },
   });
 
@@ -130,7 +177,9 @@ function ReportsPage() {
   const [cropFilter, setCropFilter] = useState<string>(initialFilters.cropFilter ?? ALL);
   const [from, setFrom] = useState<string>(initialFilters.from ?? "");
   const [to, setTo] = useState<string>(initialFilters.to ?? "");
-  const [chartYear, setChartYear] = useState<string>(initialFilters.chartYear ?? new Date().getFullYear().toString());
+  const [savedFilters, setSavedFilters] = useState<SavedReportFilter[]>(readSavedReportFilters);
+  const [selectedSavedFilter, setSelectedSavedFilter] = useState("");
+  const [savedFilterName, setSavedFilterName] = useState("");
   const dateError = from && to && new Date(from) > new Date(to) ? "La fecha 'Desde' no puede ser mayor que 'Hasta'" : null;
   const [staffView, setStaffView] = useState<string>("specialized");
   const userRole = (myRoles.data ?? []).includes("admin") ? "admin" : "tecnico";
@@ -148,6 +197,54 @@ function ReportsPage() {
       // El modo privado puede bloquear el almacenamiento local.
     }
   }, [template, parcelFilter, cropFilter, from, to, chartYear]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SAVED_REPORT_FILTERS_KEY, JSON.stringify(savedFilters));
+    } catch {
+      // El modo privado puede bloquear el almacenamiento local.
+    }
+  }, [savedFilters]);
+
+  function applySavedFilter(id: string) {
+    setSelectedSavedFilter(id);
+    const saved = savedFilters.find((filter) => filter.id === id);
+    if (!saved) return;
+    const filters = saved.filters;
+    setTemplate(filters.template === "parcelas" || filters.template === "resumen" ? filters.template : "actividades");
+    setParcelFilter(typeof filters.parcelFilter === "string" ? filters.parcelFilter : ALL);
+    setCropFilter(typeof filters.cropFilter === "string" ? filters.cropFilter : ALL);
+    setFrom(typeof filters.from === "string" ? filters.from : "");
+    setTo(typeof filters.to === "string" ? filters.to : "");
+    setChartYear(validChartYear(filters.chartYear));
+  }
+
+  function saveCurrentFilter() {
+    const name = savedFilterName.trim();
+    if (!name) {
+      toast.error("Escribe un nombre para el filtro");
+      return;
+    }
+    const existing = savedFilters.find((filter) => filter.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    if (!existing && savedFilters.length >= 20) {
+      toast.error("Puedes guardar hasta 20 filtros");
+      return;
+    }
+    const id = existing?.id ?? (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`);
+    const nextFilter: SavedReportFilter = { id, name, filters: { template, parcelFilter, cropFilter, from, to, chartYear } };
+    setSavedFilters((current) => existing
+      ? current.map((filter) => filter.id === existing.id ? nextFilter : filter)
+      : [...current, nextFilter]);
+    setSelectedSavedFilter(id);
+    setSavedFilterName("");
+    toast.success(existing ? "Filtro actualizado" : "Filtro guardado");
+  }
+
+  function deleteSelectedFilter() {
+    setSavedFilters((current) => current.filter((filter) => filter.id !== selectedSavedFilter));
+    setSelectedSavedFilter("");
+    toast.success("Filtro eliminado");
+  }
 
   const schedMut = async () => {
     if (!schedRecipients.trim()) return;
@@ -218,6 +315,28 @@ function ReportsPage() {
     return parcelFilter === ALL ? list : list.filter((p) => p.name === parcelFilter);
   }, [parcels.data, parcelFilter]);
 
+  const financialComparison = useMemo(() => {
+    const year = Number(chartYear);
+    const matchesFarmFilter = (row: any) =>
+      (parcelFilter === ALL || row.crops?.parcels?.name === parcelFilter) &&
+      (cropFilter === ALL || row.crops?.crop_catalog?.name === cropFilter);
+    const inYear = (value: string | null, targetYear: number) => Boolean(value) && new Date(value as string).getFullYear() === targetYear;
+    const costs = (costsQuery.data ?? []).filter(matchesFarmFilter);
+    const harvests = (harvestsQuery.data ?? []).filter(matchesFarmFilter);
+    const sum = (rows: any[], key: string, dateKey: "created_at" | "performed_at", targetYear: number) =>
+      rows.reduce((total, row) => inYear(row[dateKey], targetYear) ? total + Number(row[key] || 0) : total, 0);
+    return {
+      year,
+      previousYear: year - 1,
+      costs: costs.filter((row: any) => inYear(row.created_at, year)),
+      harvests: harvests.filter((row: any) => inYear(row.performed_at, year)),
+      currentRevenue: sum(harvests, "total_revenue", "performed_at", year),
+      previousRevenue: sum(harvests, "total_revenue", "performed_at", year - 1),
+      currentCosts: sum(costs, "total", "created_at", year),
+      previousCosts: sum(costs, "total", "created_at", year - 1),
+    };
+  }, [costsQuery.data, harvestsQuery.data, chartYear, parcelFilter, cropFilter]);
+
   const actRows = filtered.map((a: any) => ({
     fecha: format(new Date(a.performed_at), "yyyy-MM-dd HH:mm"),
     tipo: a.kind,
@@ -226,43 +345,26 @@ function ReportsPage() {
     notas: a.notes ?? "",
   }));
 
-  const totalCost = useMemo(() => {
-    return (costsQuery.data ?? []).reduce((s: number, c: any) => {
-      if (!c.created_at) return s;
-      if (chartYear && format(new Date(c.created_at), "yyyy") !== chartYear) return s;
-      return s + Number(c.total || 0);
-    }, 0);
-  }, [costsQuery.data, chartYear]);
-
-  const totalRevenue = useMemo(() => {
-    return (harvestsQuery.data ?? []).reduce((s: number, h: any) => {
-      if (!h.performed_at) return s;
-      if (chartYear && format(new Date(h.performed_at), "yyyy") !== chartYear) return s;
-      return s + Number(h.total_revenue || 0);
-    }, 0);
-  }, [harvestsQuery.data, chartYear]);
+  const totalCost = financialComparison.currentCosts;
+  const totalRevenue = financialComparison.currentRevenue;
 
   const costsByKind = useMemo(() => {
     const map: Record<string, number> = {};
-    (costsQuery.data ?? []).forEach((c: any) => {
-      if (!c.created_at) return;
-      if (chartYear && format(new Date(c.created_at), "yyyy") !== chartYear) return;
+    financialComparison.costs.forEach((c: any) => {
       const k = c.kind || "Otros";
       map[k] = (map[k] ?? 0) + Number(c.total || 0);
     });
     return map;
-  }, [costsQuery.data, chartYear]);
+  }, [financialComparison.costs]);
 
   const revenueByMonth = useMemo(() => {
     const map: Record<string, number> = {};
-    (harvestsQuery.data ?? []).forEach((h: any) => {
-      if (!h.performed_at) return;
-      if (chartYear && format(new Date(h.performed_at), "yyyy") !== chartYear) return;
+    financialComparison.harvests.forEach((h: any) => {
       const m = format(new Date(h.performed_at), "yyyy-MM");
       map[m] = (map[m] ?? 0) + Number(h.total_revenue || 0);
     });
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([month, ingresos]) => ({ month, ingresos }));
-  }, [harvestsQuery.data, chartYear]);
+  }, [financialComparison.harvests]);
 
   const pendingAlerts = useMemo(() => {
     return (alerts.data ?? []).filter((a: any) => a.status === "PENDIENTE").length;
@@ -290,6 +392,7 @@ function ReportsPage() {
       Cultivo: cropFilter === ALL ? "Todos" : cropFilter,
       Desde: from || "—",
       Hasta: to || "—",
+      "Año de indicadores": chartYear,
     };
 
     let doc;
@@ -524,6 +627,25 @@ function ReportsPage() {
             </Select>
           </div>
         </div>
+        <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+          <div className="w-full sm:w-56">
+            <Label className="text-xs">Filtros guardados</Label>
+            <Select value={selectedSavedFilter} onValueChange={applySavedFilter}>
+              <SelectTrigger><SelectValue placeholder="Seleccionar filtro" /></SelectTrigger>
+              <SelectContent>
+                {savedFilters.map((filter) => <SelectItem key={filter.id} value={filter.id}>{filter.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-full sm:w-56">
+            <Label htmlFor="saved-filter-name" className="text-xs">Guardar configuración actual</Label>
+            <Input id="saved-filter-name" value={savedFilterName} onChange={(event) => setSavedFilterName(event.target.value)} maxLength={60} placeholder="Nombre del filtro" />
+          </div>
+          <Button type="button" variant="outline" onClick={saveCurrentFilter}><Save className="size-4 mr-1" /> Guardar</Button>
+          <Button type="button" variant="ghost" size="icon" onClick={deleteSelectedFilter} disabled={!selectedSavedFilter} aria-label="Eliminar filtro guardado" title="Eliminar filtro guardado">
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
         {dateError && <p className="text-xs text-destructive">{dateError}</p>}
         <div className="flex flex-wrap gap-3 pt-2">
           <Button onClick={exportPDF} disabled={!!dateError || acts.isRefetching}><FileText className="size-4 mr-1" /> Generar PDF</Button>
@@ -531,9 +653,9 @@ function ReportsPage() {
             <Download className="size-4 mr-1" /> Exportar CSV
           </Button>
           <Button variant="outline" onClick={() => exportParcelsToExcel(parcels.data ?? [])} disabled={template !== "parcelas"}>
-            <FileSpreadsheet className="size-4 mr-1" /> Exportar CSV
+            <FileSpreadsheet className="size-4 mr-1" /> Exportar Excel
           </Button>
-          <Button variant="ghost" onClick={() => { setParcelFilter(ALL); setCropFilter(ALL); setFrom(""); setTo(""); setChartYear(new Date().getFullYear().toString()); }}>
+          <Button variant="ghost" onClick={() => { setParcelFilter(ALL); setCropFilter(ALL); setFrom(""); setTo(""); setChartYear(validChartYear()); setSelectedSavedFilter(""); }}>
             Limpiar filtros
           </Button>
         </div>
@@ -672,30 +794,30 @@ function ReportsPage() {
         byKind={byKind}
       />
 
-      {yoyCmp.data && (
+      {costsQuery.data && harvestsQuery.data && (
         <section className="p-5 rounded-xl border border-border bg-card">
-          <h2 className="text-sm font-semibold flex items-center gap-2 mb-3"><BarChart3 className="size-4 text-primary" /> Comparativa anual</h2>
+          <h2 className="text-sm font-semibold flex items-center gap-2 mb-3"><BarChart3 className="size-4 text-primary" /> Comparativa anual: {financialComparison.previousYear} vs. {financialComparison.year}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
-              <p className="text-xs text-muted-foreground">Ingreso año anterior</p>
-              <p className="text-lg font-bold font-mono">$ {yoyCmp.data.lastYear.revenue.toFixed(0)}</p>
+              <p className="text-xs text-muted-foreground">Ingresos {financialComparison.previousYear}</p>
+              <p className="text-lg font-bold font-mono">$ {financialComparison.previousRevenue.toFixed(0)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Ingreso año actual</p>
-              <p className="text-lg font-bold font-mono">$ {yoyCmp.data.currentYear.revenue.toFixed(0)}</p>
+              <p className="text-xs text-muted-foreground">Ingresos {financialComparison.year}</p>
+              <p className="text-lg font-bold font-mono">$ {financialComparison.currentRevenue.toFixed(0)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Variación ingresos</p>
-              <p className={cn("text-lg font-bold font-mono flex items-center gap-1", yoyCmp.data.currentYear.revenue >= yoyCmp.data.lastYear.revenue ? "text-green-600" : "text-red-600")}>
-                {yoyCmp.data.currentYear.revenue >= yoyCmp.data.lastYear.revenue ? <TrendingUp className="size-4" /> : <TrendingDown className="size-4" />}
-                {yoyCmp.data.lastYear.revenue > 0 ? `${(((yoyCmp.data.currentYear.revenue - yoyCmp.data.lastYear.revenue) / yoyCmp.data.lastYear.revenue) * 100).toFixed(1)}%` : "—"}
+              <p className={cn("text-lg font-bold font-mono flex items-center gap-1", financialComparison.currentRevenue >= financialComparison.previousRevenue ? "text-green-600" : "text-red-600")}>
+                {financialComparison.currentRevenue >= financialComparison.previousRevenue ? <TrendingUp className="size-4" /> : <TrendingDown className="size-4" />}
+                {financialComparison.previousRevenue > 0 ? `${(((financialComparison.currentRevenue - financialComparison.previousRevenue) / financialComparison.previousRevenue) * 100).toFixed(1)}%` : financialComparison.currentRevenue > 0 ? "Nuevo" : "0%"}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Variación costos</p>
-              <p className={cn("text-lg font-bold font-mono flex items-center gap-1", yoyCmp.data.currentYear.costs <= yoyCmp.data.lastYear.costs ? "text-green-600" : "text-red-600")}>
-                {yoyCmp.data.currentYear.costs <= yoyCmp.data.lastYear.costs ? <TrendingUp className="size-4" /> : <TrendingDown className="size-4" />}
-                {yoyCmp.data.lastYear.costs > 0 ? `${(((yoyCmp.data.currentYear.costs - yoyCmp.data.lastYear.costs) / yoyCmp.data.lastYear.costs) * 100).toFixed(1)}%` : "—"}
+              <p className={cn("text-lg font-bold font-mono flex items-center gap-1", financialComparison.currentCosts <= financialComparison.previousCosts ? "text-green-600" : "text-red-600")}>
+                {financialComparison.currentCosts <= financialComparison.previousCosts ? <TrendingDown className="size-4" /> : <TrendingUp className="size-4" />}
+                {financialComparison.previousCosts > 0 ? `${(((financialComparison.currentCosts - financialComparison.previousCosts) / financialComparison.previousCosts) * 100).toFixed(1)}%` : financialComparison.currentCosts > 0 ? "Nuevo" : "0%"}
               </p>
             </div>
           </div>
@@ -704,7 +826,7 @@ function ReportsPage() {
 
       <section className="p-5 rounded-xl border border-border bg-card space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold flex items-center gap-2"><CalendarClock className="size-4 text-primary" /> Reportes programados</h2>
+          <h2 className="text-sm font-semibold flex items-center gap-2"><CalendarClock className="size-4 text-primary" /> Programaciones de reportes</h2>
           <Dialog open={schedDialog} onOpenChange={setSchedDialog}>
             <DialogTrigger asChild>
               <Button size="sm"><Plus className="size-3.5 mr-1" /> Nuevo</Button>
@@ -745,6 +867,7 @@ function ReportsPage() {
             </DialogContent>
           </Dialog>
         </div>
+        <p className="text-xs text-muted-foreground">Las frecuencias y destinatarios se guardan, pero el envío automático requiere configurar un proceso programado y un proveedor de correo.</p>
         {schedReports.isLoading ? (
           <div className="space-y-2">
             <SkeletonCard /><SkeletonCard />

@@ -72,9 +72,10 @@ Las migraciones se revierten con una nueva migración compensatoria, no editando
 ## Estado actual de esta revisión
 
 - `/healthz` comprueba disponibilidad del proceso y `/readyz` informa si la configuración esencial de producción está lista (`SUPABASE_URL`, claves Supabase y `APP_ALLOWED_ORIGINS`); ambos devuelven `X-Request-Id` para correlación operativa sin revelar valores secretos.
-- Migraciones locales versionadas: 23.
+- Migraciones locales versionadas: 24.
 - La migración `20260920004000_secure_inventory_rpc.sql` valida autenticación, propietario/administrador, tipo, cantidad, delta y stock no negativo antes de registrar movimientos.
 - Edge Functions en el repositorio: ninguna.
 - CLI Supabase local: 2.117.0.
-- Acceso remoto: pendiente de sesión autenticada; no se ejecutaron `db pull`, Advisors, logs ni `db push` desde este entorno.
+- Acceso de administración Supabase: pendiente de sesión autenticada; no se ejecutaron `db pull`, Advisors ni `db push` desde este entorno.
+- Smoke público de Render (`https://sigic.onrender.com`, 21-10-2026): `/healthz` respondió HTTP 503 y las lecturas posteriores de `/healthz` y `/readyz` expiraron; investigar logs/estado del servicio antes de afirmar disponibilidad.
 - Docker local: no disponible durante la revisión, por lo que `db reset` y `supabase test db` quedan pendientes.

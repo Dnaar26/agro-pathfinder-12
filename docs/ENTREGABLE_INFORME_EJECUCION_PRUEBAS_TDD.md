@@ -12,7 +12,7 @@
 | Omitidas | 0 |
 | Cobertura | No disponible; Playwright actual no instrumenta cobertura. |
 
-**Descubrimiento de suite:** `npx playwright test --config e2e/playwright.config.ts --list` encontró **14 pruebas** en `e2e/auth.spec.ts` y `e2e/tdd-critical-flows.spec.ts`. Este comando valida que los archivos cargan y no accede a la base de datos.
+**Descubrimiento de suite:** `npx playwright test --config e2e/playwright.config.ts --list` encontró **15 pruebas** en `e2e/auth.spec.ts` y `e2e/tdd-critical-flows.spec.ts`, incluida TDD-07 para verificar que un evento futuro creado en Calendario aparezca en el dashboard. Este comando valida que los archivos cargan y no accede a la base de datos.
 
 | ID | HU | Resultado | Evidencia / causa raíz |
 |---|---|---|---|
@@ -21,9 +21,10 @@
 ## Validación estática realizada
 | Verificación | Resultado | Evidencia |
 |---|---|---|
-| Build de producción | Pasó | `npm run build` completó antes de generar estos entregables. |
-| ESLint de mapa | Sin errores | 2 advertencias no bloqueantes (`exhaustive-deps`, `react-refresh`). |
+| Build de producción | Pasó | `npm run build` completó en árbol limpio en la revisión del 21-10-2026. |
+| ESLint | Sin errores | `npm run lint` pasó; quedan 10 advertencias no bloqueantes de Fast Refresh en componentes UI existentes. |
 | Migraciones Supabase | Pendiente en este entorno | El CLI detectó que Docker/Supabase local no estaba disponible; no se ejecutó `db reset`, `supabase test db` ni `db push` remoto. |
+| Smoke Render | Falló | El primer GET público a `/healthz` respondió HTTP 503; las verificaciones posteriores de `/healthz` y `/readyz` expiraron. Revisar el servicio y sus logs en Render antes de considerar producción saludable. |
 
 ## Para ejecutar y actualizar este informe
 1. Inicie Docker Desktop.

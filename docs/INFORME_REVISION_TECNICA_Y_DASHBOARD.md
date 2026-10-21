@@ -1,54 +1,26 @@
-# Informe de revisión técnica — 26-09-2026
+# Informe de revisión técnica — 21-10-2026
 
 ## Alcance y método
-Revisión estática de frontend React/TanStack Start, consultas Supabase, migraciones SQL/RLS, configuración Render y pruebas versionadas. No se hicieron cambios en este informe ni se consultaron datos de producción; por ello no puede confirmar si hoy existen eventos futuros en la instancia.
+Revisión estática de frontend React/TanStack Start, consultas Supabase, migraciones SQL/RLS, configuración Render y pruebas versionadas. La corrección descrita aquí quedó versionada, pero la migración debe ejecutarse primero en staging y después en producción mediante el flujo protegido de Supabase. No se consultaron ni modificaron datos de producción desde esta revisión.
 
 ## Incidencia: Dashboard > «Próximas actividades»
 
 ### Diagnóstico confirmado
 | Elemento | Archivo / función | Comportamiento |
 |---|---|---|
-| Componente | `src/routes/_authenticated/dashboard.tsx`, `Dashboard`, línea 77 y 412 | Ejecuta `getUpcomingActivities(7, farmerParam)` y muestra `performed_at`. |
-| Consulta usada | `src/lib/queries.ts`, `getUpcomingActivities`, líneas 336–352 | Consulta `public.activities` por `performed_at` entre ahora y +7 días. |
+| Componente | `src/routes/_authenticated/dashboard.tsx`, `Dashboard` | Ejecuta `getUpcomingActivities(7, farmerParam)` y muestra `startsAt`. |
+| Consulta usada | `src/lib/queries.ts`, `getUpcomingActivities` | Consulta `public.calendar_events` por `starts_at` entre ahora y +7 días, ordenada por fecha. |
 | Fuente real del calendario | `src/routes/_authenticated/calendar.tsx`, `CalendarPage`, líneas 56–59 | Consulta `public.calendar_events` mediante `listEvents`. |
 | Columna del evento | `src/lib/queries.ts`, `listEvents`, líneas 84–93 | Filtra `calendar_events.starts_at`. |
 
-`activities` es una bitácora de labores realizadas y usa `performed_at`; el formulario del calendario crea futuros en `calendar_events.starts_at`. Por eso la tarjeta no lee los eventos del calendario. No es un problema de zona horaria ni de React Query: el query se ejecuta y el componente muestra «Sin actividades...» cuando recibe el arreglo vacío. La query actual tampoco incorpora siembras programadas ni alertas.
+La causa original era que el dashboard consultaba una bitácora de labores realizadas (`activities.performed_at`) mientras el formulario del calendario crea futuros en `calendar_events.starts_at`. La consulta ahora usa la fuente correcta, limita el intervalo a los próximos siete días y contempla eventos sin cultivo. También mantiene como pendientes los registros históricos con `done = NULL` hasta que la migración los normalice.
 
-### Corrección propuesta
-Reemplazar `getUpcomingActivities` por un agregador explícito de agenda. Debe normalizar eventos, siembras planeadas y alertas en una sola forma de UI.
+### Corrección aplicada
+`getUpcomingActivities` consulta `calendar_events` y genera la forma que espera el dashboard (`startsAt`). El filtro PostgREST combina en el servidor fecha, estado pendiente y visibilidad por agricultor/cultivo. Además, Calendario invalida la caché `upcoming` después de crear, editar, completar o eliminar un evento.
 
-```ts
-// src/lib/queries.ts
-export type UpcomingItem = {
-  id: string; kind: string; startsAt: string; title: string;
-  source: "CALENDAR" | "PLANTING" | "ALERT"; crop?: unknown;
-};
+La migración `20261021110000_calendar_events_dashboard_visibility.sql` normaliza `done`, establece `false` como valor predeterminado y agrega un índice parcial para la agenda. Debe aplicarse por el procedimiento documentado de staging/producción antes de declarar completa la corrección de datos históricos.
 
-export async function getUpcomingActivities(days = 7, ownerId?: string): Promise<UpcomingItem[]> {
-  const from = new Date();
-  const to = new Date(from.getTime() + days * 86_400_000);
-  const cropIds = await getCropIdsForOwner(ownerId);
-  const eventQuery = supabase.from("calendar_events").select("id,title,starts_at,crop_id,crops(crop_catalog(name),parcels(name))")
-    .gte("starts_at", from.toISOString()).lt("starts_at", to.toISOString()).order("starts_at");
-  const plantingQuery = supabase.from("crops").select("id,planting_date,crop_catalog(name),parcels(name)")
-    .eq("status", "PLANEADO").gte("planting_date", from.toISOString().slice(0, 10)).lt("planting_date", to.toISOString().slice(0, 10));
-  const alertsQuery = supabase.from("alerts").select("id,title,scheduled_at,kind,crop_id,crops(crop_catalog(name),parcels(name))")
-    .eq("status", "PENDIENTE").gte("scheduled_at", from.toISOString()).lt("scheduled_at", to.toISOString());
-  if (ownerId && cropIds.length === 0) return [];
-  const [events, plantings, alerts] = await Promise.all([eventQuery, plantingQuery, alertsQuery]);
-  for (const result of [events, plantings, alerts]) if (result.error) throw result.error;
-  return [
-    ...(events.data ?? []).map(e => ({ id: e.id, kind: "EVENTO", title: e.title, startsAt: e.starts_at, source: "CALENDAR" as const, crop: e.crops })),
-    ...(plantings.data ?? []).map(c => ({ id: `planting-${c.id}`, kind: "SIEMBRA", title: `Siembra: ${(c as any).crop_catalog?.name ?? "Cultivo"}`, startsAt: `${c.planting_date}T12:00:00Z`, source: "PLANTING" as const, crop: (c as any).crop_catalog })),
-    ...(alerts.data ?? []).map(a => ({ id: `alert-${a.id}`, kind: a.kind, title: a.title, startsAt: a.scheduled_at, source: "ALERT" as const, crop: a.crops })),
-  ].sort((a, b) => a.startsAt.localeCompare(b.startsAt)).slice(0, 5);
-}
-```
-
-En `dashboard.tsx`, cambiar `a.performed_at` por `a.startsAt`, y adaptar el acceso del cultivo normalizado. Para filtrar eventos de otro agricultor, `calendar_events` necesita enlazarse por `crop_id` o almacenar `owner_id`; los eventos sin cultivo no pueden atribuirse a un agricultor seleccionado. La solución robusta es una RPC SQL con `UNION ALL` y validación de asignación RLS.
-
-**Pruebas necesarias:** evento `starts_at` dentro/fuera de 7 días, siembra `PLANEADO`, alerta pendiente, cruce de zona horaria y técnico con agricultor asignado/no asignado.
+**Pruebas añadidas:** el caso `TDD-07` crea un evento futuro sin cultivo y comprueba que aparece en el dashboard. Sigue siendo necesario ejecutar la suite en un entorno Supabase aislado para cubrir RLS y roles.
 
 ## Lo que funciona correctamente
 - **Autenticación y rutas protegidas:** Supabase Auth y ruta `_authenticated`; Playwright tiene pruebas de login, validación y redirección.
@@ -63,7 +35,7 @@ En `dashboard.tsx`, cambiar `a.performed_at` por `a.startsAt`, y adaptar el acce
 
 | Prioridad | Riesgo | Evidencia | Corrección recomendada |
 |---|---|---|---|
-| Crítica | Agenda vacía | `getUpcomingActivities` usa `activities`, no `calendar_events`. | Aplicar agregador/RPC descrito arriba y pruebas E2E. |
+| Resuelto | Agenda vacía | `getUpcomingActivities` usaba `activities`, no `calendar_events`. | Consulta corregida, caché invalidada, migración y `TDD-07` añadidos. |
 | Crítica | Técnico puede operar eventos globales | `20260920003000...sql` política `events owner` permite a cualquier técnico `FOR ALL` en `calendar_events`; la migración de asignaciones no la reemplaza. | Sustituir política por relación del `crop_id`/propietario asignado; bloquear eventos sin cultivo para técnicos o añadir `owner_id`. |
 | Alta | Confirmación de siembra puede eludirse | `crops.$id.tsx` ofrece selector con `SEMBRADO`; RLS permite update y trigger no exige `planting_confirmed_at`. | Crear RPC `confirm_crop_planting`; impedir en trigger/RLS transición `PLANEADO→SEMBRADO` sin confirmación. Restringir selector de estados iniciales. |
 | Alta | Evento e inventario no son atómicos | `calendar.tsx` inserta/edita evento y luego llama RPC de inventario sin comprobar `{ error }`. | RPC transaccional que inserte evento y movimiento; revertir/mostrar error si falla. |
@@ -76,10 +48,10 @@ En `dashboard.tsx`, cambiar `a.performed_at` por `a.startsAt`, y adaptar el acce
 | Resuelto | Configuración de dependencias | El proyecto usa npm como gestor único de producción. `package-lock.json` es la fuente reproducible; se eliminó el lockfile obsoleto de Bun que podía instalar versiones incompatibles de TanStack en Render. | Mantener `npm ci --include=dev --ignore-scripts` en el build y no volver a añadir un segundo lockfile. |
 
 ## Estado de calidad y pruebas
-La compilación de producción pasó previamente. Hay 8 pruebas Playwright de autenticación/listado de parcelas; no cubren calendario, cascada, RLS ni cron. La ejecución E2E local quedó bloqueada porque Docker Desktop no estaba disponible; no se ejecutó contra Supabase Cloud para no crear/modificar datos de producción.
+La validación limpia de esta revisión pasó `npm run typecheck`, `npm run build`, `npm run lint` y el descubrimiento de 15 pruebas Playwright. El lint conserva 10 avisos no bloqueantes de Fast Refresh. La ejecución E2E local completa sigue bloqueada porque Docker Desktop/Supabase local no está disponible; no se ejecutó contra Supabase Cloud para no crear/modificar datos de producción.
 
 ## Plan recomendado
-1. Corregir agenda y RLS de `calendar_events` antes de ampliar funcionalidades.
+1. Aplicar la migración de agenda en staging, ejecutar TDD-07 con Supabase aislado y promoverla a producción mediante el workflow protegido.
 2. Hacer atómico evento+movimiento y blindar confirmación de siembra.
 3. Añadir pruebas de integración Supabase con tres roles y fixtures aislados.
 4. Generar tipos, eliminar `any` crítico y mover agregaciones a SQL/RPC.

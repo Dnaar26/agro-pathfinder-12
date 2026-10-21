@@ -137,6 +137,7 @@ function CalendarPage() {
     onSuccess: () => {
       toast.success("Evento creado");
       qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["upcoming"] });
       qc.invalidateQueries({ queryKey: ["inventory"] });
       qc.invalidateQueries({ queryKey: ["calendar-inventory"] });
       setOpen(false);
@@ -177,6 +178,7 @@ function CalendarPage() {
     onSuccess: () => { 
       toast.success("Evento actualizado"); 
       qc.invalidateQueries({ queryKey: ["events"] }); 
+      qc.invalidateQueries({ queryKey: ["upcoming"] });
       qc.invalidateQueries({ queryKey: ["inventory"] });
       qc.invalidateQueries({ queryKey: ["calendar-inventory"] });
       setEditOpen(false); 
@@ -192,7 +194,11 @@ function CalendarPage() {
       const { error } = await supabase.rpc("set_calendar_event_done", { p_event_id: id });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Evento marcado como realizado"); qc.invalidateQueries({ queryKey: ["events"] }); },
+    onSuccess: () => {
+      toast.success("Evento marcado como realizado");
+      qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["upcoming"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -201,7 +207,11 @@ function CalendarPage() {
       const { error } = await supabase.rpc("delete_calendar_event_with_inventory", { p_event_id: id });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Evento eliminado"); qc.invalidateQueries({ queryKey: ["events"] }); },
+    onSuccess: () => {
+      toast.success("Evento eliminado");
+      qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["upcoming"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 

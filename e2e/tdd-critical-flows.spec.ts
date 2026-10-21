@@ -58,4 +58,22 @@ test.describe("TDD: flujos autenticados de navegador", () => {
     await expect(page.locator("#contenido")).toBeVisible();
     await expect(page.getByText(/Resumen|Dashboard|Inicio/i).first()).toBeVisible();
   });
+
+  test("TDD-07: un evento futuro del calendario aparece en próximas actividades", async ({ page }) => {
+    const title = `E2E actividad ${Date.now()}`;
+    const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const localDateTime = new Date(future.getTime() - future.getTimezoneOffset() * 60_000)
+      .toISOString()
+      .slice(0, 16);
+
+    await page.goto("/calendar");
+    await page.getByRole("button", { name: "Evento" }).click();
+    await page.fill("#title", title);
+    await page.fill("#starts_at", localDateTime);
+    await page.getByRole("button", { name: "Guardar", exact: true }).click();
+    await expect(page.getByText("Evento creado")).toBeVisible({ timeout: 10_000 });
+
+    await page.goto("/dashboard");
+    await expect(page.getByText(title)).toBeVisible({ timeout: 10_000 });
+  });
 });

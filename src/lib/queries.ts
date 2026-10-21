@@ -347,17 +347,25 @@ export async function getUpcomingActivities(days = 7, ownerId?: string) {
   const now = new Date().toISOString();
   const limit = new Date(Date.now() + days * 86400000).toISOString();
   const cropIds = await getCropIdsForOwner(ownerId);
-  if (ownerId && cropIds.length === 0) return [];
-  let q = supabase
+  const q = supabase
     .from("calendar_events")
     .select("id, title, kind, starts_at, crop_id, crops(id, crop_catalog(name), parcels(name))")
-    .eq("done", false)
     .gte("starts_at", now)
     .lte("starts_at", limit);
-  if (ownerId) {
-    q = q.in("crop_id", cropIds);
-  }
-  const { data, error } = await q.order("starts_at").limit(5);
+  const pendingVisibilityFilter = ownerId
+    ? cropIds.length > 0
+      ? [
+          `and(done.eq.false,user_id.eq.${ownerId})`,
+          `and(done.is.null,user_id.eq.${ownerId})`,
+          `and(done.eq.false,crop_id.in.(${cropIds.join(",")}))`,
+          `and(done.is.null,crop_id.in.(${cropIds.join(",")}))`,
+        ].join(",")
+      : [`and(done.eq.false,user_id.eq.${ownerId})`, `and(done.is.null,user_id.eq.${ownerId})`].join(",")
+    : "done.eq.false,done.is.null";
+
+  // Keep false and NULL as pending for backwards compatibility. The owner branch
+  // also includes events without a crop when they belong to the selected farmer.
+  const { data, error } = await q.or(pendingVisibilityFilter).order("starts_at").limit(5);
   if (error) throw error;
   return (data ?? []).map((e: any) => ({
     id: e.id as string,

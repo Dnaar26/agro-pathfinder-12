@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { supabase } from "@/integrations/supabase/client";
 import { listAlerts, getMyRoles } from "@/lib/queries";
@@ -41,7 +41,10 @@ function AlertsPage() {
       const { error } = await supabase.from("alerts").update({ status: status as any }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["alerts"] });
+      qc.invalidateQueries({ queryKey: ["pending-alerts-count"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -74,6 +77,7 @@ function AlertsPage() {
       setAlertFarmer("");
       setAlertKind("RIEGO");
       qc.invalidateQueries({ queryKey: ["alerts"] });
+      qc.invalidateQueries({ queryKey: ["pending-alerts-count"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -84,6 +88,9 @@ function AlertsPage() {
   const handled = (alerts.data ?? []).filter((a) => a.status !== "PENDIENTE");
   const historyPages = Math.max(1, Math.ceil(handled.length / pageSize));
   const paginatedHandled = useMemo(() => handled.slice((historyPage - 1) * pageSize, historyPage * pageSize), [handled, historyPage]);
+  useEffect(() => {
+    if (historyPage > historyPages) setHistoryPage(historyPages);
+  }, [historyPage, historyPages]);
 
   return (
     <div className="space-y-6">
@@ -138,36 +145,42 @@ function AlertsPage() {
         </Dialog>}
       </header>
 
-      <AlertSection title="Automáticas" alerts={automatic} onStatus={(id, status) => setStatus.mutate({ id, status })} />
-      <AlertSection title={isStaff ? "Manuales enviadas/recibidas" : "De tu técnico"} alerts={manual} onStatus={(id, status) => setStatus.mutate({ id, status })} />
-      {pending.length === 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Bell className="size-4 text-warning" /> Avisos pendientes</h2>
-          <div className="p-8 border border-dashed border-border rounded-xl text-center"><BellOff className="size-8 mx-auto text-muted-foreground" /><p className="mt-2 text-muted-foreground">No tienes avisos ni notificaciones pendientes.</p></div>
-        </section>
-      )}
-      {handled.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3 text-muted-foreground">Historial de avisos ({handled.length})</h2>
-          <ul className="space-y-2">
-            {paginatedHandled.map((a) => (
-              <li key={a.id} className="p-3 rounded-lg border border-border bg-card text-sm flex items-center justify-between">
-                <span><span className="text-muted-foreground">[{a.status}]</span> {a.title}</span>
-                <span className="text-xs text-muted-foreground">{format(new Date(a.scheduled_at), "dd MMM")}</span>
-              </li>
-            ))}
-          </ul>
-          {handled.length > pageSize && <PaginationBar page={historyPage} totalPages={historyPages} onPageChange={setHistoryPage} />}
-        </section>
+      {alerts.isLoading && <div className="rounded-xl border border-border bg-card p-8 text-sm text-muted-foreground" role="status">Cargando avisos…</div>}
+      {alerts.isError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-sm text-destructive" role="alert">No se pudieron cargar las notificaciones. Intenta recargar la sección.</div>}
+      {!alerts.isLoading && !alerts.isError && (
+        <>
+          <AlertSection title="Automáticas" alerts={automatic} busy={setStatus.isPending} onStatus={(id, status) => setStatus.mutate({ id, status })} />
+          <AlertSection title={isStaff ? "Manuales enviadas/recibidas" : "De tu técnico"} alerts={manual} busy={setStatus.isPending} onStatus={(id, status) => setStatus.mutate({ id, status })} />
+          {pending.length === 0 && (
+            <section>
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Bell className="size-4 text-warning" /> Avisos pendientes</h2>
+              <div className="p-8 border border-dashed border-border rounded-xl text-center"><BellOff className="size-8 mx-auto text-muted-foreground" /><p className="mt-2 text-muted-foreground">No tienes avisos ni notificaciones pendientes.</p></div>
+            </section>
+          )}
+          {handled.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold mb-3 text-muted-foreground">Historial de avisos ({handled.length})</h2>
+              <ul className="space-y-2">
+                {paginatedHandled.map((a) => (
+                  <li key={a.id} className="p-3 rounded-lg border border-border bg-card text-sm flex items-center justify-between">
+                    <span><span className="text-muted-foreground">[{a.status}]</span> {a.title}</span>
+                    <span className="text-xs text-muted-foreground">{format(new Date(a.scheduled_at), "dd MMM yyyy", { locale: es })}</span>
+                  </li>
+                ))}
+              </ul>
+              {handled.length > pageSize && <PaginationBar page={historyPage} totalPages={historyPages} onPageChange={setHistoryPage} />}
+            </section>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-function AlertSection({ title, alerts, onStatus }: { title: string; alerts: any[]; onStatus: (id: string, status: string) => void }) {
+function AlertSection({ title, alerts, busy, onStatus }: { title: string; alerts: any[]; busy: boolean; onStatus: (id: string, status: string) => void }) {
   if (alerts.length === 0) return null;
   return <section>
     <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Bell className="size-4 text-warning" /> {title} ({alerts.length})</h2>
-    <ul className="space-y-2">{alerts.map((a) => <li key={a.id} className="p-4 rounded-lg border border-warning/30 bg-warning/5 flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><span className="text-xs px-2 py-0.5 rounded-full bg-warning/20 text-warning-foreground font-medium">{a.kind}</span><span className="font-medium">{a.title}</span></div>{a.body && <p className="text-sm text-muted-foreground mt-1">{a.body}</p>}{a.sender?.full_name && <p className="text-xs text-muted-foreground mt-1">Enviada por: {a.sender.full_name}</p>}<p className="text-xs text-muted-foreground mt-1">{format(new Date(a.scheduled_at), "dd MMM yyyy HH:mm", { locale: es })}</p></div><div className="flex gap-1"><Button size="icon" variant="ghost" onClick={() => onStatus(a.id, "ATENDIDA")}><Check className="size-4" /></Button><Button size="icon" variant="ghost" onClick={() => onStatus(a.id, "DESCARTADA")}><Trash2 className="size-4" /></Button></div></li>)}</ul>
+    <ul className="space-y-2">{alerts.map((a) => <li key={a.id} className="p-4 rounded-lg border border-warning/30 bg-warning/5 flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><span className="text-xs px-2 py-0.5 rounded-full bg-warning/20 text-warning-foreground font-medium">{a.kind}</span><span className="font-medium">{a.title}</span></div>{a.body && <p className="text-sm text-muted-foreground mt-1">{a.body}</p>}{a.sender?.full_name && <p className="text-xs text-muted-foreground mt-1">Enviada por: {a.sender.full_name}</p>}<p className="text-xs text-muted-foreground mt-1">{format(new Date(a.scheduled_at), "dd MMM yyyy HH:mm", { locale: es })}</p></div><div className="flex gap-1"><Button size="icon" variant="ghost" disabled={busy} onClick={() => onStatus(a.id, "ATENDIDA")} aria-label="Marcar aviso como atendido" title="Marcar como atendido"><Check className="size-4" /></Button><Button size="icon" variant="ghost" disabled={busy} onClick={() => onStatus(a.id, "DESCARTADA")} aria-label="Descartar aviso" title="Descartar"><Trash2 className="size-4" /></Button></div></li>)}</ul>
   </section>;
 }

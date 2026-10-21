@@ -91,29 +91,71 @@ function withSecurityHeaders(response: Response): Response {
   });
 }
 
+function withRequestId(response: Response, requestId: string): Response {
+  const headers = new Headers(response.headers);
+  headers.set("X-Request-Id", requestId);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function getRequestId(request: Request) {
+  const incoming = request.headers.get("x-request-id")?.trim();
+  return incoming && /^[A-Za-z0-9._:-]{1,128}$/.test(incoming) ? incoming : crypto.randomUUID();
+}
+
+function getReadinessResponse() {
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const checks = {
+    supabase_url: Boolean(supabaseUrl),
+    supabase_publishable_key: Boolean(publishableKey),
+    server_entry: true,
+  };
+  const ready = Object.values(checks).every(Boolean);
+
+  return new Response(JSON.stringify({
+    status: ready ? "ready" : "not_ready",
+    checks,
+    timestamp: new Date().toISOString(),
+  }), {
+    status: ready ? 200 : 503,
+    headers: {
+      "cache-control": "no-store",
+      "content-type": "application/json; charset=utf-8",
+    },
+  });
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const requestId = getRequestId(request);
     try {
       const url = new URL(request.url);
       if (url.pathname === "/healthz") {
-        return withSecurityHeaders(new Response("ok", {
+        return withRequestId(withSecurityHeaders(new Response("ok", {
           status: 200,
           headers: {
             "cache-control": "no-store",
             "content-type": "text/plain; charset=utf-8",
           },
-        }));
+        })), requestId);
+      }
+      if (url.pathname === "/readyz") {
+        return withRequestId(withSecurityHeaders(getReadinessResponse()), requestId);
       }
 
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return withSecurityHeaders(await normalizeCatastrophicSsrResponse(response));
+      return withRequestId(withSecurityHeaders(await normalizeCatastrophicSsrResponse(response)), requestId);
     } catch (error) {
-      console.error(error);
-      return withSecurityHeaders(new Response(renderErrorPage(), {
+      console.error(`[request:${requestId}]`, error);
+      return withRequestId(withSecurityHeaders(new Response(renderErrorPage(), {
         status: 500,
         headers: { "content-type": "text/html; charset=utf-8" },
-      }));
+      })), requestId);
     }
   },
 };

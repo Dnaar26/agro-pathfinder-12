@@ -71,6 +71,7 @@ Las migraciones se revierten con una nueva migración compensatoria, no editando
 
 ## Estado actual de esta revisión
 
+- `/healthz` comprueba disponibilidad del proceso y `/readyz` informa si la configuración pública de Supabase está lista; ambos devuelven `X-Request-Id` para correlación operativa.
 - Migraciones locales versionadas: 23.
 - La migración `20260920004000_secure_inventory_rpc.sql` valida autenticación, propietario/administrador, tipo, cantidad, delta y stock no negativo antes de registrar movimientos.
 - Edge Functions en el repositorio: ninguna.

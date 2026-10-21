@@ -156,7 +156,7 @@ function RootComponent() {
     return () => subscription.unsubscribe();
   }, [queryClient, router]);
 
-  useEffect(() => { registerOnlineSync(); }, []);
+  useEffect(() => registerOnlineSync(), []);
 
   return (
     <QueryClientProvider client={queryClient}>

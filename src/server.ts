@@ -110,9 +110,14 @@ function getRequestId(request: Request) {
 function getReadinessResponse() {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const allowedOrigins = process.env.APP_ALLOWED_ORIGINS;
+  const isProduction = process.env.NODE_ENV === "production";
   const checks = {
     supabase_url: Boolean(supabaseUrl),
     supabase_publishable_key: Boolean(publishableKey),
+    supabase_service_role_key: Boolean(serviceRoleKey),
+    app_allowed_origins: isProduction ? Boolean(allowedOrigins) : true,
     server_entry: true,
   };
   const ready = Object.values(checks).every(Boolean);

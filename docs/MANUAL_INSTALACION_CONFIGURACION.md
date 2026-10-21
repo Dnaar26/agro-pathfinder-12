@@ -418,19 +418,19 @@ npx supabase db push
 1. Abra [Render](https://render.com/) y seleccione **New > Blueprint**.
 2. Conecte el repositorio `https://github.com/Dnaar26/agro-pathfinder-12.git`.
 3. Seleccione el archivo `render.yaml`. No configure `Root Directory`: el `package.json` está en la raíz del repositorio.
-4. Render ejecutará `npm ci && npm run build` y arrancará con `npm start`.
+4. Render ejecutará `npm ci --include=dev --ignore-scripts && npm run build` y arrancará con `npm start`.
 5. Complete en Render todas las variables marcadas como `sync: false` en `render.yaml`. Nunca exponga `SUPABASE_SERVICE_ROLE_KEY` ni `GROQ_API_KEY` con prefijo `VITE_`.
 6. Configure `APP_ALLOWED_ORIGINS` con la URL HTTPS de Render y, después, con el dominio definitivo separado por comas.
 
 ### 7.3. Verificación de producción
 
 ```bash
-npm ci
+npm ci --include=dev --ignore-scripts
 npm run build
 npm start
 ```
 
-Compruebe la URL pública, el registro/login, recuperación de contraseña, lectura/escritura de parcelas, carga de evidencias, reportes, IA y cambio de idioma. El health check de Render usa `/`.
+Compruebe la URL pública, el registro/login, recuperación de contraseña, lectura/escritura de parcelas, carga de evidencias, reportes, IA y cambio de idioma. El health check de Render usa `/healthz`; para validar el servicio desplegado ejecute `SMOKE_BASE_URL=https://su-dominio npm run smoke:production`.
 
 ### 7.4. Si despliega en Vercel
 

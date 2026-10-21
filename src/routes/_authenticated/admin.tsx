@@ -2,6 +2,7 @@ import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   listAllUsersWithRoles,
+  listAllUsersWithRolesPage,
   assignRole,
   revokeRole,
   getMyRoles,
@@ -44,9 +45,25 @@ export const Route = createFileRoute("/_authenticated/admin")({
 
 function AdminPage() {
   const qc = useQueryClient();
+  const pageSize = 20;
+  const [farmerSearch, setFarmerSearch] = useState("");
+  const [farmerPage, setFarmerPage] = useState(1);
+  const [userSearch, setUserSearch] = useState("");
+  const [userPage, setUserPage] = useState(1);
+  const [assignmentTechnician, setAssignmentTechnician] = useState("");
+  const [assignmentFarmer, setAssignmentFarmer] = useState("");
+  const [plantingReminderDays, setPlantingReminderDays] = useState("1");
+  const [stockAlertThreshold, setStockAlertThreshold] = useState("0");
+  const [stockAlertsEnabled, setStockAlertsEnabled] = useState(true);
+
   const metrics = useQuery({ queryKey: ["admin-metrics"], queryFn: getAdminMetrics });
   const farmers = useQuery({ queryKey: ["admin-farmers"], queryFn: listFarmerSummaries });
-  const users = useQuery({ queryKey: ["admin-users"], queryFn: listAllUsersWithRoles });
+  const users = useQuery({
+    queryKey: ["admin-users", userPage, userSearch],
+    queryFn: () => listAllUsersWithRolesPage({ page: userPage, pageSize, search: userSearch }),
+    placeholderData: (previous) => previous,
+  });
+  const userDirectory = useQuery({ queryKey: ["admin-user-directory"], queryFn: listAllUsersWithRoles });
   const alerts = useQuery({ queryKey: ["alerts"], queryFn: listAlerts });
   const alertSettings = useQuery({
     queryKey: ["alert-settings"],
@@ -61,13 +78,6 @@ function AdminPage() {
     if (error) throw error; return data ?? [];
   }});
 
-  const [farmerSearch, setFarmerSearch] = useState("");
-  const [farmerPage, setFarmerPage] = useState(1);
-  const [userPage, setUserPage] = useState(1);
-  const [assignmentTechnician, setAssignmentTechnician] = useState("");
-  const [assignmentFarmer, setAssignmentFarmer] = useState("");
-  const pageSize = 20;
-
   const filteredFarmers = useMemo(() => {
     const q = farmerSearch.trim().toLowerCase();
     const list = farmers.data ?? [];
@@ -75,12 +85,21 @@ function AdminPage() {
     return list.filter((f) => f.full_name.toLowerCase().includes(q));
   }, [farmers.data, farmerSearch]);
 
-  const userCount = users.data?.length ?? 0;
+  const userCount = users.data?.count ?? 0;
+  const paginatedUsers = users.data?.data ?? [];
   useEffect(() => { setFarmerPage(1); }, [farmerSearch]);
+  useEffect(() => { setUserPage(1); }, [userSearch]);
   const farmerTotalPages = Math.max(1, Math.ceil(filteredFarmers.length / pageSize));
   const userTotalPages = Math.max(1, Math.ceil(userCount / pageSize));
   const paginatedFarmers = useMemo(() => filteredFarmers.slice((farmerPage - 1) * pageSize, farmerPage * pageSize), [filteredFarmers, farmerPage]);
-  const paginatedUsers = useMemo(() => (users.data ?? []).slice((userPage - 1) * pageSize, userPage * pageSize), [users.data, userPage]);
+
+  useEffect(() => {
+    const settings = alertSettings.data;
+    if (!settings) return;
+    setPlantingReminderDays(String(settings.planting_reminder_days ?? 1));
+    setStockAlertThreshold(String(settings.stock_alert_threshold ?? 0));
+    setStockAlertsEnabled(Boolean(settings.stock_alerts_enabled));
+  }, [alertSettings.data]);
 
   const assign = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: AppRole }) => assignRole(userId, role),
@@ -166,73 +185,44 @@ function AdminPage() {
         <MetricCard icon={ClipboardList} label="Actividades" value={m?.activities ?? "—"} />
       </section>
 
-       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Farmers */}
         <section className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
+          <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Users className="size-4 text-primary" />
               <h2 className="font-semibold">Agricultores ({filteredFarmers.length})</h2>
-       </div>
-
-       <section className="rounded-xl border border-border bg-card p-5 space-y-4">
-         <div><h2 className="font-semibold">Configuración automática de alertas</h2><p className="text-sm text-muted-foreground">Los cambios se aplican al regenerar alertas o en la siguiente ejecución programada.</p></div>
-         <div className="flex flex-wrap items-end gap-4">
-           <div className="space-y-1.5"><Label htmlFor="reminder-days">Días de anticipación para siembra</Label><Input id="reminder-days" type="number" min="0" max="30" defaultValue={alertSettings.data?.planting_reminder_days ?? 1} key={alertSettings.data?.updated_at} className="w-36" onChange={(e) => { (e.currentTarget.dataset.value = e.currentTarget.value); }} /></div>
-            <div className="space-y-1.5"><Label htmlFor="stock-threshold">Umbral global de stock</Label><Input id="stock-threshold" type="number" min="0" step="any" defaultValue={alertSettings.data?.stock_alert_threshold ?? 0} key={`threshold-${alertSettings.data?.updated_at}`} className="w-36" /><p className="text-xs text-muted-foreground">Se compara con el mínimo propio del insumo.</p></div>
-            <div className="flex items-center gap-2 pb-2"><Switch id="stock-alerts" defaultChecked={alertSettings.data?.stock_alerts_enabled ?? true} key={`stock-${alertSettings.data?.updated_at}`} /><Label htmlFor="stock-alerts">Alertas de stock bajo</Label></div>
-           <Button size="sm" disabled={saveAlertSettings.isPending || alertSettings.isLoading} onClick={() => {
-              const days = Number((document.getElementById("reminder-days") as HTMLInputElement)?.value);
-              const threshold = Number((document.getElementById("stock-threshold") as HTMLInputElement)?.value);
-              const stock = (document.getElementById("stock-alerts") as HTMLButtonElement)?.getAttribute("data-state") === "checked";
-              if (!Number.isInteger(days) || days < 0 || days > 30) return toast.error("Indica entre 0 y 30 días");
-              if (!Number.isFinite(threshold) || threshold < 0) return toast.error("Indica un umbral de stock válido");
-              saveAlertSettings.mutate({ planting_reminder_days: days, stock_alerts_enabled: stock, stock_alert_threshold: threshold });
-           }}>Guardar configuración</Button>
-         </div>
-       </section>
-
-       <section className="rounded-xl border border-border bg-card p-5 space-y-3">
-         <div><h2 className="font-semibold">Asignación técnico–agricultor</h2><p className="text-sm text-muted-foreground">Los técnicos sólo podrán consultar los agricultores asignados aquí.</p></div>
-         <div className="flex flex-wrap gap-2 items-center">
-           <Select value={assignmentTechnician} onValueChange={setAssignmentTechnician}><SelectTrigger className="w-56"><SelectValue placeholder="Seleccionar técnico" /></SelectTrigger><SelectContent>{(users.data ?? []).filter(u => u.roles.includes("tecnico")).map(u => <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>)}</SelectContent></Select>
-           <Select value={assignmentFarmer} onValueChange={setAssignmentFarmer}><SelectTrigger className="w-56"><SelectValue placeholder="Seleccionar agricultor" /></SelectTrigger><SelectContent>{(users.data ?? []).filter(u => u.roles.includes("agricultor")).map(u => <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>)}</SelectContent></Select>
-           <Button size="sm" disabled={assignFarmer.isPending} onClick={() => assignFarmer.mutate()}>Asignar acceso</Button>
-         </div>
-         <p className="text-xs text-muted-foreground">Asignaciones activas: {assignments.data?.length ?? 0}</p>
-       </section>
+            </div>
             <div className="relative">
-              <Search className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar…"
-                value={farmerSearch}
-                onChange={(e) => setFarmerSearch(e.target.value)}
-                className="pl-8 h-8 w-44"
-              />
+              <Search className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input placeholder="Buscar agricultor…" value={farmerSearch} onChange={(e) => setFarmerSearch(e.target.value)} aria-label="Buscar agricultor" className="pl-8 h-8 w-44" />
             </div>
           </div>
           {farmers.isLoading ? (
             <p className="p-6 text-sm text-muted-foreground">Cargando…</p>
+          ) : farmers.isError ? (
+            <p className="p-6 text-sm text-destructive" role="alert">No se pudieron cargar los agricultores.</p>
           ) : filteredFarmers.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">Sin resultados.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
+                <caption className="sr-only">Resumen de agricultores registrados</caption>
                 <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="text-left px-4 py-2">Nombre</th>
-                    <th className="text-right px-4 py-2">Parcelas</th>
-                    <th className="text-right px-4 py-2">Área (m²)</th>
-                    <th className="text-right px-4 py-2">Cultivos</th>
+                    <th scope="col" className="text-left px-4 py-2">Nombre</th>
+                    <th scope="col" className="text-right px-4 py-2">Parcelas</th>
+                    <th scope="col" className="text-right px-4 py-2">Área (m²)</th>
+                    <th scope="col" className="text-right px-4 py-2">Cultivos</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {paginatedFarmers.map((f) => (
                     <tr key={f.id} className="hover:bg-muted/30">
                       <td className="px-4 py-2 font-medium">{f.full_name || "(sin nombre)"}</td>
-                      <td className="px-4 py-2 text-right">{f.parcels}</td>
-                      <td className="px-4 py-2 text-right">{f.area_m2.toLocaleString()}</td>
-                      <td className="px-4 py-2 text-right">{f.crops}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">{f.parcels}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">{f.area_m2.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">{f.crops}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -262,9 +252,7 @@ function AdminPage() {
               </ul>
             )}
             <div className="px-5 py-3 border-t border-border">
-              <Button asChild size="sm" variant="ghost" className="w-full justify-start">
-                <Link to="/alerts"><BellRing className="size-4 mr-1" /> Ver todas</Link>
-              </Button>
+              <Button asChild size="sm" variant="ghost" className="w-full justify-start"><Link to="/alerts"><BellRing className="size-4 mr-1" /> Ver todas</Link></Button>
             </div>
           </div>
 
@@ -274,21 +262,72 @@ function AdminPage() {
             <Button asChild variant="outline" size="sm" className="w-full justify-start"><Link to="/calendar"><ClipboardList className="size-4 mr-1" /> Calendario</Link></Button>
             <Button asChild variant="outline" size="sm" className="w-full justify-start"><Link to="/reports"><FileBarChart2 className="size-4 mr-1" /> Reportes</Link></Button>
           </div>
-
-
         </aside>
       </div>
 
+      <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div>
+          <h2 className="font-semibold">Configuración automática de alertas</h2>
+          <p className="text-sm text-muted-foreground">Los cambios se aplican al regenerar alertas o en la siguiente ejecución programada.</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="reminder-days">Días de anticipación para siembra</Label>
+            <Input id="reminder-days" type="number" min="0" max="30" value={plantingReminderDays} onChange={(e) => setPlantingReminderDays(e.target.value)} className="w-36" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="stock-threshold">Umbral global de stock</Label>
+            <Input id="stock-threshold" type="number" min="0" step="any" value={stockAlertThreshold} onChange={(e) => setStockAlertThreshold(e.target.value)} className="w-36" />
+            <p className="text-xs text-muted-foreground">Se compara con el mínimo propio del insumo.</p>
+          </div>
+          <div className="flex items-center gap-2 pb-2">
+            <Switch id="stock-alerts" checked={stockAlertsEnabled} onCheckedChange={setStockAlertsEnabled} />
+            <Label htmlFor="stock-alerts">Alertas de stock bajo</Label>
+          </div>
+          <Button size="sm" disabled={saveAlertSettings.isPending || alertSettings.isLoading} onClick={() => {
+            const days = Number(plantingReminderDays);
+            const threshold = Number(stockAlertThreshold);
+            if (!Number.isInteger(days) || days < 0 || days > 30) return toast.error("Indica entre 0 y 30 días");
+            if (!Number.isFinite(threshold) || threshold < 0) return toast.error("Indica un umbral de stock válido");
+            saveAlertSettings.mutate({ planting_reminder_days: days, stock_alerts_enabled: stockAlertsEnabled, stock_alert_threshold: threshold });
+          }}>Guardar configuración</Button>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5 space-y-3">
+        <div><h2 className="font-semibold">Asignación técnico–agricultor</h2><p className="text-sm text-muted-foreground">Los técnicos sólo podrán consultar los agricultores asignados aquí.</p></div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={assignmentTechnician} onValueChange={setAssignmentTechnician}><SelectTrigger className="w-56"><SelectValue placeholder="Seleccionar técnico" /></SelectTrigger><SelectContent>{(userDirectory.data ?? []).filter(u => u.roles.includes("tecnico")).map(u => <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>)}</SelectContent></Select>
+          <Select value={assignmentFarmer} onValueChange={setAssignmentFarmer}><SelectTrigger className="w-56"><SelectValue placeholder="Seleccionar agricultor" /></SelectTrigger><SelectContent>{(userDirectory.data ?? []).filter(u => u.roles.includes("agricultor")).map(u => <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>)}</SelectContent></Select>
+          <Button size="sm" disabled={assignFarmer.isPending || userDirectory.isLoading} onClick={() => assignFarmer.mutate()}>Asignar acceso</Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Asignaciones activas: {assignments.data?.length ?? 0}</p>
+      </section>
+
       {/* Roles management */}
       <section className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-          <UserCog className="size-4 text-primary" />
-          <h2 className="font-semibold">Roles de usuarios ({users.data?.length ?? 0})</h2>
+        <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <UserCog className="size-4 text-primary" />
+            <h2 className="font-semibold">Roles de usuarios ({userCount})</h2>
+          </div>
+          <div className="relative">
+            <Search className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input
+              placeholder="Buscar usuario…"
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              aria-label="Buscar usuario por nombre"
+              className="pl-8 h-8 w-48"
+            />
+          </div>
         </div>
         {users.isLoading ? (
           <p className="p-6 text-sm text-muted-foreground">Cargando…</p>
-        ) : (users.data?.length ?? 0) === 0 ? (
-          <p className="p-6 text-sm text-muted-foreground">No hay usuarios registrados aún.</p>
+        ) : users.isError ? (
+          <p className="p-6 text-sm text-destructive" role="alert">No se pudieron cargar los usuarios.</p>
+        ) : userCount === 0 ? (
+          <p className="p-6 text-sm text-muted-foreground">No hay usuarios que coincidan con la búsqueda.</p>
         ) : (
           <ul className="divide-y divide-border">
             {paginatedUsers.map((u) => (

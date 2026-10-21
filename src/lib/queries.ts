@@ -182,11 +182,16 @@ export async function listAllUsersWithRoles(): Promise<AdminUserRow[]> {
   return (profiles ?? []).map((p) => ({ ...p, roles: map.get(p.id) ?? [] }));
 }
 
-export async function listAllUsersWithRolesPage(params: PaginationParams): Promise<PaginatedResult<AdminUserRow>> {
+export async function listAllUsersWithRolesPage(
+  params: PaginationParams & { search?: string },
+): Promise<PaginatedResult<AdminUserRow>> {
   const { from, to } = paginationRange(params);
-  const { count, data: profiles, error: pErr } = await supabase
+  let profilesQuery = supabase
     .from("profiles")
-    .select("id, full_name, phone", { count: "exact" })
+    .select("id, full_name, phone", { count: "exact" });
+  const search = params.search?.trim();
+  if (search) profilesQuery = profilesQuery.ilike("full_name", `%${search}%`);
+  const { count, data: profiles, error: pErr } = await profilesQuery
     .order("full_name")
     .range(from, to);
   if (pErr) throw pErr;

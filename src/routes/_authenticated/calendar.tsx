@@ -119,46 +119,20 @@ function CalendarPage() {
 
   const create = useMutation({
     mutationFn: async (payload: { event: z.infer<typeof eventSchema>; invItemId?: string; invQty?: number }) => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Sesión expirada");
-
       const eventDate = new Date(payload.event.starts_at);
       if (isNaN(eventDate.getTime()) || eventDate.getTime() < Date.now() - 2 * 60 * 1000) {
         throw new Error("No se pueden programar eventos en fechas u horas pasadas");
       }
-      
-      // Verificar stock si hay insumo
-      if (payload.invItemId && payload.invQty && payload.invQty > 0) {
-        const { data: inv } = await supabase.from("inventory_items").select("stock_qty").eq("id", payload.invItemId).single();
-        if (!inv || Number(inv.stock_qty) < payload.invQty) {
-          throw new Error("Stock insuficiente para el insumo seleccionado");
-        }
-      }
-      
-      const { data: created, error } = await supabase.from("calendar_events").insert({
-        user_id: u.user.id,
-        title: payload.event.title,
-        description: payload.event.description ?? null,
-        crop_id: payload.event.crop_id ?? null,
-        starts_at: eventDate.toISOString(),
-      }).select("id").single();
+
+      const { error } = await supabase.rpc("create_calendar_event_with_inventory", {
+        p_title: payload.event.title,
+        p_starts_at: eventDate.toISOString(),
+        p_description: payload.event.description ?? null,
+        p_crop_id: payload.event.crop_id ?? null,
+        p_item_id: payload.invItemId ?? null,
+        p_qty: payload.invQty ?? null,
+      });
       if (error) throw error;
-      
-      // Descontar del inventario
-      if (payload.invItemId && payload.invQty && payload.invQty > 0) {
-        const { error: rpcErr } = await supabase.rpc("apply_inventory_movement", {
-          p_item_id: payload.invItemId,
-          p_kind: "SALIDA",
-          p_qty: payload.invQty,
-          p_notes: `Uso en evento: ${payload.event.title}`,
-          p_delta: -payload.invQty,
-        });
-        if (rpcErr) {
-          // No dejar un evento huérfano si el descuento falló
-          await supabase.from("calendar_events").delete().eq("id", created.id);
-          throw new Error(rpcErr.message || "Error al descontar insumo del inventario");
-        }
-      }
     },
     onSuccess: () => {
       toast.success("Evento creado");
@@ -189,28 +163,16 @@ function CalendarPage() {
         throw new Error("No se pueden programar eventos en fechas u horas pasadas");
       }
 
-      // Verificar stock si hay insumo
-      if (payload.editInvItemId && payload.editInvQty && payload.editInvQty > 0) {
-        const { data: inv } = await supabase.from("inventory_items").select("stock_qty").eq("id", payload.editInvItemId).single();
-        if (!inv || Number(inv.stock_qty) < payload.editInvQty) {
-          throw new Error("Stock insuficiente para el insumo seleccionado");
-        }
-      }
-
-      const { error } = await supabase.from("calendar_events").update({ title: payload.title, description: payload.description ?? null, crop_id: payload.crop_id ?? null, starts_at: eventDate.toISOString() }).eq("id", payload.id);
+      const { error } = await supabase.rpc("update_calendar_event_with_inventory", {
+        p_event_id: payload.id,
+        p_title: payload.title,
+        p_starts_at: eventDate.toISOString(),
+        p_description: payload.description ?? null,
+        p_crop_id: payload.crop_id ?? null,
+        p_item_id: payload.editInvItemId ?? null,
+        p_qty: payload.editInvQty ?? null,
+      });
       if (error) throw error;
-      
-      // Descontar del inventario
-      if (payload.editInvItemId && payload.editInvQty && payload.editInvQty > 0) {
-        const { error: rpcErr } = await supabase.rpc("apply_inventory_movement", {
-          p_item_id: payload.editInvItemId,
-          p_kind: "SALIDA",
-          p_qty: payload.editInvQty,
-          p_notes: `Uso en evento: ${payload.title}`,
-          p_delta: -payload.editInvQty,
-        });
-        if (rpcErr) throw new Error(rpcErr.message || "Error al descontar insumo del inventario");
-      }
     },
     onSuccess: () => { 
       toast.success("Evento actualizado"); 
@@ -227,7 +189,7 @@ function CalendarPage() {
 
   const markDone = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("calendar_events").update({ done: true }).eq("id", id);
+      const { error } = await supabase.rpc("set_calendar_event_done", { p_event_id: id });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Evento marcado como realizado"); qc.invalidateQueries({ queryKey: ["events"] }); },
@@ -236,7 +198,7 @@ function CalendarPage() {
 
   const deleteEvent = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("calendar_events").delete().eq("id", id);
+      const { error } = await supabase.rpc("delete_calendar_event_with_inventory", { p_event_id: id });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Evento eliminado"); qc.invalidateQueries({ queryKey: ["events"] }); },

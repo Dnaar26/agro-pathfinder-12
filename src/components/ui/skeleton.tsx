@@ -5,7 +5,7 @@ export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 }
 
 export function SkeletonCard() {
-  return <div className="rounded-xl border border-border bg-card p-4 space-y-3"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-8 w-1/2" /></div>;
+  return <div className="rounded-lg border border-border bg-card p-4 space-y-3"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-8 w-1/2" /></div>;
 }
 
 export function SkeletonTable({ rows = 5 }: { rows?: number }) {

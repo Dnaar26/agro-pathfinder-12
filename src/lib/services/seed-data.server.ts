@@ -242,7 +242,7 @@ export const clearAllUsers = createServerFn({ method: "POST" }).handler(async ()
 });
 
 export const deleteUser = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ userId: z.string() }))
+  .validator(z.object({ userId: z.string() }))
   .handler(async ({ data }) => {
     await requireAdmin();
     const supabaseAdmin = adminClient();

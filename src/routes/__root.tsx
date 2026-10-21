@@ -59,10 +59,11 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => { reportLovableError(error, { boundary: "tanstack_root_error_component" }); }, [error]);
+  const errorMessage = error instanceof Error ? error.message : typeof error === "string" ? error : "Error inesperado";
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
@@ -72,9 +73,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">Algo salió mal</h1>
         <p className="mt-2 text-sm text-muted-foreground">Intenta refrescar o volver al inicio.</p>
-        {error?.message && (
+        {errorMessage && (
           <div className="mt-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs font-mono text-left max-h-32 overflow-y-auto">
-            {error.message}
+            {errorMessage}
           </div>
         )}
         <div className="mt-6 flex flex-wrap justify-center gap-2">

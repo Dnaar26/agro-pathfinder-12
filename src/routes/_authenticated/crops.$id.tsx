@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useMemo } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { getCrop, listPestIncidents, getCropPhotoUrls } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -289,7 +290,10 @@ function CropDetail() {
 
   const updateStatus = useMutation({
     mutationFn: async (status: string) => {
-      const { error } = await supabase.from("crops").update({ status: status as any }).eq("id", id);
+      const { error } = await supabase.rpc("transition_crop_status", {
+        p_crop_id: id,
+        p_status: status as Database["public"]["Enums"]["crop_status"],
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -301,10 +305,7 @@ function CropDetail() {
 
   const confirmPlanting = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("crops").update({
-        status: "SEMBRADO",
-        planting_confirmed_at: new Date().toISOString(),
-      }).eq("id", id);
+      const { error } = await supabase.rpc("confirm_crop_planting", { p_crop_id: id });
       if (error) throw error;
     },
     onSuccess: () => {

@@ -52,7 +52,6 @@ function ParcelDetail() {
         catalog_id: input.catalog_id,
         planting_date: format(planting, "yyyy-MM-dd"),
         estimated_harvest_date: format(harvest, "yyyy-MM-dd"),
-        status: "SEMBRADO",
       });
       if (error) throw error;
     },

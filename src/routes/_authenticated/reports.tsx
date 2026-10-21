@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { listAllActivitiesForReport, listParcels, listCatalog, listAlerts, getMyRoles, getYearOverYearComparison, listScheduledReports, createScheduledReport, toggleScheduledReport, deleteScheduledReport } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { FarmerReport } from "@/components/reports/farmer-report";
 import { StaffReportsPanel } from "@/components/reports/staff-reports-panel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
 
 
 export const Route = createFileRoute("/_authenticated/reports")({
@@ -48,6 +49,16 @@ function download(filename: string, content: BlobPart, mime: string) {
 }
 
 const ALL = "__all__";
+const REPORT_FILTERS_KEY = "sigic:reports:filters";
+
+type ReportFilterState = {
+  template?: PdfReportTemplate;
+  parcelFilter?: string;
+  cropFilter?: string;
+  from?: string;
+  to?: string;
+  chartYear?: string;
+};
 
 const kindColors: Record<string, string> = {
   RIEGO: "#2563eb",
@@ -72,6 +83,14 @@ function SkeletonCard() {
 
 function ReportsPage() {
   const { t } = useTranslation();
+  const [initialFilters] = useState<ReportFilterState>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(window.localStorage.getItem(REPORT_FILTERS_KEY) ?? "{}") as ReportFilterState;
+    } catch {
+      return {};
+    }
+  });
   const myRoles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
   const isStaff = (myRoles.data ?? []).some((r: string) => ["tecnico", "admin"].includes(r));
   const isAgricultor = !isStaff;
@@ -106,12 +125,12 @@ function ReportsPage() {
     },
   });
 
-  const [template, setTemplate] = useState<PdfReportTemplate>("actividades");
-  const [parcelFilter, setParcelFilter] = useState<string>(ALL);
-  const [cropFilter, setCropFilter] = useState<string>(ALL);
-  const [from, setFrom] = useState<string>("");
-  const [to, setTo] = useState<string>("");
-  const [chartYear, setChartYear] = useState<string>(new Date().getFullYear().toString());
+  const [template, setTemplate] = useState<PdfReportTemplate>(initialFilters.template ?? "actividades");
+  const [parcelFilter, setParcelFilter] = useState<string>(initialFilters.parcelFilter ?? ALL);
+  const [cropFilter, setCropFilter] = useState<string>(initialFilters.cropFilter ?? ALL);
+  const [from, setFrom] = useState<string>(initialFilters.from ?? "");
+  const [to, setTo] = useState<string>(initialFilters.to ?? "");
+  const [chartYear, setChartYear] = useState<string>(initialFilters.chartYear ?? new Date().getFullYear().toString());
   const dateError = from && to && new Date(from) > new Date(to) ? "La fecha 'Desde' no puede ser mayor que 'Hasta'" : null;
   const [staffView, setStaffView] = useState<string>("specialized");
   const userRole = (myRoles.data ?? []).includes("admin") ? "admin" : "tecnico";
@@ -121,20 +140,58 @@ function ReportsPage() {
   const [schedRecipients, setSchedRecipients] = useState("");
   const [schedFreq, setSchedFreq] = useState("weekly");
   const [schedCreating, setSchedCreating] = useState(false);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(REPORT_FILTERS_KEY, JSON.stringify({ template, parcelFilter, cropFilter, from, to, chartYear } satisfies ReportFilterState));
+    } catch {
+      // El modo privado puede bloquear el almacenamiento local.
+    }
+  }, [template, parcelFilter, cropFilter, from, to, chartYear]);
+
   const schedMut = async () => {
     if (!schedRecipients.trim()) return;
+    const recipients = schedRecipients.split(",").map((e) => e.trim()).filter(Boolean);
+    const invalidRecipients = recipients.filter((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+    if (invalidRecipients.length > 0) {
+      toast.error(`Correo inválido: ${invalidRecipients[0]}`);
+      return;
+    }
     setSchedCreating(true);
     try {
       await createScheduledReport({
         template: schedTemplate,
-        recipients: schedRecipients.split(",").map((e) => e.trim()).filter(Boolean),
+        recipients,
         schedule: schedFreq,
       });
-      schedReports.refetch();
+      await schedReports.refetch();
       setSchedDialog(false);
       setSchedRecipients("");
+      toast.success("Reporte programado");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo programar el reporte");
     } finally { setSchedCreating(false); }
   };
+
+  async function handleToggleScheduledReport(id: string, enabled: boolean) {
+    try {
+      await toggleScheduledReport(id, enabled);
+      await schedReports.refetch();
+      toast.success(enabled ? "Reporte habilitado" : "Reporte deshabilitado");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo actualizar el reporte");
+    }
+  }
+
+  async function handleDeleteScheduledReport(id: string) {
+    try {
+      await deleteScheduledReport(id);
+      await schedReports.refetch();
+      toast.success("Reporte eliminado");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo eliminar el reporte");
+    }
+  }
 
   const filtered = useMemo(() => {
     const list = (acts.data ?? []) as any[];
@@ -343,8 +400,8 @@ function ReportsPage() {
     );
   }
 
-  const loading = acts.isLoading || parcels.isLoading || catalog.isLoading;
-  const error = acts.isError || parcels.isError || catalog.isError;
+  const loading = acts.isLoading || parcels.isLoading || catalog.isLoading || costsQuery.isLoading || harvestsQuery.isLoading;
+  const error = acts.isError || parcels.isError || catalog.isError || costsQuery.isError || harvestsQuery.isError;
 
   if (loading) {
     return (
@@ -365,7 +422,7 @@ function ReportsPage() {
           <AlertTriangle className="size-8 text-destructive mx-auto mb-2" />
           <p className="text-destructive font-medium">Error al cargar datos</p>
           <p className="text-sm text-muted-foreground mt-1">Reintentá más tarde o contactá al administrador.</p>
-          <Button variant="outline" className="mt-4" onClick={() => { acts.refetch(); parcels.refetch(); catalog.refetch(); }}>
+          <Button variant="outline" className="mt-4" onClick={() => { acts.refetch(); parcels.refetch(); catalog.refetch(); costsQuery.refetch(); harvestsQuery.refetch(); }}>
             Reintentar
           </Button>
         </Card>
@@ -476,7 +533,7 @@ function ReportsPage() {
           <Button variant="outline" onClick={() => exportParcelsToExcel(parcels.data ?? [])} disabled={template !== "parcelas"}>
             <FileSpreadsheet className="size-4 mr-1" /> Exportar CSV
           </Button>
-          <Button variant="ghost" onClick={() => { setParcelFilter(ALL); setCropFilter(ALL); setFrom(""); setTo(""); }}>
+          <Button variant="ghost" onClick={() => { setParcelFilter(ALL); setCropFilter(ALL); setFrom(""); setTo(""); setChartYear(new Date().getFullYear().toString()); }}>
             Limpiar filtros
           </Button>
         </div>
@@ -708,10 +765,10 @@ function ReportsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="size-8" onClick={async () => { await toggleScheduledReport(r.id, !r.enabled); schedReports.refetch(); }} title={r.enabled ? "Deshabilitar" : "Habilitar"}>
+                  <Button variant="ghost" size="icon" className="size-8" onClick={() => void handleToggleScheduledReport(r.id, !r.enabled)} aria-label={r.enabled ? "Deshabilitar reporte" : "Habilitar reporte"} title={r.enabled ? "Deshabilitar" : "Habilitar"}>
                     {r.enabled ? <CheckCircle2 className="size-4 text-green-600" /> : <XCircle className="size-4 text-muted-foreground" />}
                   </Button>
-                  <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={async () => { await deleteScheduledReport(r.id); schedReports.refetch(); }} title="Eliminar">
+                  <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => void handleDeleteScheduledReport(r.id)} aria-label="Eliminar reporte" title="Eliminar">
                     <Trash2 className="size-4" />
                   </Button>
                 </div>

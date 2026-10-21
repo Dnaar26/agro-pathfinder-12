@@ -200,7 +200,7 @@ async function askGemini(apiKey: string, system: string, convo: ChatMessage[], m
  * render.yaml); si no, cae a Gemini con GEMINI_API_KEY. El modelo lo decide el servidor, no el cliente.
  */
 export const chatWithGroq = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     z.object({
       messages: z.array(
         z.object({

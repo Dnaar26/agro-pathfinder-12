@@ -26,7 +26,7 @@ function adminClient() {
 }
 
 export const getNdvi = createServerFn({ method: "GET" })
-  .inputValidator(inputSchema)
+  .validator(inputSchema)
   .handler(async ({ data }): Promise<NdviResult> => {
     const user = await requireCookieUser();
     const supabase = adminClient();

@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 
 BEGIN;
 
-SELECT plan(13);
+SELECT plan(23);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.profiles'::regclass),
@@ -93,6 +93,79 @@ SELECT ok(
 SELECT ok(
   NOT has_function_privilege('anon', 'public.apply_inventory_movement(uuid,text,numeric,text,numeric)', 'execute'),
   'anon cannot use the inventory RPC'
+);
+
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.calendar_events'::regclass),
+  'calendar_events has RLS enabled'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'public.inventory_movements'::regclass
+      AND attname = 'calendar_event_id'
+      AND NOT attisdropped
+  ),
+  'inventory movements can be linked to calendar events'
+);
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'calendar_events'
+      AND cmd IN ('INSERT', 'UPDATE', 'DELETE')
+  ),
+  'calendar event writes are restricted to transactional RPCs'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE oid = 'public.create_calendar_event_with_inventory(text,timestamptz,text,uuid,uuid,numeric)'::regprocedure
+      AND proconfig @> ARRAY['search_path=public']
+  ),
+  'calendar creation RPC has a fixed search_path'
+);
+SELECT ok(
+  has_function_privilege(
+    'authenticated',
+    'public.create_calendar_event_with_inventory(text,timestamptz,text,uuid,uuid,numeric)',
+    'execute'
+  ),
+  'authenticated can create calendar events transactionally'
+);
+SELECT ok(
+  NOT has_function_privilege(
+    'anon',
+    'public.create_calendar_event_with_inventory(text,timestamptz,text,uuid,uuid,numeric)',
+    'execute'
+  ),
+  'anon cannot create calendar events transactionally'
+);
+SELECT ok(
+  has_function_privilege('authenticated', 'public.transition_crop_status(uuid,public.crop_status)', 'execute'),
+  'authenticated can transition crop status through the RPC'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = 'public.crops'::regclass
+      AND tgname = 'crops_prevent_direct_status_change'
+      AND NOT tgisinternal
+  ),
+  'direct crop status changes are guarded by a trigger'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = 'public.inventory_movements'::regclass
+      AND tgname = 'inventory_movements_protect_calendar_link'
+      AND NOT tgisinternal
+  ),
+  'calendar-linked inventory movements are protected by a trigger'
+);
+SELECT ok(
+  has_function_privilege('authenticated', 'public.transition_crop_statuses(uuid[],public.crop_status)', 'execute'),
+  'authenticated can bulk transition crop status through the RPC'
 );
 
 SELECT * FROM finish();

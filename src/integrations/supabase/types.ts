@@ -597,6 +597,7 @@ export type Database = {
       }
       inventory_movements: {
         Row: {
+          calendar_event_id: string | null
           created_at: string
           id: string
           item_id: string
@@ -605,6 +606,7 @@ export type Database = {
           qty: number
         }
         Insert: {
+          calendar_event_id?: string | null
           created_at?: string
           id?: string
           item_id: string
@@ -613,6 +615,7 @@ export type Database = {
           qty: number
         }
         Update: {
+          calendar_event_id?: string | null
           created_at?: string
           id?: string
           item_id?: string
@@ -626,6 +629,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
             referencedColumns: ["id"]
           },
         ]
@@ -795,6 +805,55 @@ export type Database = {
           p_qty: number
         }
         Returns: undefined
+      }
+      create_calendar_event_with_inventory: {
+        Args: {
+          p_crop_id?: string | null
+          p_description?: string | null
+          p_item_id?: string | null
+          p_qty?: number | null
+          p_starts_at: string
+          p_title: string
+        }
+        Returns: string
+      }
+      update_calendar_event_with_inventory: {
+        Args: {
+          p_crop_id?: string | null
+          p_description?: string | null
+          p_event_id: string
+          p_item_id?: string | null
+          p_qty?: number | null
+          p_starts_at: string
+          p_title: string
+        }
+        Returns: undefined
+      }
+      delete_calendar_event_with_inventory: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
+      set_calendar_event_done: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
+      confirm_crop_planting: {
+        Args: { p_crop_id: string }
+        Returns: undefined
+      }
+      transition_crop_status: {
+        Args: {
+          p_crop_id: string
+          p_status: Database["public"]["Enums"]["crop_status"]
+        }
+        Returns: undefined
+      }
+      transition_crop_statuses: {
+        Args: {
+          p_crop_ids: string[]
+          p_status: Database["public"]["Enums"]["crop_status"]
+        }
+        Returns: number
       }
       generate_automatic_alerts: { Args: never; Returns: undefined }
       create_manual_alert: { Args: { p_recipient_id: string; p_kind: Database["public"]["Enums"]["alert_kind"]; p_title: string; p_body?: string | null }; Returns: string }

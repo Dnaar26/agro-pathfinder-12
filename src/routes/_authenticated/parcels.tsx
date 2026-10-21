@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteParcelCascade, listParcels, listParcelsPage, listSoils } from "@/lib/queries";
@@ -16,6 +16,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Plus, Search, Ruler, Sprout, ExternalLink, MoreHorizontal, Edit, Trash2, User, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
+import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 
 
 export const Route = createFileRoute("/_authenticated/parcels")({
@@ -35,7 +36,11 @@ const parcelSchema = z.object({
 function ParcelsPage() {
   const [page, setPage] = useState(1);
   const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
-  const parcelsPage = useQuery({ queryKey: ["parcels", "page", page], queryFn: () => listParcelsPage({ page, pageSize: 18 }) });
+  const parcelsPage = useQuery({
+    queryKey: ["parcels", "page", page],
+    queryFn: () => listParcelsPage({ page, pageSize: 18 }),
+    placeholderData: (previous) => previous,
+  });
   const soils = useQuery({ queryKey: ["soils"], queryFn: listSoils });
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -111,14 +116,31 @@ function ParcelsPage() {
     );
   }
 
-  useEffect(() => {
-    if (!open) return;
-    requestGps((lat, lng) => {
-      const latEl = document.getElementById("latitude") as HTMLInputElement;
-      const lngEl = document.getElementById("longitude") as HTMLInputElement;
-      if (latEl && lngEl) { latEl.value = String(lat.toFixed(6)); lngEl.value = String(lng.toFixed(6)); }
-    });
-  }, [open]);
+  const showInitialLoading = parcels.isLoading && !parcels.data;
+  const showInitialError = parcels.isError && !parcels.data;
+
+  if (showInitialLoading) {
+    return (
+      <div className="space-y-6" aria-busy="true">
+        <header className="flex items-center justify-between gap-3">
+          <div className="space-y-2"><Skeleton className="h-8 w-36" /><Skeleton className="h-4 w-64" /></div>
+          <Skeleton className="h-9 w-36" />
+        </header>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4"><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"><SkeletonCard /><SkeletonCard /><SkeletonCard /></div>
+      </div>
+    );
+  }
+
+  if (showInitialError) {
+    return (
+      <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-card p-8 text-center" role="alert">
+        <p className="font-semibold">No se pudieron cargar las parcelas</p>
+        <p className="max-w-md text-sm text-muted-foreground">Comprueba tu conexión e inténtalo de nuevo.</p>
+        <Button variant="outline" onClick={() => parcels.refetch()}>Reintentar</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -184,6 +206,12 @@ function ParcelsPage() {
       </header>
 
       <ParcelSummary data={parcels.data ?? []} />
+
+      {parcelsPage.isError && (
+        <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-foreground" role="status">
+          No se pudo cargar la página solicitada. Mostrando los datos disponibles.
+        </p>
+      )}
 
       <ParcelGrid data={parcelsPage.data?.data ?? parcels.data ?? []} loading={parcels.isLoading} onEdit={(p) => { setEditingParcel(p); setEditOpen(true); }} onDelete={(id) => setDeleteConfirmId(id)} />
       {parcelsPage.data && <PaginationBar page={parcelsPage.data.page} totalPages={parcelsPage.data.totalPages} onPageChange={setPage} />}
@@ -314,7 +342,7 @@ function ParcelGrid({ data, loading, onEdit, onDelete }: { data: any[]; loading:
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
         <div className="relative flex-1">
           <Search className="size-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar parcela…" className="pl-8" />
+          <Input aria-label="Buscar parcela" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar parcela…" className="pl-8" />
         </div>
         <Select value={sort} onValueChange={(v) => setSort(v as any)}>
           <SelectTrigger className="sm:w-48"><SelectValue /></SelectTrigger>
@@ -367,7 +395,7 @@ function ParcelGrid({ data, loading, onEdit, onDelete }: { data: any[]; loading:
                 {(onEdit || onDelete) && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="absolute top-2 right-2 size-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" aria-label={`Acciones de ${p.name}`} title={`Acciones de ${p.name}`} className="absolute top-2 right-2 size-7 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100">
                         <MoreHorizontal className="size-4" />
                       </Button>
                     </DropdownMenuTrigger>

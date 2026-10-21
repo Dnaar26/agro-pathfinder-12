@@ -56,7 +56,7 @@
 @layer base {
   :root {
     color-scheme: light;
-    --radius: 0.625rem;
+    --radius: 0.5rem;
 
     /* Niebla de valle: fondo con un leve tinte verde, no blanco puro */
     --background: oklch(0.975 0.008 135);
@@ -171,7 +171,7 @@
   }
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.015em;
+    letter-spacing: 0;
     line-height: 1.15;
     text-wrap: balance;
   }
@@ -214,22 +214,10 @@
   }
   .skip-link:focus { transform: none; }
 
-  /* Motivo de marca: surcos de cultivo. Líneas inclinadas que se desvanecen. */
-  .surcos {
-    background-image: repeating-linear-gradient(
-      168deg,
-      transparent 0 17px,
-      color-mix(in oklab, var(--color-primary) 16%, transparent) 17px 18px
-    );
-    mask-image: linear-gradient(to bottom, black 20%, transparent 95%);
-  }
+  /* Motivos de marca desactivados: las superficies deben mantenerse sobrias. */
+  .surcos,
   .surcos-on-dark {
-    background-image: repeating-linear-gradient(
-      168deg,
-      transparent 0 17px,
-      color-mix(in oklab, var(--color-highlight) 22%, transparent) 17px 18px
-    );
-    mask-image: linear-gradient(to bottom, black 10%, transparent 90%);
+    pointer-events: none;
   }
 
   .tabular { font-variant-numeric: tabular-nums; }

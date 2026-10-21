@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { listAllCrops, listCatalog, listParcels } from "@/lib/queries";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { StatusBadge, CROP_STATUSES, isActive } from "@/components/ui/status-badge";
@@ -104,8 +105,7 @@ function CultivosPage() {
         catalog_id: input.catalog_id,
         planting_date: format(planting, "yyyy-MM-dd"),
         estimated_harvest_date: format(harvest, "yyyy-MM-dd"),
-        // El trigger de BD es la fuente de verdad: futuro=PLANEADO, hoy/pasado=SEMBRADO.
-        status: input.planting_date > format(new Date(), "yyyy-MM-dd") ? "PLANEADO" : "SEMBRADO",
+        // El inicio de siembra se confirma después mediante una operación explícita.
       });
       if (error) throw error;
     },
@@ -115,7 +115,10 @@ function CultivosPage() {
 
   const bulkUpdate = useMutation({
     mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
-      const { error } = await supabase.from("crops").update({ status: status as any }).in("id", ids);
+      const { error } = await supabase.rpc("transition_crop_statuses", {
+        p_crop_ids: ids,
+        p_status: status as Database["public"]["Enums"]["crop_status"],
+      });
       if (error) throw error;
     },
     onSuccess: (_, vars) => { toast.success(`${vars.ids.length} cultivos actualizados a "${vars.status}"`); qc.invalidateQueries({ queryKey: ["crops"] }); setBulkOpen(false); setSelectedIds(new Set()); },

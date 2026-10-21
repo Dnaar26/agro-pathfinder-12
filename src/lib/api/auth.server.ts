@@ -108,14 +108,14 @@ const loginPasswordSchema = z.string().min(1, "Ingresa tu contraseña").max(72);
 
 /** Server function que puede llamar el frontend para validar MX antes del registro. */
 export const validateDomainMx = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ email: emailSchema }))
+  .validator(z.object({ email: emailSchema }))
   .handler(async ({ data }) => {
     await validateEmailDomain(data.email.trim().toLowerCase());
     return { valid: true };
   });
 
 export const syncHttpOnlySession = createServerFn({ method: "POST" })
-  .inputValidator(z.object({
+  .validator(z.object({
     accessToken: z.string().min(20),
     refreshToken: z.string().min(20),
     expiresIn: z.number().int().positive().max(60 * 60 * 24).optional(),
@@ -129,7 +129,7 @@ export const syncHttpOnlySession = createServerFn({ method: "POST" })
   });
 
 export const signInWithHttpOnlyCookie = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ email: emailSchema, password: loginPasswordSchema }))
+  .validator(z.object({ email: emailSchema, password: loginPasswordSchema }))
   .handler(async ({ data }) => {
     const { setAuthCookies } = await import("./auth-cookie.server");
     const { data: auth, error } = await authClient().auth.signInWithPassword(data);
@@ -139,7 +139,7 @@ export const signInWithHttpOnlyCookie = createServerFn({ method: "POST" })
   });
 
 export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
-  .inputValidator(z.object({
+  .validator(z.object({
     email: emailSchema,
     password: passwordBaseSchema,
     firstName: firstNameSchema.optional(),
@@ -206,7 +206,7 @@ export const signUpWithHttpOnlyCookie = createServerFn({ method: "POST" })
   });
 
 export const updateProfileServerFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({
+  .validator(z.object({
     fullName: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres").max(120),
     phone: phoneSchema,
   }))
@@ -239,7 +239,7 @@ export const checkAuthUser = createServerFn({ method: "GET" }).handler(async () 
 });
 
 export const requestPasswordReset = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     z.object({
       email: emailSchema,
       redirectTo: z.string().url().optional(),

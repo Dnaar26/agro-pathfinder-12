@@ -21,6 +21,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ConnectionBadge } from "@/components/ui/connection-badge";
 import { InstallPWA } from "@/components/ui/install-pwa";
 import { Logo } from "@/components/logo";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 type NavItem = { to: string; labelKey: string; icon: LucideIcon };
 type NavGroup = { labelKey: string; items: NavItem[] };
@@ -71,7 +72,6 @@ const TAB_BAR: NavItem[] = [
 function isActive(pathname: string, to: string) {
   return pathname === to || pathname.startsWith(to + "/");
 }
-
 function CountBadge({ count, tone = "warning" }: { count: number; tone?: "warning" | "destructive" }) {
   if (count <= 0) return null;
   return (
@@ -85,7 +85,6 @@ function CountBadge({ count, tone = "warning" }: { count: number; tone?: "warnin
     </span>
   );
 }
-
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
@@ -157,6 +156,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isAdmin = userRoles.includes("admin");
   const isTecnico = userRoles.includes("tecnico");
   const groups = isAdmin ? [...NAV_GROUPS, ADMIN_GROUP] : NAV_GROUPS;
+  const currentNavItem = groups.flatMap((group) => group.items).find((item) => isActive(pathname, item.to));
+  const currentPageLabel = currentNavItem ? t(currentNavItem.labelKey) : "SIGIC";
   const roleLabel = isAdmin ? t("shell.role_admin") : isTecnico ? t("shell.role_tecnico") : t("shell.role_agricultor");
   const displayName = userProfile.data?.fullName ?? userProfile.data?.email ?? "";
   const initial = (displayName || "U").charAt(0).toUpperCase();
@@ -285,10 +286,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3 md:hidden">
             <Link to="/dashboard" aria-label="SIGIC â€” Inicio"><Logo size="xs" showText={false} /></Link>
           </div>
-          <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
-            <Leaf className="size-4 text-primary" aria-hidden="true" />
-            <span className="font-display font-semibold text-foreground">SIGIC</span>
-          </div>
+          <Breadcrumb className="hidden md:block">
+            <BreadcrumbList className="text-xs">
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/dashboard" className="inline-flex items-center gap-2">
+                    <Leaf className="size-4 text-primary" aria-hidden="true" />
+                    <span className="font-display font-semibold text-foreground">SIGIC</span>
+                  </Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem><BreadcrumbPage>{currentPageLabel}</BreadcrumbPage></BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
           <div className="flex items-center gap-2">
             <ConnectionBadge />
             <button
@@ -314,7 +325,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main id="contenido" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 outline-none md:px-8 md:py-10 md:pb-10">
-          <ErrorBoundary message="Ocurrió un error al cargar esta sección">{children}</ErrorBoundary>
+          <ErrorBoundary message="OcurriÃ³ un error al cargar esta secciÃ³n">{children}</ErrorBoundary>
         </main>
       </div>
 

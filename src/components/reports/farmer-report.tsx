@@ -89,13 +89,15 @@ export function FarmerReport() {
   const profile = useQuery({
     queryKey: ["farmer-report-profile"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: u, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
       if (!u.user) return null;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("full_name, phone")
         .eq("id", u.user.id)
         .maybeSingle();
+      if (error) throw error;
       return {
         fullName: data?.full_name || u.user.user_metadata?.full_name || "Agricultor",
         phone: data?.phone || u.user.user_metadata?.phone || "—",
@@ -138,20 +140,27 @@ export function FarmerReport() {
     queryKey: ["farmer-report-financials"],
     queryFn: async () => {
       const sb = supabase as any;
-      const [costsRes, harvestsRes] = await Promise.all([
-        sb
-          .from("crop_costs")
-          .select("id, total, kind, description, created_at, crops(crop_catalog(name))")
-          .order("created_at", { ascending: false }),
-        sb
-          .from("crop_harvests")
-          .select("id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops(crop_catalog(name))")
-          .order("performed_at", { ascending: false }),
-      ]);
-      return {
-        costs: costsRes.data ?? [],
-        harvests: harvestsRes.data ?? [],
+      const loadAll = async (buildQuery: () => any) => {
+        const rows: any[] = [];
+        for (let start = 0; ; start += 1000) {
+          const { data, error } = await buildQuery().range(start, start + 999);
+          if (error) throw error;
+          const page = data ?? [];
+          rows.push(...page);
+          if (page.length < 1000) return rows;
+        }
       };
+      const [costs, harvests] = await Promise.all([
+        loadAll(() => sb.from("crop_costs")
+          .select("id, total, kind, description, created_at, crops(crop_catalog(name))")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })),
+        loadAll(() => sb.from("crop_harvests")
+          .select("id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops(crop_catalog(name))")
+          .order("performed_at", { ascending: false })
+          .order("id", { ascending: true })),
+      ]);
+      return { costs, harvests };
     },
   });
 
@@ -173,13 +182,15 @@ export function FarmerReport() {
   const inventory = useQuery({
     queryKey: ["farmer-inventory-overview"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: u, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
       if (!u.user) return { items: [], lowStock: [] };
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("inventory_items")
         .select("*")
         .eq("owner_id", u.user.id)
         .order("name");
+      if (error) throw error;
       const rawItems = (data ?? []) as any[];
       const items = rawItems.map((i) => ({
         ...i,
@@ -221,23 +232,26 @@ export function FarmerReport() {
 
   // Datos para gráfico mensual (Ingresos vs Costos)
   const monthlyChartData = useMemo(() => {
-    const map: Record<string, { month: string; ingresos: number; costos: number }> = {};
+    const now = new Date();
+    const periods = Array.from({ length: 12 }, (_, index) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - 11 + index, 1);
+      return { key: format(date, "yyyy-MM"), month: format(date, "MMM yy", { locale: es }), ingresos: 0, costos: 0 };
+    });
+    const byMonth = new Map(periods.map((period) => [period.key, period]));
 
     (financials.data?.harvests ?? []).forEach((h: any) => {
       if (!h.performed_at) return;
-      const m = format(new Date(h.performed_at), "yyyy-MM");
-      if (!map[m]) map[m] = { month: m, ingresos: 0, costos: 0 };
-      map[m].ingresos += Number(h.total_revenue || 0);
+      const period = byMonth.get(format(new Date(h.performed_at), "yyyy-MM"));
+      if (period) period.ingresos += Number(h.total_revenue || 0);
     });
 
     (financials.data?.costs ?? []).forEach((c: any) => {
       if (!c.created_at) return;
-      const m = format(new Date(c.created_at), "yyyy-MM");
-      if (!map[m]) map[m] = { month: m, ingresos: 0, costos: 0 };
-      map[m].costos += Number(c.total || 0);
+      const period = byMonth.get(format(new Date(c.created_at), "yyyy-MM"));
+      if (period) period.costos += Number(c.total || 0);
     });
 
-    return Object.values(map).sort((a, b) => a.month.localeCompare(b.month));
+    return periods.map(({ month, ingresos, costos }) => ({ month, ingresos, costos }));
   }, [financials.data]);
 
   // Diagnóstico con IA Agrónoma
@@ -343,6 +357,16 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
         subtitle: `Generado el ${dateStr} • SIGIC Agro-Pathfinder`,
         author: farmerName,
         orientation: "landscape",
+        summary: [
+          { label: "Parcelas", value: String(parcels.data?.length ?? 0) },
+          { label: "Cultivos activos", value: String(activeCropsCount) },
+          { label: "Ingresos", value: formatCOP(totalRevenue) },
+          { label: "Margen", value: formatCOP(netMargin) },
+        ],
+        charts: [
+          { title: "Ingresos mensuales · últimos 12 meses", data: monthlyChartData.map((row) => ({ label: row.month, value: row.ingresos })), maxItems: 12, valueFormatter: formatCOP },
+          { title: "Costos mensuales · últimos 12 meses", data: monthlyChartData.map((row) => ({ label: row.month, value: row.costos })), maxItems: 12, valueFormatter: formatCOP, color: [180, 83, 9] },
+        ],
         sections: [
           {
             title: "Indicadores Generales de la Finca",
@@ -463,7 +487,31 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
     }
   };
 
-  const loading = parcels.isLoading || activities.isLoading || financials.isLoading;
+  const reportQueries = [profile, parcels, activities, financials, alerts, inventory];
+  const loading = reportQueries.some((query) => query.isLoading);
+  const reportError = reportQueries.some((query) => query.isError);
+
+  if (reportError) {
+    return (
+      <Card role="alert" className="p-6 border-destructive/30">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="size-5 text-destructive mt-0.5" />
+          <div className="flex-1">
+            <h2 className="text-sm font-semibold">No se pudo cargar el reporte completo</h2>
+            <p className="mt-1 text-sm text-muted-foreground">No exportamos cifras parciales. Revisa tu conexión e inténtalo de nuevo.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => void Promise.all(reportQueries.map((query) => query.refetch()))}
+            >
+              <RefreshCw className="size-3.5 mr-2" /> Reintentar carga
+            </Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -709,13 +757,13 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
               <div>
                 <h3 className="text-sm font-semibold flex items-center gap-2">
                   <TrendingUp className="size-4 text-primary" />
-                  Evolución Mensual: Ingresos vs Costos
+                  Ingresos y costos · últimos 12 meses
                 </h3>
-                <p className="text-xs text-muted-foreground">Valores expresados en pesos colombianos (COP)</p>
+                <p className="text-xs text-muted-foreground">Valores mensuales en pesos colombianos (COP)</p>
               </div>
             </div>
 
-            {monthlyChartData.length === 0 ? (
+            {!monthlyChartData.some((row) => row.ingresos > 0 || row.costos > 0) ? (
               <div className="p-8 text-center text-muted-foreground text-xs border border-dashed rounded-lg bg-muted/20">
                 Aún no hay suficientes registros mensuales de cosechas o costos para graficar.
               </div>

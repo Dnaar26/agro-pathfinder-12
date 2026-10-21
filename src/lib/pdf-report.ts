@@ -10,11 +10,21 @@ export interface PdfSection {
   columnStyles?: Record<number, { cellWidth?: number | "auto" }>;
 }
 
+export interface PdfBarChart {
+  title: string;
+  data: { label: string; value: number }[];
+  maxItems?: number;
+  valueFormatter?: (value: number) => string;
+  color?: [number, number, number];
+}
+
 export interface PdfReportOptions {
   template: PdfReportTemplate;
   title: string;
   subtitle?: string;
   filters?: Record<string, string>;
+  summary?: { label: string; value: string }[];
+  charts?: PdfBarChart[];
   sections: PdfSection[];
   author?: string;
   orientation?: "portrait" | "landscape";
@@ -76,14 +86,111 @@ function drawHeader(doc: jsPDF, opts: PdfReportOptions, logoDataUrl: string | nu
 
 function drawFilters(doc: jsPDF, opts: PdfReportOptions, startY: number): number {
   if (!opts.filters || Object.keys(opts.filters).length === 0) return startY;
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setTextColor(...MUTED);
   const line = Object.entries(opts.filters)
     .map(([k, v]) => `${k}: ${v || "—"}`)
     .join("   •   ");
-  doc.text(line, 14, startY);
+  const lines = doc.splitTextToSize(line, doc.internal.pageSize.getWidth() - 28);
+  doc.text(lines, 14, startY);
   doc.setTextColor(0, 0, 0);
-  return startY + 6;
+  return startY + lines.length * 4 + 2;
+}
+
+function addContentPage(doc: jsPDF, opts: PdfReportOptions, logo: string | null) {
+  doc.addPage();
+  drawHeader(doc, opts, logo);
+  return 40;
+}
+
+function drawSummary(doc: jsPDF, opts: PdfReportOptions, logo: string | null, startY: number): number {
+  const metrics = opts.summary ?? [];
+  if (metrics.length === 0) return startY;
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const columns = Math.min(4, metrics.length);
+  const gap = 3;
+  const cardWidth = (pageWidth - 28 - gap * (columns - 1)) / columns;
+  const cardHeight = 19;
+  let y = startY;
+
+  for (let index = 0; index < metrics.length; index += columns) {
+    if (y + cardHeight > pageHeight - 18) y = addContentPage(doc, opts, logo);
+    const row = metrics.slice(index, index + columns);
+    row.forEach((metric, column) => {
+      const x = 14 + column * (cardWidth + gap);
+      doc.setFillColor(245, 248, 244);
+      doc.setDrawColor(218, 225, 218);
+      doc.roundedRect(x, y, cardWidth, cardHeight, 1.5, 1.5, "FD");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(...MUTED);
+      doc.text(doc.splitTextToSize(metric.label, cardWidth - 6).slice(0, 1), x + 3, y + 6);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(35, 45, 35);
+      doc.text(doc.splitTextToSize(metric.value, cardWidth - 6).slice(0, 1), x + 3, y + 14);
+    });
+    y += cardHeight + 3;
+  }
+  doc.setTextColor(0, 0, 0);
+  return y + 1;
+}
+
+function drawBarCharts(doc: jsPDF, opts: PdfReportOptions, logo: string | null, startY: number): number {
+  const charts = opts.charts ?? [];
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const left = 14;
+  const width = pageWidth - 28;
+  let y = startY;
+
+  for (const chart of charts) {
+    const data = chart.data.filter((item) => Number.isFinite(item.value)).slice(0, chart.maxItems ?? 8);
+    const height = 13 + Math.max(data.length, 1) * 8;
+    if (y + height > pageHeight - 18) y = addContentPage(doc, opts, logo);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(35, 45, 35);
+    doc.text(chart.title, left, y + 4);
+    y += 8;
+
+    if (data.length === 0) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...MUTED);
+      doc.text("Sin datos para el periodo.", left, y + 3);
+      y += 9;
+      continue;
+    }
+
+    const labelWidth = Math.min(68, width * 0.32);
+    const valueWidth = 34;
+    const barX = left + labelWidth + 3;
+    const barWidth = width - labelWidth - valueWidth - 6;
+    const maxValue = Math.max(...data.map((item) => Math.max(0, item.value)), 1);
+    data.forEach((item) => {
+      const labelLines = doc.splitTextToSize(item.label, labelWidth - 2).slice(0, 2);
+      const rowHeight = Math.max(7, labelLines.length * 3.5);
+      const baseline = y + Math.min(rowHeight - 1, 4.5);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(55, 65, 55);
+      doc.text(labelLines, left, y + 3);
+      doc.setFillColor(239, 243, 239);
+      doc.roundedRect(barX, y + 1, barWidth, 4, 1, 1, "F");
+      doc.setFillColor(...(chart.color ?? BRAND));
+      const fillWidth = Math.max(0, Math.min(barWidth, (item.value / maxValue) * barWidth));
+      if (fillWidth > 0) doc.roundedRect(barX, y + 1, fillWidth, 4, 1, 1, "F");
+      doc.setTextColor(...MUTED);
+      doc.text(chart.valueFormatter?.(item.value) ?? item.value.toLocaleString("es-CO"), left + width, baseline, { align: "right" });
+      y += rowHeight;
+    });
+    y += 4;
+  }
+  doc.setTextColor(0, 0, 0);
+  return y;
 }
 
 function drawFooter(doc: jsPDF, opts: PdfReportOptions) {
@@ -116,6 +223,8 @@ export async function generatePdfReport(opts: PdfReportOptions): Promise<jsPDF> 
   drawHeader(doc, opts, logo);
 
   let y = drawFilters(doc, opts, opts.subtitle ? 44 : 40);
+  y = drawSummary(doc, opts, logo, y);
+  y = drawBarCharts(doc, opts, logo, y);
 
   for (const section of opts.sections) {
     if (section.title) {

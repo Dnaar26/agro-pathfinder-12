@@ -9,11 +9,12 @@ import { Combobox } from "@/components/ui/combobox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Download, FileBarChart, FileText, Filter, FileSpreadsheet, TrendingUp, TrendingDown, AlertTriangle, DollarSign, BarChart3, CalendarClock, Plus, Trash2, Clock, Mail, CheckCircle2, XCircle, Layers, Save } from "lucide-react";
 import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { generatePdfReport, type PdfReportTemplate } from "@/lib/pdf-report";
 import { supabase } from "@/integrations/supabase/client";
 import { exportParcelsToExcel } from "@/lib/services/excel-export";
 import { useTranslation } from "react-i18next";
-import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar } from "recharts";
+import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar, Legend } from "recharts";
 import { Card } from "@/components/ui/card";
 import { AiReportInsights } from "@/components/reports/ai-insights";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -30,12 +31,13 @@ export const Route = createFileRoute("/_authenticated/reports")({
 });
 
 function toCSV(rows: Record<string, unknown>[]): string {
-  if (rows.length === 0) return "";
-  const headers = Object.keys(rows[0]);
+  const headers = Object.keys(rows[0] ?? { fecha: "", tipo: "", cultivo: "", parcela: "", notas: "" });
   const esc = (v: unknown) => {
     if (v == null) return "";
-    const s = String(v).replace(/"/g, '""');
-    return /[",\n]/.test(s) ? `"${s}"` : s;
+    let value = String(v);
+    if (typeof v === "string" && /^[\t\r ]*[=+@-]/.test(value)) value = `'${value}`;
+    value = value.replace(/"/g, '""');
+    return /[",\r\n]/.test(value) ? `"${value}"` : value;
   };
   return "\uFEFF" + [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join("\n");
 }
@@ -45,12 +47,16 @@ function download(filename: string, content: BlobPart, mime: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 const ALL = "__all__";
 const REPORT_FILTERS_KEY = "sigic:reports:filters";
 const SAVED_REPORT_FILTERS_KEY = "sigic:reports:saved-filters";
+const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+const formatCOP = (value: number) => new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
+const formatCompactCOP = (value: number) => value >= 1000000 ? `$${(value / 1000000).toFixed(1)} M` : value >= 1000 ? `$${(value / 1000).toFixed(0)} mil` : `$${value.toFixed(0)}`;
+const formatMonthLabel = (month: string) => format(new Date(`${month}-01T12:00:00`), "MMM yy", { locale: es });
 
 type ReportFilterState = {
   template?: PdfReportTemplate;
@@ -329,7 +335,9 @@ function ReportsPage() {
       year,
       previousYear: year - 1,
       costs: costs.filter((row: any) => inYear(row.created_at, year)),
+      priorCosts: costs.filter((row: any) => inYear(row.created_at, year - 1)),
       harvests: harvests.filter((row: any) => inYear(row.performed_at, year)),
+      priorHarvests: harvests.filter((row: any) => inYear(row.performed_at, year - 1)),
       currentRevenue: sum(harvests, "total_revenue", "performed_at", year),
       previousRevenue: sum(harvests, "total_revenue", "performed_at", year - 1),
       currentCosts: sum(costs, "total", "created_at", year),
@@ -357,14 +365,21 @@ function ReportsPage() {
     return map;
   }, [financialComparison.costs]);
 
-  const revenueByMonth = useMemo(() => {
-    const map: Record<string, number> = {};
-    financialComparison.harvests.forEach((h: any) => {
-      const m = format(new Date(h.performed_at), "yyyy-MM");
-      map[m] = (map[m] ?? 0) + Number(h.total_revenue || 0);
-    });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([month, ingresos]) => ({ month, ingresos }));
-  }, [financialComparison.harvests]);
+  const financialByMonth = useMemo(() => {
+    const rows = MONTH_LABELS.map((month) => ({ month, revenueCurrent: 0, revenuePrior: 0, costsCurrent: 0, costsPrior: 0 }));
+    const add = (items: any[], dateKey: "created_at" | "performed_at", valueKey: "total" | "total_revenue", target: "revenueCurrent" | "revenuePrior" | "costsCurrent" | "costsPrior") => {
+      items.forEach((item) => {
+        const date = item[dateKey];
+        if (!date) return;
+        rows[new Date(date).getMonth()][target] += Number(item[valueKey] || 0);
+      });
+    };
+    add(financialComparison.harvests, "performed_at", "total_revenue", "revenueCurrent");
+    add(financialComparison.priorHarvests, "performed_at", "total_revenue", "revenuePrior");
+    add(financialComparison.costs, "created_at", "total", "costsCurrent");
+    add(financialComparison.priorCosts, "created_at", "total", "costsPrior");
+    return rows;
+  }, [financialComparison]);
 
   const pendingAlerts = useMemo(() => {
     return (alerts.data ?? []).filter((a: any) => a.status === "PENDIENTE").length;
@@ -402,6 +417,16 @@ function ReportsPage() {
         title: "Bitácora de Actividades Agrícolas",
         subtitle: `${totalAct} registros encontrados`,
         filters,
+        summary: [
+          { label: "Actividades", value: totalAct.toLocaleString("es-CO") },
+          { label: "Parcelas incluidas", value: filteredParcels.length.toLocaleString("es-CO") },
+          { label: `Ingresos ${chartYear}`, value: formatCOP(totalRevenue) },
+          { label: `Costos ${chartYear}`, value: formatCOP(totalCost) },
+        ],
+        charts: [{
+          title: "Actividades por tipo",
+          data: Object.entries(byKind).map(([label, value]) => ({ label, value })),
+        }],
         sections: [
           {
             title: "Detalle de actividades",
@@ -422,6 +447,18 @@ function ReportsPage() {
         title: "Inventario de Parcelas",
         subtitle: `${filteredParcels.length} parcelas`,
         filters: { Parcela: filters.Parcela },
+        summary: [
+          { label: "Parcelas", value: filteredParcels.length.toLocaleString("es-CO") },
+          { label: "Área total", value: `${(filteredParcels.reduce((sum: number, parcel: any) => sum + Number(parcel.area_m2 || 0), 0) / 10000).toFixed(2)} ha` },
+        ],
+        charts: [{
+          title: "Parcelas por tipo de suelo",
+          data: Object.entries(filteredParcels.reduce((soilCounts: Record<string, number>, parcel: any) => {
+            const soil = parcel.soil_types?.name ?? "Sin especificar";
+            soilCounts[soil] = (soilCounts[soil] ?? 0) + 1;
+            return soilCounts;
+          }, {})).map(([label, value]) => ({ label, value })),
+        }],
         orientation: "portrait",
         sections: [
           {
@@ -440,6 +477,26 @@ function ReportsPage() {
         title: "Resumen Ejecutivo",
         subtitle: "Indicadores generales del periodo",
         filters,
+        summary: [
+          { label: "Actividades", value: totalAct.toLocaleString("es-CO") },
+          { label: "Alertas pendientes", value: pendingAlerts.toLocaleString("es-CO") },
+          { label: `Ingresos ${chartYear}`, value: formatCOP(totalRevenue) },
+          { label: `Margen ${chartYear}`, value: formatCOP(totalRevenue - totalCost) },
+        ],
+        charts: [
+          {
+            title: "Ingresos mensuales",
+            data: financialByMonth.filter((row) => row.revenueCurrent > 0).map((row) => ({ label: row.month, value: row.revenueCurrent })),
+            maxItems: 12,
+            valueFormatter: formatCOP,
+          },
+          {
+            title: "Costos por tipo",
+            data: Object.entries(costsByKind).map(([label, value]) => ({ label, value })),
+            valueFormatter: formatCOP,
+            color: [180, 83, 9],
+          },
+        ],
         orientation: "portrait",
         sections: [
           {
@@ -469,7 +526,10 @@ function ReportsPage() {
           {
             title: "Cosechas recientes",
             head: ["Cultivo", "Cantidad", "Unit. ($)", "Total ($)", "Fecha"],
-            body: (harvestsQuery.data ?? []).slice(0, 20).map((h: any) => [
+            body: [...(harvestsQuery.data ?? [])]
+              .filter((h: any) => h.performed_at && new Date(h.performed_at).getFullYear() === financialComparison.year)
+              .sort((a: any, b: any) => new Date(b.performed_at).getTime() - new Date(a.performed_at).getTime())
+              .slice(0, 20).map((h: any) => [
               h.crops?.crop_catalog?.name ?? "—",
               `${h.harvested_qty} ${h.unit ?? ""}`,
               `$ ${Number(h.sale_price || 0).toFixed(2)}`,
@@ -503,8 +563,8 @@ function ReportsPage() {
     );
   }
 
-  const loading = acts.isLoading || parcels.isLoading || catalog.isLoading || costsQuery.isLoading || harvestsQuery.isLoading;
-  const error = acts.isError || parcels.isError || catalog.isError || costsQuery.isError || harvestsQuery.isError;
+  const loading = acts.isLoading || parcels.isLoading || catalog.isLoading || alerts.isLoading || costsQuery.isLoading || harvestsQuery.isLoading;
+  const error = acts.isError || parcels.isError || catalog.isError || alerts.isError || costsQuery.isError || harvestsQuery.isError;
 
   if (loading) {
     return (
@@ -525,7 +585,7 @@ function ReportsPage() {
           <AlertTriangle className="size-8 text-destructive mx-auto mb-2" />
           <p className="text-destructive font-medium">Error al cargar datos</p>
           <p className="text-sm text-muted-foreground mt-1">Reintentá más tarde o contactá al administrador.</p>
-          <Button variant="outline" className="mt-4" onClick={() => { acts.refetch(); parcels.refetch(); catalog.refetch(); costsQuery.refetch(); harvestsQuery.refetch(); }}>
+          <Button variant="outline" className="mt-4" onClick={() => { acts.refetch(); parcels.refetch(); catalog.refetch(); alerts.refetch(); costsQuery.refetch(); harvestsQuery.refetch(); }}>
             Reintentar
           </Button>
         </Card>
@@ -663,8 +723,8 @@ function ReportsPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="p-5 rounded-xl border border-border bg-card">
-          <p className="text-sm text-muted-foreground">Parcelas</p>
-          <p className="mt-2 text-3xl font-bold">{parcels.data?.length ?? 0}</p>
+          <p className="text-sm text-muted-foreground">Parcelas incluidas</p>
+          <p className="mt-2 text-3xl font-bold">{filteredParcels.length}</p>
         </div>
         <div className="p-5 rounded-xl border border-border bg-card">
           <p className="text-sm text-muted-foreground">Actividades filtradas</p>
@@ -681,25 +741,51 @@ function ReportsPage() {
           <p className="text-sm text-muted-foreground">Margen bruto</p>
           <p className={cn("mt-2 text-3xl font-bold flex items-center gap-2", totalRevenue - totalCost < 0 ? "text-red-600" : "text-green-600")}>
             {totalRevenue - totalCost < 0 ? <TrendingDown className="size-5" /> : <TrendingUp className="size-5" />}
-            $ {(totalRevenue - totalCost).toFixed(0)}
+            {formatCOP(totalRevenue - totalCost)}
           </p>
         </div>
       </div>
 
-      {revenueByMonth.length > 0 && (
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <section className="p-5 rounded-xl border border-border bg-card">
-          <h2 className="text-sm font-semibold flex items-center gap-2 mb-4"><TrendingUp className="size-4 text-primary" /> Ingresos por mes</h2>
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={revenueByMonth}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="month" className="text-xs" tick={{ fontSize: 11 }} />
-              <YAxis className="text-xs" tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
-              <Tooltip formatter={(v: number) => [`$ ${v.toFixed(2)}`, "Ingresos"]} />
-              <Line type="monotone" dataKey="ingresos" stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold flex items-center gap-2"><TrendingUp className="size-4 text-primary" /> Ingresos mensuales</h2>
+            <p className="text-xs text-muted-foreground">{financialComparison.previousYear} frente a {financialComparison.year} · COP</p>
+          </div>
+          {financialByMonth.some((row) => row.revenueCurrent > 0 || row.revenuePrior > 0) ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={financialByMonth} margin={{ left: 8, right: 12, top: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCompactCOP} width={58} />
+                <Tooltip formatter={(value: number, name: string) => [formatCOP(value), name]} />
+                <Legend />
+                <Line type="monotone" dataKey="revenuePrior" name={`Ingresos ${financialComparison.previousYear}`} stroke="#64748b" strokeDasharray="5 4" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="revenueCurrent" name={`Ingresos ${financialComparison.year}`} stroke="#15803d" strokeWidth={2.5} dot={{ r: 2 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : <p className="py-10 text-center text-sm text-muted-foreground">Sin ingresos registrados en estos periodos.</p>}
         </section>
-      )}
+        <section className="p-5 rounded-xl border border-border bg-card">
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold flex items-center gap-2"><DollarSign className="size-4 text-primary" /> Costos mensuales</h2>
+            <p className="text-xs text-muted-foreground">{financialComparison.previousYear} frente a {financialComparison.year} · COP</p>
+          </div>
+          {financialByMonth.some((row) => row.costsCurrent > 0 || row.costsPrior > 0) ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={financialByMonth} margin={{ left: 8, right: 12, top: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCompactCOP} width={58} />
+                <Tooltip formatter={(value: number, name: string) => [formatCOP(value), name]} />
+                <Legend />
+                <Line type="monotone" dataKey="costsPrior" name={`Costos ${financialComparison.previousYear}`} stroke="#b45309" strokeDasharray="5 4" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="costsCurrent" name={`Costos ${financialComparison.year}`} stroke="#c2410c" strokeWidth={2.5} dot={{ r: 2 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : <p className="py-10 text-center text-sm text-muted-foreground">Sin costos registrados en estos periodos.</p>}
+        </section>
+      </div>
 
       {activityTrend.length > 1 && (
         <section className="p-5 rounded-xl border border-border bg-card">
@@ -707,9 +793,9 @@ function ReportsPage() {
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={activityTrend}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="month" className="text-xs" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="month" className="text-xs" tick={{ fontSize: 11 }} tickFormatter={formatMonthLabel} />
               <YAxis className="text-xs" tick={{ fontSize: 11 }} />
-              <Tooltip />
+              <Tooltip labelFormatter={(month: string) => formatMonthLabel(month)} />
               <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -797,14 +883,14 @@ function ReportsPage() {
       {costsQuery.data && harvestsQuery.data && (
         <section className="p-5 rounded-xl border border-border bg-card">
           <h2 className="text-sm font-semibold flex items-center gap-2 mb-3"><BarChart3 className="size-4 text-primary" /> Comparativa anual: {financialComparison.previousYear} vs. {financialComparison.year}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
             <div>
               <p className="text-xs text-muted-foreground">Ingresos {financialComparison.previousYear}</p>
-              <p className="text-lg font-bold font-mono">$ {financialComparison.previousRevenue.toFixed(0)}</p>
+              <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.previousRevenue)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Ingresos {financialComparison.year}</p>
-              <p className="text-lg font-bold font-mono">$ {financialComparison.currentRevenue.toFixed(0)}</p>
+              <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.currentRevenue)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Variación ingresos</p>
@@ -812,6 +898,14 @@ function ReportsPage() {
                 {financialComparison.currentRevenue >= financialComparison.previousRevenue ? <TrendingUp className="size-4" /> : <TrendingDown className="size-4" />}
                 {financialComparison.previousRevenue > 0 ? `${(((financialComparison.currentRevenue - financialComparison.previousRevenue) / financialComparison.previousRevenue) * 100).toFixed(1)}%` : financialComparison.currentRevenue > 0 ? "Nuevo" : "0%"}
               </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Costos {financialComparison.previousYear}</p>
+              <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.previousCosts)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Costos {financialComparison.year}</p>
+              <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.currentCosts)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Variación costos</p>
@@ -871,6 +965,11 @@ function ReportsPage() {
         {schedReports.isLoading ? (
           <div className="space-y-2">
             <SkeletonCard /><SkeletonCard />
+          </div>
+        ) : schedReports.isError ? (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm">
+            <span className="text-destructive">No se pudieron cargar las programaciones.</span>
+            <Button variant="outline" size="sm" onClick={() => void schedReports.refetch()}>Reintentar</Button>
           </div>
         ) : (schedReports.data ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">No hay reportes programados todavía.</p>

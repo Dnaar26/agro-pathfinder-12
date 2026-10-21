@@ -31,6 +31,7 @@ import {
   Loader2,
   Wheat,
 } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const formatCOP = (n: number) =>
   "$ " + n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -41,6 +42,37 @@ const severityColors: Record<string, string> = {
   ALTA: "bg-orange-500/15 text-orange-700 border-orange-500/30",
   CRITICA: "bg-red-500/15 text-red-700 border-red-500/30 font-bold",
 };
+
+type SummaryChartPoint = { label: string; value: number };
+
+function SummaryBarChart({ title, data, loading, formatValue = (value) => value.toLocaleString("es-CO"), color = "#15803d" }: {
+  title: string;
+  data: SummaryChartPoint[];
+  loading: boolean;
+  formatValue?: (value: number) => string;
+  color?: string;
+}) {
+  return (
+    <Card className="p-4 border-border">
+      <h3 className="text-sm font-semibold mb-3">{title}</h3>
+      {loading ? (
+        <div className="h-48 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="size-4 animate-spin mr-2" />Cargando resumen...</div>
+      ) : data.length === 0 ? (
+        <p className="h-48 flex items-center justify-center text-sm text-muted-foreground">Aún no hay datos para graficar.</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={Math.max(210, data.length * 32)}>
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-muted" />
+            <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : String(value)} />
+            <YAxis type="category" dataKey="label" width={112} tick={{ fontSize: 10 }} interval={0} />
+            <Tooltip formatter={(value: number) => [formatValue(value), title]} />
+            <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]} maxBarSize={22} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </Card>
+  );
+}
 
 export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" }) {
   const [activeTab, setActiveTab] = useState(userRole === "tecnico" ? "plagas-zonales" : "ranking");
@@ -91,7 +123,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
       const farmer = h.crops?.parcels?.profiles?.full_name || "Productor";
       const parcel = h.crops?.parcels?.name || "—";
       const area = Number(h.crops?.parcels?.area_m2 || 0);
-      const key = `${farmer}-${crop}-${parcel}`;
+      const key = String(h.crops?.id ?? `${farmer}\u0000${crop}\u0000${parcel}`);
 
       if (!map[key]) {
         map[key] = {
@@ -113,11 +145,20 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
       const crop = c.crops?.crop_catalog?.name || "Cultivo";
       const farmer = c.crops?.parcels?.profiles?.full_name || "Productor";
       const parcel = c.crops?.parcels?.name || "—";
-      const key = `${farmer}-${crop}-${parcel}`;
-
-      if (map[key]) {
-        map[key].totalCost += Number(c.total || 0);
+      const key = String(c.crops?.id ?? `${farmer}\u0000${crop}\u0000${parcel}`);
+      if (!map[key]) {
+        map[key] = {
+          cropName: crop,
+          farmerName: farmer,
+          parcelName: parcel,
+          areaM2: Number(c.crops?.parcels?.area_m2 || 0),
+          harvestedQty: 0,
+          totalRevenue: 0,
+          totalCost: 0,
+          unit: "KG",
+        };
       }
+      map[key].totalCost += Number(c.total || 0);
     }
 
     return Object.values(map).sort((a, b) => b.totalRevenue - a.totalRevenue);
@@ -141,6 +182,32 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
     return { items, totalVal, byCategory };
   }, [inventoryQuery.data]);
 
+  const pestSeverityChart = useMemo(() => {
+    const severityOrder = ["CRITICA", "ALTA", "MEDIA", "BAJA"];
+    const counts = new Map<string, number>();
+    for (const pest of pestsQuery.data ?? []) counts.set(pest.severity || "SIN CLASIFICAR", (counts.get(pest.severity || "SIN CLASIFICAR") ?? 0) + 1);
+    return [...severityOrder, ...[...counts.keys()].filter((severity) => !severityOrder.includes(severity))]
+      .map((severity) => ({ label: severity === "CRITICA" ? "Crítica" : severity === "SIN CLASIFICAR" ? "Sin clasificar" : `${severity[0]}${severity.slice(1).toLowerCase()}`, value: counts.get(severity) ?? 0 }))
+      .filter((point) => point.value > 0);
+  }, [pestsQuery.data]);
+
+  const rankingChart = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const row of rankingData) totals.set(row.farmerName, (totals.get(row.farmerName) ?? 0) + row.totalRevenue);
+    return [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+      .map(([label, value]) => ({ label: label.length > 20 ? `${label.slice(0, 19)}…` : label, value }));
+  }, [rankingData]);
+
+  const inventoryChart = useMemo(() => Object.entries(inventoryData.byCategory)
+    .sort((a, b) => b[1].value - a[1].value).slice(0, 8)
+    .map(([label, values]) => ({ label, value: values.value })), [inventoryData.byCategory]);
+
+  const visitChart = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const visit of visitsQuery.data ?? []) counts.set(visit.kind || "Sin clasificar", (counts.get(visit.kind || "Sin clasificar") ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }));
+  }, [visitsQuery.data]);
+
   // ── Exportadores por Pestaña ─────────────────────────────────────────────
 
   const handleExportPDF = async () => {
@@ -155,6 +222,12 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           title: "Monitoreo Fitosanitario y Epidemiológico Zonal",
           subtitle: `Generado el ${dateStr} • SIGIC Staff Report`,
           orientation: "landscape",
+          summary: [
+            { label: "Incidencias", value: String(pestsQuery.data?.length ?? 0) },
+            { label: "Severidad crítica/alta", value: String((pestSeverityChart.find((row) => row.label === "Crítica")?.value ?? 0) + (pestSeverityChart.find((row) => row.label === "Alta")?.value ?? 0)) },
+            { label: "Parcelas afectadas", value: String(new Set((pestsQuery.data ?? []).map((p: any) => p.crops?.parcels?.id).filter(Boolean)).size) },
+          ],
+          charts: [{ title: "Incidencias por severidad", data: pestSeverityChart, color: [180, 83, 9] }],
           sections: [
             {
               title: "Incidencias Reportadas por Lote y Productor",
@@ -178,6 +251,13 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           title: "Ranking de Productividad y Rentabilidad por Finca",
           subtitle: `Generado el ${dateStr} • SIGIC Staff Report`,
           orientation: "landscape",
+          summary: [
+            { label: "Productores", value: String(new Set(rankingData.map((row) => row.farmerName)).size) },
+            { label: "Ingresos", value: formatCOP(rankingData.reduce((sum, row) => sum + row.totalRevenue, 0)) },
+            { label: "Costos", value: formatCOP(rankingData.reduce((sum, row) => sum + row.totalCost, 0)) },
+            { label: "Margen", value: formatCOP(rankingData.reduce((sum, row) => sum + row.totalRevenue - row.totalCost, 0)) },
+          ],
+          charts: [{ title: "Ingresos por productor · Top 8", data: rankingChart, valueFormatter: formatCOP }],
           sections: [
             {
               title: "Productores y Rendimiento de Cultivos",
@@ -202,6 +282,12 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           title: "Inventario Consolidado de Insumos de la Plataforma",
           subtitle: `Generado el ${dateStr} • Valor Total: ${formatCOP(inventoryData.totalVal)}`,
           orientation: "landscape",
+          summary: [
+            { label: "Insumos registrados", value: String(inventoryData.items.length) },
+            { label: "Categorías", value: String(Object.keys(inventoryData.byCategory).length) },
+            { label: "Valor total", value: formatCOP(inventoryData.totalVal) },
+          ],
+          charts: [{ title: "Valor por categoría · Top 8", data: inventoryChart, valueFormatter: formatCOP, color: [3, 105, 161] }],
           sections: [
             {
               title: "Listado Agregado de Insumos",
@@ -225,6 +311,12 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           title: "Bitácora de Asistencias Técnicas y Monitoreos en Campo",
           subtitle: `Generado el ${dateStr} • SIGIC Staff Report`,
           orientation: "landscape",
+          summary: [
+            { label: "Asistencias", value: String(visitsQuery.data?.length ?? 0) },
+            { label: "Técnicos", value: String(new Set((visitsQuery.data ?? []).map((v: any) => v.profiles?.full_name).filter(Boolean)).size) },
+            { label: "Productores atendidos", value: String(new Set((visitsQuery.data ?? []).map((v: any) => v.crops?.parcels?.profiles?.full_name).filter(Boolean)).size) },
+          ],
+          charts: [{ title: "Asistencias por tipo de labor", data: visitChart, color: [3, 105, 161] }],
           sections: [
             {
               title: "Visitas e Intervenciones Registradas",
@@ -394,6 +486,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
 
         {/* Tab 1: Sanidad Zonal */}
         <TabsContent value="plagas-zonales" className="space-y-4">
+          <SummaryBarChart title="Incidencias por severidad" data={pestSeverityChart} loading={pestsQuery.isLoading} color="#b45309" />
           <Card className="p-4 border-border">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
               <Bug className="size-4 text-primary" />
@@ -403,6 +496,8 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
               <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                 <Loader2 className="size-4 animate-spin" /> Cargando incidencias zonales...
               </div>
+            ) : pestsQuery.isError ? (
+              <div role="alert" className="py-6 text-center text-sm text-destructive">No se pudieron cargar las incidencias. <Button variant="link" size="sm" onClick={() => void pestsQuery.refetch()}>Reintentar</Button></div>
             ) : (pestsQuery.data ?? []).length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">No hay plagas reportadas en la zona.</p>
             ) : (
@@ -446,6 +541,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
 
         {/* Tab 2: Ranking de Productividad */}
         <TabsContent value="ranking" className="space-y-4">
+          <SummaryBarChart title="Ingresos por productor · Top 8" data={rankingChart} loading={rankingQuery.isLoading} formatValue={formatCOP} />
           <Card className="p-4 border-border">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
               <Trophy className="size-4 text-amber-500" />
@@ -455,6 +551,8 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
               <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                 <Loader2 className="size-4 animate-spin" /> Consolidando rendimiento...
               </div>
+            ) : rankingQuery.isError ? (
+              <div role="alert" className="py-6 text-center text-sm text-destructive">No se pudo consolidar el ranking. <Button variant="link" size="sm" onClick={() => void rankingQuery.refetch()}>Reintentar</Button></div>
             ) : rankingData.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">No hay datos de cosecha registrados.</p>
             ) : (
@@ -522,6 +620,8 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
             </Card>
           </div>
 
+          <SummaryBarChart title="Valor del inventario por categoría · Top 8" data={inventoryChart} loading={inventoryQuery.isLoading} formatValue={formatCOP} color="#0369a1" />
+
           <Card className="p-4 border-border">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
               <Package className="size-4 text-primary" />
@@ -531,6 +631,8 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
               <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                 <Loader2 className="size-4 animate-spin" /> Consolidando insumos...
               </div>
+            ) : inventoryQuery.isError ? (
+              <div role="alert" className="py-6 text-center text-sm text-destructive">No se pudo cargar el inventario global. <Button variant="link" size="sm" onClick={() => void inventoryQuery.refetch()}>Reintentar</Button></div>
             ) : inventoryData.items.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">No hay insumos registrados en el sistema.</p>
             ) : (
@@ -574,6 +676,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
 
         {/* Tab 4: Asistencias Técnicas */}
         <TabsContent value="visitas" className="space-y-4">
+          <SummaryBarChart title="Asistencias por tipo de labor" data={visitChart} loading={visitsQuery.isLoading} color="#0369a1" />
           <Card className="p-4 border-border">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
               <Wrench className="size-4 text-primary" />
@@ -583,6 +686,8 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
               <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                 <Loader2 className="size-4 animate-spin" /> Cargando visitas...
               </div>
+            ) : visitsQuery.isError ? (
+              <div role="alert" className="py-6 text-center text-sm text-destructive">No se pudieron cargar las asistencias. <Button variant="link" size="sm" onClick={() => void visitsQuery.refetch()}>Reintentar</Button></div>
             ) : (visitsQuery.data ?? []).length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">No hay asistencias técnicas registradas.</p>
             ) : (

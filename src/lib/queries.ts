@@ -14,6 +14,18 @@ export function buildPaginatedResult<T>(data: T[], count: number, params: Pagina
 }
 
 const DEFAULT_PAGE_SIZE = 50;
+const REPORT_PAGE_SIZE = 1000;
+
+async function fetchAllReportPages(buildQuery: (from: number, to: number) => any): Promise<any[]> {
+  const rows: any[] = [];
+  for (let from = 0; ; from += REPORT_PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + REPORT_PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < REPORT_PAGE_SIZE) return rows;
+  }
+}
 
 export async function getMyProfile() {
   const { data: u } = await supabase.auth.getUser();
@@ -133,13 +145,12 @@ export async function listAlertsPage(params: PaginationParams) {
 }
 
 export async function listAllActivitiesForReport() {
-  const { data, error } = await supabase
+  return fetchAllReportPages((from, to) => supabase
     .from("activities")
     .select("id, kind, performed_at, notes, crops(planting_date, crop_catalog(name), parcels(name))")
     .order("performed_at", { ascending: false })
-    .limit(5000);
-  if (error) throw error;
-  return data ?? [];
+    .order("id", { ascending: true })
+    .range(from, to));
 }
 
 export async function listAllActivitiesForReportPage(params: PaginationParams) {
@@ -672,50 +683,54 @@ export async function getMyUpcomingHarvestsAndTasks() {
 // ── Global Pest Monitoring (Técnico / Admin) ─────────────────────────────
 
 export async function listAllPestIncidentsGlobal() {
-  const { data, error } = await (supabase as any)
+  return fetchAllReportPages((from, to) => (supabase as any)
     .from("pest_incidents")
     .select("id, pest_name, severity, treatment, date, notes, crops(id, status, crop_catalog(name), parcels(id, name, owner_id, profiles!owner_id(full_name, phone)))")
     .order("date", { ascending: false })
-    .limit(500);
-
-  if (error) throw error;
-  return (data ?? []) as any[];
+    .order("id", { ascending: true })
+    .range(from, to));
 }
 
 // ── Global Productivity Ranking (Admin / Técnico) ─────────────────────────
 
 export async function getGlobalProductivityRanking() {
-  const [harvestsRes, costsRes, parcelsRes] = await Promise.all([
-    (supabase as any)
+  const [harvests, costs, parcels] = await Promise.all([
+    fetchAllReportPages((from, to) => (supabase as any)
       .from("crop_harvests")
       .select("id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops!inner(id, parcel_id, crop_catalog(name), parcels(id, name, area_m2, owner_id, profiles!owner_id(full_name)))")
-      .order("performed_at", { ascending: false }),
-    (supabase as any)
+      .order("performed_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to)),
+    fetchAllReportPages((from, to) => (supabase as any)
       .from("crop_costs")
-      .select("id, total, kind, crops!inner(id, parcel_id, crop_catalog(name), parcels(id, name, owner_id, profiles!owner_id(full_name)))"),
-    supabase
+      .select("id, total, kind, crops!inner(id, parcel_id, crop_catalog(name), parcels(id, name, area_m2, owner_id, profiles!owner_id(full_name)))")
+      .order("id", { ascending: true })
+      .range(from, to)),
+    fetchAllReportPages((from, to) => supabase
       .from("parcels")
       .select("id, name, area_m2, owner_id, profiles!owner_id(full_name)")
-      .order("name"),
+      .order("name")
+      .order("id", { ascending: true })
+      .range(from, to)),
   ]);
 
   return {
-    harvests: (harvestsRes.data ?? []) as any[],
-    costs: (costsRes.data ?? []) as any[],
-    parcels: (parcelsRes.data ?? []) as any[],
+    harvests,
+    costs,
+    parcels,
   };
 }
 
 // ── Global Consolidated Inventory (Admin / Técnico) ───────────────────────
 
 export async function getGlobalInventoryConsolidated() {
-  const { data, error } = await (supabase as any)
+  const rawItems = await fetchAllReportPages((from, to) => (supabase as any)
     .from("inventory_items")
     .select("*, profiles!owner_id(full_name, phone)")
-    .order("name");
+    .order("name")
+    .order("id", { ascending: true })
+    .range(from, to));
 
-  if (error) throw error;
-  const rawItems = (data ?? []) as any[];
   return rawItems.map((i) => ({
     ...i,
     category: i.category || inferCategory(i.name),
@@ -726,15 +741,13 @@ export async function getGlobalInventoryConsolidated() {
 // ── Technical Visits & Assistance (Técnico / Admin) ───────────────────────
 
 export async function listTechnicalAssistance() {
-  const { data, error } = await (supabase as any)
+  return fetchAllReportPages((from, to) => (supabase as any)
     .from("activities")
     .select("id, kind, performed_at, notes, photo_urls, responsible_id, profiles!responsible_id(full_name), crops(crop_catalog(name), parcels(name, profiles!owner_id(full_name, phone)))")
     .in("kind", ["MONITOREO", "CONTROL_PLAGAS", "FERTILIZACION", "RIEGO"])
     .order("performed_at", { ascending: false })
-    .limit(500);
-
-  if (error) throw error;
-  return (data ?? []) as any[];
+    .order("id", { ascending: true })
+    .range(from, to));
 }
 
 

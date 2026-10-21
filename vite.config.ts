@@ -16,6 +16,28 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const moduleId = id.replaceAll("\\", "/");
+            if (!moduleId.includes("/node_modules/")) return undefined;
+            if (moduleId.includes("/node_modules/@supabase/")) return "supabase-vendor";
+            if (moduleId.includes("/node_modules/recharts/")) return "charts-vendor";
+            if (
+              moduleId.includes("/node_modules/leaflet/") ||
+              moduleId.includes("/node_modules/leaflet-draw/") ||
+              moduleId.includes("/node_modules/react-leaflet/")
+            ) return "maps-vendor";
+            if (moduleId.includes("/node_modules/jspdf/") || moduleId.includes("/node_modules/jspdf-autotable/")) {
+              return "reports-vendor";
+            }
+            return undefined;
+          },
+        },
+      },
+      chunkSizeWarningLimit: 650,
+    },
     server: {
       allowedHosts: true,
       // Headers de seguridad en desarrollo (producción los maneja Render/Vercel a nivel de plataforma)

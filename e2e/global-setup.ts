@@ -85,20 +85,19 @@ export default async function globalSetup(config: FullConfig) {
     throw new Error("Configura E2E_AUTH_PASSWORD para ejecutar E2E contra un entorno remoto");
   }
 
-  // Solo guardamos las credenciales, NO hacemos login aquí
-  // Los tests harán su propio login
   await mkdir(".auth", { recursive: true });
-  
+
   const browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
-  
-  // Navegamos a la página de auth para inicializar el contexto
+
   await page.goto(`${baseURL}/auth?mode=login`, { waitUntil: "domcontentloaded" });
-  
-  // Guardamos estado inicial (sin login) para que los tests hagan login
+  await page.fill("#email", email);
+  await page.fill("#password", password);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.waitForURL(/\/dashboard(?:\?.*)?$/, { timeout: 30_000 });
   await context.storageState({ path: ".auth/user.json" });
   await browser.close();
-  
-  console.log("Global setup completado - credenciales guardadas para tests");
+
+  console.log("Global setup completado - sesion E2E guardada");
 }

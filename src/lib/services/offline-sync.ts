@@ -80,9 +80,9 @@ async function syncMutation(mutation: StoredMutation): Promise<boolean> {
   try {
     let result: { error?: { message?: string } | null } | undefined;
     if (mutation.action === "INSERT") {
-      result = await supabase.from(mutation.table).insert(mutation.data);
+      result = await supabase.from(mutation.table).insert(mutation.data as never);
     } else if (mutation.action === "UPDATE") {
-      result = await supabase.from(mutation.table).update(mutation.data).eq("id", mutation.recordId!);
+      result = await supabase.from(mutation.table).update(mutation.data as never).eq("id", mutation.recordId!);
     } else {
       result = await supabase.from(mutation.table).delete().eq("id", mutation.recordId!);
     }

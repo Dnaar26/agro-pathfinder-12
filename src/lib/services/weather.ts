@@ -89,7 +89,7 @@ function isValidCoordinate(lat: number, lng: number) {
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 }
 
-function readDailyValue(values: number[] | null | undefined, index: number) {
+function readDailyValue(values: Array<number | null> | null | undefined, index: number) {
   const value = values?.[index];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && node --check .output/server/index.mjs",
     "preview": "vite preview",
     "start": "node scripts/start-server.mjs",
     "lint": "eslint .",

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
@@ -103,7 +104,7 @@ function withRequestId(response: Response, requestId: string): Response {
 
 function getRequestId(request: Request) {
   const incoming = request.headers.get("x-request-id")?.trim();
-  return incoming && /^[A-Za-z0-9._:-]{1,128}$/.test(incoming) ? incoming : crypto.randomUUID();
+  return incoming && /^[A-Za-z0-9._:-]{1,128}$/.test(incoming) ? incoming : randomUUID();
 }
 
 function getReadinessResponse() {

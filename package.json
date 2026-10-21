@@ -15,6 +15,7 @@
     "smoke:production": "node scripts/smoke-production.mjs",
     "lint": "eslint .",
     "test:e2e:safety": "node --test scripts/e2e-safety.test.mjs",
+    "test:phase34": "node --test scripts/phase34.test.mjs",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "test:e2e:ui": "playwright test --ui --config e2e/playwright.config.ts",
     "typecheck": "tsc --noEmit"

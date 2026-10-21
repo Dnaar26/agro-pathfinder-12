@@ -33,6 +33,9 @@ jobs:
       - name: Test E2E target safety
         run: npm run test:e2e:safety
 
+      - name: Test reporting periods and integration retries
+        run: npm run test:phase34
+
       - name: Audit dependencies
         run: npm audit --audit-level=moderate
 

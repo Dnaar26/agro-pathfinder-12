@@ -61,7 +61,9 @@
     "wind": "Viento",
     "frost_alert": "❄️ Alerta de helada para {{date}}",
     "rain_alert": "🌧️ Alerta de lluvia intensa para {{date}}",
-    "no_forecast": "Sin pronóstico disponible"
+    "no_forecast": "Sin pronóstico disponible",
+    "update_failed": "No se pudo actualizar el pronóstico. Revisa la conexión e inténtalo de nuevo.",
+    "retry": "Reintentar pronóstico"
   },
   "ndvi": {
     "title": "NDVI — Salud del cultivo",
@@ -143,11 +145,15 @@
     "stock": "Alerta de stock"
   },
   "shell": {
-    "search_placeholder": "Buscar parcelas o cultivos…",
+    "search_placeholder": "Buscar parcelas, cultivos o actividades…",
     "search_button": "Buscar",
     "no_results": "Sin resultados",
+    "searching": "Buscando…",
+    "search_error": "No fue posible completar la búsqueda.",
+    "retry": "Reintentar búsqueda",
     "crops": "Cultivos",
     "parcels": "Parcelas",
+    "calendar": "Actividades",
     "edit_profile": "Editar perfil",
     "open_menu": "Abrir menú",
     "role_admin": "Administrador",

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { captureAppError } from "@/lib/services/error-monitoring";
+import { fetchWithRetry } from "@/lib/services/http-retry.js";
 
 export interface MarketPrice {
   product: string;
@@ -15,6 +17,7 @@ export interface MarketPriceResult {
   prices: MarketPrice[];
   source: MarketPriceSource;
   fetchedAt: string;
+  warning?: boolean;
 }
 
 const MARKET_PRICES_URL = import.meta.env.VITE_MARKET_PRICES_URL?.trim() ?? "";
@@ -33,7 +36,7 @@ export async function fetchMarketPrices(): Promise<MarketPriceResult> {
   }
 
   try {
-    const response = await fetchWithTimeout(MARKET_PRICES_URL, 8_000);
+    const response = await fetchWithRetry(MARKET_PRICES_URL, { timeoutMs: 8_000, maxAttempts: 2 });
     if (!response.ok) throw new Error(`Market prices request failed: ${response.status}`);
 
     const parsedPayload = payloadSchema.safeParse(await response.json());
@@ -45,17 +48,8 @@ export async function fetchMarketPrices(): Promise<MarketPriceResult> {
 
     return { prices, source: "sipsa", fetchedAt };
   } catch {
-    return { prices: getReferencePrices(), source: "reference", fetchedAt };
-  }
-}
-
-async function fetchWithTimeout(url: string, timeoutMs: number) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
+    captureAppError(new Error("Market price integration unavailable"), { integration: "market-prices" });
+    return { prices: getReferencePrices(), source: "reference", fetchedAt, warning: true };
   }
 }
 

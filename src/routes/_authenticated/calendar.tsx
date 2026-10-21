@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { listEvents } from "@/lib/queries";
@@ -19,6 +19,12 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/calendar")({
   head: () => ({ meta: [{ title: "Calendario — SIGIC" }] }),
+  validateSearch: (search: Record<string, unknown>): { date?: string } => {
+    const date = typeof search.date === "string" ? search.date : "";
+    const parsed = new Date(`${date}T00:00:00Z`);
+    const valid = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+    return { date: valid ? date : undefined };
+  },
   component: CalendarPage,
 });
 
@@ -48,6 +54,7 @@ const KIND_STYLE: Record<string, { dot: string; card: string; label: string }> =
 const editSchema = eventSchema.extend({ starts_at: z.string().min(1, "La fecha es obligatoria") });
 
 function CalendarPage() {
+  const { date: focusDate } = Route.useSearch();
   const [cursor, setCursor] = useState(new Date());
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Date>(new Date());
@@ -57,6 +64,14 @@ function CalendarPage() {
   const [editInvItemId, setEditInvItemId] = useState("");
   const [editInvQty, setEditInvQty] = useState("");
   const qc = useQueryClient();
+
+  useEffect(() => {
+    if (!focusDate) return;
+    const date = new Date(`${focusDate}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return;
+    setCursor(date);
+    setSelected(date);
+  }, [focusDate]);
 
   const monthStart = useMemo(() => startOfMonth(cursor), [cursor]);
   const gridStart = useMemo(() => startOfWeek(monthStart, { weekStartsOn: 1 }), [monthStart]);

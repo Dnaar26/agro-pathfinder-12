@@ -1,16 +1,23 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { fetchMarketPrices, type MarketPrice } from "@/lib/services/market-prices";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchMarketPrices, type MarketPrice, type MarketPriceResult } from "@/lib/services/market-prices";
 import { Search, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export function MarketPrices() {
   const [search, setSearch] = useState("");
+  const queryClient = useQueryClient();
 
   const prices = useQuery({
     queryKey: ["market-prices"],
-    queryFn: () => fetchMarketPrices(),
+    queryFn: async () => {
+      const fresh = await fetchMarketPrices();
+      const previous = queryClient.getQueryData<MarketPriceResult>(["market-prices"]);
+      if (fresh.warning && previous?.source === "sipsa") return { ...previous, warning: true };
+      return fresh;
+    },
     refetchInterval: 1000 * 60 * 60,
+    retry: false,
   });
 
   const filteredPrices = useMemo(() => {
@@ -28,17 +35,24 @@ export function MarketPrices() {
       <div className="flex items-center justify-between">
         <h4 className="font-semibold text-sm flex items-center gap-1.5">
           <TrendingUp className="size-4 text-primary" />
-          Precios de Mercado (SIPSA)
+          Precios de mercado
         </h4>
         <button
+          type="button"
           onClick={() => prices.refetch()}
           disabled={prices.isFetching}
+          aria-label="Actualizar precios"
           className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
           title="Actualizar precios"
         >
           <RefreshCw className={`size-3.5 ${prices.isFetching ? "animate-spin text-primary" : ""}`} />
         </button>
       </div>
+      {prices.data?.warning && (
+        <p role="status" className="rounded-md border border-highlight/40 bg-highlight/10 px-3 py-2 text-xs text-muted-foreground">
+          No fue posible actualizar la fuente externa. {prices.data.source === "reference" ? "Se muestran valores de referencia; valida antes de tomar decisiones." : "Se conservan los últimos datos recibidos."}
+        </p>
+      )}
 
       <div className="relative">
         <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />

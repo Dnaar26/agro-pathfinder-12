@@ -47,7 +47,9 @@
     "temperature": "Temperatura",
     "precipitation": "Precipitação",
     "frost_alert": "❄️ Alerta de geada para {{date}}",
-    "rain_alert": "🌧️ Alerta de chuva forte para {{date}}"
+    "rain_alert": "🌧️ Alerta de chuva forte para {{date}}",
+    "update_failed": "Não foi possível atualizar a previsão. Verifique a conexão e tente novamente.",
+    "retry": "Tentar previsão novamente"
   },
   "inventory": {
     "title": "Estoque",
@@ -65,11 +67,15 @@
     "stock": "Estoque"
   },
   "shell": {
-    "search_placeholder": "Buscar parcelas ou cultivos…",
+    "search_placeholder": "Buscar parcelas, cultivos ou atividades…",
     "search_button": "Buscar",
     "no_results": "Sem resultados",
+    "searching": "Buscando…",
+    "search_error": "Não foi possível concluir a busca.",
+    "retry": "Tentar busca novamente",
     "crops": "Cultivos",
     "parcels": "Parcelas",
+    "calendar": "Atividades",
     "edit_profile": "Editar perfil",
     "open_menu": "Abrir menu",
     "role_admin": "Administrador",

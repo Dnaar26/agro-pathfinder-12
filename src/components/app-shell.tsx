@@ -2,7 +2,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   MapPin, Calendar, Bell, FileBarChart, LogOut, LayoutDashboard, Menu, Shield, Package2, Bot,
-  Globe, MapIcon, Leaf, Search, ClipboardList, type LucideIcon,
+  Globe, MapIcon, Leaf, Search, ClipboardList, RefreshCw, type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { signOutHttpOnlyCookie } from "@/lib/api/auth.server";
@@ -13,6 +13,8 @@ import { useState, useRef, useEffect, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { getMyRoles } from "@/lib/queries";
 import { useTranslation } from "react-i18next";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -126,16 +128,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   const searchResults = useQuery({
     queryKey: ["global-search", debouncedQuery],
     queryFn: async () => {
-      const q = debouncedQuery.trim();
-      if (!q) return { parcels: [], crops: [] };
-      const [parcelsRes, cropsRes] = await Promise.all([
-        supabase.from("parcels").select("id, name").ilike("name", `%${q}%`).limit(5),
+      const q = debouncedQuery.trim().slice(0, 80).replace(/[\\%_]/g, "\\$&");
+      if (!q) return { parcels: [], crops: [], events: [] };
+      const pattern = `%${q}%`;
+      const [parcelsRes, cropsRes, eventsRes] = await Promise.all([
+        supabase.from("parcels").select("id, name").ilike("name", pattern).limit(5),
         // !inner hace que el filtro sobre crop_catalog descarte cultivos sin coincidencia
-        supabase.from("crops").select("id, crop_catalog!inner(name), parcels(name)").ilike("crop_catalog.name", `%${q}%`).limit(5),
+        supabase.from("crops").select("id, crop_catalog!inner(name), parcels(name)").ilike("crop_catalog.name", pattern).limit(5),
+        supabase.from("calendar_events").select("id, title, starts_at").ilike("title", pattern).order("starts_at").limit(5),
       ]);
-      return { parcels: parcelsRes.data ?? [], crops: cropsRes.data ?? [] };
+      const error = parcelsRes.error ?? cropsRes.error ?? eventsRes.error;
+      if (error) throw error;
+      return { parcels: parcelsRes.data ?? [], crops: cropsRes.data ?? [], events: eventsRes.data ?? [] };
     },
     enabled: debouncedQuery.trim().length > 0,
+    staleTime: 30_000,
   });
 
   useEffect(() => {
@@ -385,7 +392,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Input
               ref={searchInputRef}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value.slice(0, 100))}
+              maxLength={100}
               placeholder={t("shell.search_placeholder")}
               aria-label={t("shell.search_placeholder")}
               className="pl-9"
@@ -393,32 +401,50 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           {searchQuery.trim() && (
             <div className="mt-2 max-h-72 space-y-4 overflow-y-auto" aria-live="polite">
-              <section>
-                <h3 className="px-1 pb-1 font-sans text-xs font-semibold text-muted-foreground">{t("shell.parcels")}</h3>
-                {(searchResults.data?.parcels ?? []).length === 0 ? (
-                  <p className="px-1 text-sm text-muted-foreground">{t("shell.no_results")}</p>
-                ) : (
-                  searchResults.data?.parcels.map((p: any) => (
+              {searchResults.isError ? (
+                <div role="alert" className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm text-destructive">
+                  <span>{t("shell.search_error")}</span>
+                  <button type="button" onClick={() => searchResults.refetch()} disabled={searchResults.isFetching} aria-label={t("shell.retry")} title={t("shell.retry")} className="grid size-8 shrink-0 place-items-center rounded-md hover:bg-destructive/10 disabled:opacity-50">
+                    <RefreshCw className={cn("size-4", searchResults.isFetching && "animate-spin")} aria-hidden="true" />
+                  </button>
+                </div>
+              ) : searchResults.isFetching ? (
+                <p className="px-1 py-3 text-sm text-muted-foreground">{t("shell.searching")}</p>
+              ) : (
+                <>
+                  {(searchResults.data?.parcels ?? []).length > 0 && <section>
+                    <h3 className="px-1 pb-1 font-sans text-xs font-semibold text-muted-foreground">{t("shell.parcels")}</h3>
+                    {searchResults.data?.parcels.map((p) => (
                     <Link key={p.id} to="/parcels/$id" params={{ id: p.id }} onClick={closeSearch} className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-accent">
                       <MapPin className="size-4 text-primary" aria-hidden="true" />{p.name}
                     </Link>
-                  ))
-                )}
-              </section>
-              <section>
-                <h3 className="px-1 pb-1 font-sans text-xs font-semibold text-muted-foreground">{t("shell.crops")}</h3>
-                {(searchResults.data?.crops ?? []).length === 0 ? (
-                  <p className="px-1 text-sm text-muted-foreground">{t("shell.no_results")}</p>
-                ) : (
-                  searchResults.data?.crops.map((c: any) => (
+                    ))}
+                  </section>}
+                  {(searchResults.data?.crops ?? []).length > 0 && <section>
+                    <h3 className="px-1 pb-1 font-sans text-xs font-semibold text-muted-foreground">{t("shell.crops")}</h3>
+                    {searchResults.data?.crops.map((c) => (
                     <Link key={c.id} to="/crops/$id" params={{ id: c.id }} onClick={closeSearch} className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-accent">
                       <Leaf className="size-4 text-primary" aria-hidden="true" />
                       {c.crop_catalog?.name ?? "—"}
                       {c.parcels?.name && <span className="text-xs text-muted-foreground">· {c.parcels.name}</span>}
                     </Link>
-                  ))
-                )}
-              </section>
+                    ))}
+                  </section>}
+                  {(searchResults.data?.events ?? []).length > 0 && <section>
+                    <h3 className="px-1 pb-1 font-sans text-xs font-semibold text-muted-foreground">{t("shell.calendar")}</h3>
+                    {searchResults.data?.events.map((event) => (
+                      <Link key={event.id} to="/calendar" search={{ date: format(new Date(event.starts_at), "yyyy-MM-dd") }} onClick={closeSearch} className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-accent">
+                        <Calendar className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span className="min-w-0 flex-1 truncate">{event.title}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{format(new Date(event.starts_at), "d MMM", { locale: es })}</span>
+                      </Link>
+                    ))}
+                  </section>}
+                  {searchResults.data && searchResults.data.parcels.length === 0 && searchResults.data.crops.length === 0 && searchResults.data.events.length === 0 && (
+                    <p className="px-1 py-3 text-sm text-muted-foreground">{t("shell.no_results")}</p>
+                  )}
+                </>
+              )}
             </div>
           )}
         </DialogContent>

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { captureAppError } from "@/lib/services/error-monitoring";
+import { fetchWithRetry } from "@/lib/services/http-retry.js";
 
 export type DailyForecast = {
   date: string;
@@ -37,8 +39,6 @@ const weatherResponseSchema = z.object({ daily: dailySchema });
 export async function fetchWeatherForecast(lat: number, lng: number): Promise<WeatherForecastResult | null> {
   if (!isValidCoordinate(lat, lng)) return null;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
     const params = new URLSearchParams({
       latitude: String(lat),
@@ -47,13 +47,14 @@ export async function fetchWeatherForecast(lat: number, lng: number): Promise<We
       timezone: "auto",
       forecast_days: "7",
     });
-    const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, {
-      signal: controller.signal,
+    const response = await fetchWithRetry(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, {
+      timeoutMs: 8_000,
+      maxAttempts: 2,
     });
-    if (!response.ok) return null;
+    if (!response.ok) throw new Error(`Weather request failed: ${response.status}`);
 
     const parsed = weatherResponseSchema.safeParse(await response.json());
-    if (!parsed.success) return null;
+    if (!parsed.success) throw new Error("Weather response has an unsupported shape");
 
     const daily = parsed.data.daily.time.flatMap((date, index) => {
       const tempMax = readDailyValue(parsed.data.daily.temperature_2m_max, index);
@@ -70,7 +71,7 @@ export async function fetchWeatherForecast(lat: number, lng: number): Promise<We
       }];
     });
 
-    if (daily.length === 0) return null;
+    if (daily.length === 0) throw new Error("Weather response has no usable forecast days");
 
     return {
       daily,
@@ -79,9 +80,8 @@ export async function fetchWeatherForecast(lat: number, lng: number): Promise<We
       fetchedAt: new Date().toISOString(),
     };
   } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
+    captureAppError(new Error("Weather integration unavailable"), { integration: "weather" });
+    throw new Error("No se pudo actualizar el pronóstico.");
   }
 }
 

@@ -61,7 +61,9 @@
     "wind": "Wind",
     "frost_alert": "❄️ Frost alert for {{date}}",
     "rain_alert": "🌧️ Heavy rain alert for {{date}}",
-    "no_forecast": "No forecast available"
+    "no_forecast": "No forecast available",
+    "update_failed": "The forecast could not be updated. Check your connection and try again.",
+    "retry": "Retry forecast"
   },
   "ndvi": {
     "title": "NDVI — Crop Health",
@@ -144,11 +146,15 @@
     "stock": "Stock alert"
   },
   "shell": {
-    "search_placeholder": "Search parcels or crops…",
+    "search_placeholder": "Search parcels, crops, or activities…",
     "search_button": "Search",
     "no_results": "No results",
+    "searching": "Searching…",
+    "search_error": "The search could not be completed.",
+    "retry": "Retry search",
     "crops": "Crops",
     "parcels": "Parcels",
+    "calendar": "Activities",
     "edit_profile": "Edit profile",
     "open_menu": "Open menu",
     "role_admin": "Administrator",

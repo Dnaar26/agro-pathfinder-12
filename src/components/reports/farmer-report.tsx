@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { createYearComparison, isWithinPeriod } from "@/lib/financial-periods.js";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -230,6 +231,38 @@ export function FarmerReport() {
 
   const netMargin = totalRevenue - totalCost;
 
+  const financialYearComparison = useMemo(() => {
+    const today = new Date();
+    const period = createYearComparison(today.getFullYear(), today);
+    const currentCosts = (financials.data?.costs ?? []).filter((row: any) => isWithinPeriod(row.created_at, period.currentStart, period.currentEnd));
+    const previousCosts = (financials.data?.costs ?? []).filter((row: any) => isWithinPeriod(row.created_at, period.previousStart, period.previousEnd));
+    const currentHarvests = (financials.data?.harvests ?? []).filter((row: any) => isWithinPeriod(row.performed_at, period.currentStart, period.currentEnd));
+    const previousHarvests = (financials.data?.harvests ?? []).filter((row: any) => isWithinPeriod(row.performed_at, period.previousStart, period.previousEnd));
+    const sum = (rows: any[], key: string) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
+    return {
+      year: period.year,
+      previousYear: period.previousYear,
+      currentLabel: `1 ene – ${format(period.currentEnd, "d MMM yyyy", { locale: es })}`,
+      previousLabel: `1 ene – ${format(period.previousEnd, "d MMM yyyy", { locale: es })}`,
+      currentRevenue: sum(currentHarvests, "total_revenue"),
+      previousRevenue: sum(previousHarvests, "total_revenue"),
+      currentCosts: sum(currentCosts, "total"),
+      previousCosts: sum(previousCosts, "total"),
+    };
+  }, [financials.data]);
+
+  const percentChange = (current: number, previous: number) =>
+    previous > 0 ? ((current - previous) / previous) * 100 : current > 0 ? null : 0;
+
+  const financialComparisonMetrics = [
+    { label: `Ingresos ${financialYearComparison.year}`, value: financialYearComparison.currentRevenue, type: "money" as const, lowerIsBetter: false },
+    { label: `Ingresos ${financialYearComparison.previousYear}`, value: financialYearComparison.previousRevenue, type: "money" as const, lowerIsBetter: false },
+    { label: "Variación ingresos", value: percentChange(financialYearComparison.currentRevenue, financialYearComparison.previousRevenue), type: "percent" as const, lowerIsBetter: false },
+    { label: `Costos ${financialYearComparison.year}`, value: financialYearComparison.currentCosts, type: "money" as const, lowerIsBetter: true },
+    { label: `Costos ${financialYearComparison.previousYear}`, value: financialYearComparison.previousCosts, type: "money" as const, lowerIsBetter: true },
+    { label: "Variación costos", value: percentChange(financialYearComparison.currentCosts, financialYearComparison.previousCosts), type: "percent" as const, lowerIsBetter: true },
+  ];
+
   // Datos para gráfico mensual (Ingresos vs Costos)
   const monthlyChartData = useMemo(() => {
     const now = new Date();
@@ -362,6 +395,8 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
           { label: "Cultivos activos", value: String(activeCropsCount) },
           { label: "Ingresos", value: formatCOP(totalRevenue) },
           { label: "Margen", value: formatCOP(netMargin) },
+          { label: `Ingresos ${financialYearComparison.currentLabel}`, value: formatCOP(financialYearComparison.currentRevenue) },
+          { label: `Costos ${financialYearComparison.currentLabel}`, value: formatCOP(financialYearComparison.currentCosts) },
         ],
         charts: [
           { title: "Ingresos mensuales · últimos 12 meses", data: monthlyChartData.map((row) => ({ label: row.month, value: row.ingresos })), maxItems: 12, valueFormatter: formatCOP },
@@ -381,6 +416,10 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
               ["Ingresos por Cosecha", formatCOP(totalRevenue)],
               ["Costos Operativos", formatCOP(totalCost)],
               ["Margen Bruto", formatCOP(netMargin)],
+              [`Ingresos ${financialYearComparison.previousLabel}`, formatCOP(financialYearComparison.previousRevenue)],
+              [`Ingresos ${financialYearComparison.currentLabel}`, formatCOP(financialYearComparison.currentRevenue)],
+              [`Costos ${financialYearComparison.previousLabel}`, formatCOP(financialYearComparison.previousCosts)],
+              [`Costos ${financialYearComparison.currentLabel}`, formatCOP(financialYearComparison.currentCosts)],
               ["Ítems en Inventario", String(inventoryItems.length)],
               ["Valor del Inventario", formatCOP(inventoryValue)],
               ["Ítems con Stock Bajo", String(lowStockItems.length)],
@@ -752,6 +791,26 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
 
         {/* Tab 1: Finanzas y Gráficos */}
         <TabsContent value="resumen" className="space-y-4">
+          <Card className="space-y-4 border-border p-5">
+            <div>
+              <h3 className="text-sm font-semibold">Comparación financiera de periodos equivalentes</h3>
+              <p className="text-xs text-muted-foreground">Acumulado {financialYearComparison.currentLabel} frente a {financialYearComparison.previousLabel}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              {financialComparisonMetrics.map((metric) => {
+                const isChange = metric.type === "percent";
+                const favorable = typeof metric.value === "number" && (metric.lowerIsBetter ? metric.value <= 0 : metric.value >= 0);
+                return (
+                  <div key={metric.label} className="min-w-0 border-l-2 border-border pl-3">
+                    <p className="text-xs text-muted-foreground">{metric.label}</p>
+                    <p className={`mt-1 truncate font-mono text-base font-semibold ${isChange && typeof metric.value === "number" ? favorable ? "text-emerald-600" : "text-red-600" : "text-foreground"}`}>
+                      {isChange ? metric.value === null ? "Sin base previa" : `${metric.value > 0 ? "+" : ""}${metric.value.toFixed(1)}%` : formatCOP(metric.value ?? 0)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
           <Card className="p-5 border-border">
             <div className="flex items-center justify-between mb-4">
               <div>

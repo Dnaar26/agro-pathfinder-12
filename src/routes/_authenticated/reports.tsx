@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { generatePdfReport, type PdfReportTemplate } from "@/lib/pdf-report";
 import { supabase } from "@/integrations/supabase/client";
+import { createYearComparison, isWithinPeriod } from "@/lib/financial-periods.js";
 import { exportParcelsToExcel } from "@/lib/services/excel-export";
 import { useTranslation } from "react-i18next";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar, Legend } from "recharts";
@@ -323,25 +324,33 @@ function ReportsPage() {
 
   const financialComparison = useMemo(() => {
     const year = Number(chartYear);
+    const today = new Date();
+    const period = createYearComparison(year, today);
     const matchesFarmFilter = (row: any) =>
       (parcelFilter === ALL || row.crops?.parcels?.name === parcelFilter) &&
       (cropFilter === ALL || row.crops?.crop_catalog?.name === cropFilter);
-    const inYear = (value: string | null, targetYear: number) => Boolean(value) && new Date(value as string).getFullYear() === targetYear;
     const costs = (costsQuery.data ?? []).filter(matchesFarmFilter);
     const harvests = (harvestsQuery.data ?? []).filter(matchesFarmFilter);
-    const sum = (rows: any[], key: string, dateKey: "created_at" | "performed_at", targetYear: number) =>
-      rows.reduce((total, row) => inYear(row[dateKey], targetYear) ? total + Number(row[key] || 0) : total, 0);
+    const currentCosts = costs.filter((row: any) => isWithinPeriod(row.created_at, period.currentStart, period.currentEnd));
+    const priorCosts = costs.filter((row: any) => isWithinPeriod(row.created_at, period.previousStart, period.previousEnd));
+    const currentHarvests = harvests.filter((row: any) => isWithinPeriod(row.performed_at, period.currentStart, period.currentEnd));
+    const priorHarvests = harvests.filter((row: any) => isWithinPeriod(row.performed_at, period.previousStart, period.previousEnd));
+    const sum = (rows: any[], key: string) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
+    const currentPeriodLabel = period.isYearToDate ? `1 ene – ${format(period.currentEnd, "d MMM yyyy", { locale: es })}` : `${year} completo`;
+    const previousPeriodLabel = period.isYearToDate ? `1 ene – ${format(period.previousEnd, "d MMM yyyy", { locale: es })}` : `${year - 1} completo`;
     return {
-      year,
-      previousYear: year - 1,
-      costs: costs.filter((row: any) => inYear(row.created_at, year)),
-      priorCosts: costs.filter((row: any) => inYear(row.created_at, year - 1)),
-      harvests: harvests.filter((row: any) => inYear(row.performed_at, year)),
-      priorHarvests: harvests.filter((row: any) => inYear(row.performed_at, year - 1)),
-      currentRevenue: sum(harvests, "total_revenue", "performed_at", year),
-      previousRevenue: sum(harvests, "total_revenue", "performed_at", year - 1),
-      currentCosts: sum(costs, "total", "created_at", year),
-      previousCosts: sum(costs, "total", "created_at", year - 1),
+      year: period.year,
+      currentPeriodLabel,
+      previousPeriodLabel,
+      comparisonLabel: `${previousPeriodLabel} vs. ${currentPeriodLabel}`,
+      costs: currentCosts,
+      priorCosts,
+      harvests: currentHarvests,
+      priorHarvests,
+      currentRevenue: sum(currentHarvests, "total_revenue"),
+      previousRevenue: sum(priorHarvests, "total_revenue"),
+      currentCosts: sum(currentCosts, "total"),
+      previousCosts: sum(priorCosts, "total"),
     };
   }, [costsQuery.data, harvestsQuery.data, chartYear, parcelFilter, cropFilter]);
 
@@ -420,8 +429,8 @@ function ReportsPage() {
         summary: [
           { label: "Actividades", value: totalAct.toLocaleString("es-CO") },
           { label: "Parcelas incluidas", value: filteredParcels.length.toLocaleString("es-CO") },
-          { label: `Ingresos ${chartYear}`, value: formatCOP(totalRevenue) },
-          { label: `Costos ${chartYear}`, value: formatCOP(totalCost) },
+          { label: `Ingresos ${financialComparison.currentPeriodLabel}`, value: formatCOP(totalRevenue) },
+          { label: `Costos ${financialComparison.currentPeriodLabel}`, value: formatCOP(totalCost) },
         ],
         charts: [{
           title: "Actividades por tipo",
@@ -480,8 +489,8 @@ function ReportsPage() {
         summary: [
           { label: "Actividades", value: totalAct.toLocaleString("es-CO") },
           { label: "Alertas pendientes", value: pendingAlerts.toLocaleString("es-CO") },
-          { label: `Ingresos ${chartYear}`, value: formatCOP(totalRevenue) },
-          { label: `Margen ${chartYear}`, value: formatCOP(totalRevenue - totalCost) },
+          { label: `Ingresos ${financialComparison.currentPeriodLabel}`, value: formatCOP(totalRevenue) },
+          { label: `Margen ${financialComparison.currentPeriodLabel}`, value: formatCOP(totalRevenue - totalCost) },
         ],
         charts: [
           {
@@ -526,8 +535,7 @@ function ReportsPage() {
           {
             title: "Cosechas recientes",
             head: ["Cultivo", "Cantidad", "Unit. ($)", "Total ($)", "Fecha"],
-            body: [...(harvestsQuery.data ?? [])]
-              .filter((h: any) => h.performed_at && new Date(h.performed_at).getFullYear() === financialComparison.year)
+            body: [...financialComparison.harvests]
               .sort((a: any, b: any) => new Date(b.performed_at).getTime() - new Date(a.performed_at).getTime())
               .slice(0, 20).map((h: any) => [
               h.crops?.crop_catalog?.name ?? "—",
@@ -750,7 +758,7 @@ function ReportsPage() {
         <section className="p-5 rounded-xl border border-border bg-card">
           <div className="mb-3">
             <h2 className="text-sm font-semibold flex items-center gap-2"><TrendingUp className="size-4 text-primary" /> Ingresos mensuales</h2>
-            <p className="text-xs text-muted-foreground">{financialComparison.previousYear} frente a {financialComparison.year} · COP</p>
+            <p className="text-xs text-muted-foreground">{financialComparison.comparisonLabel} · COP</p>
           </div>
           {financialByMonth.some((row) => row.revenueCurrent > 0 || row.revenuePrior > 0) ? (
             <ResponsiveContainer width="100%" height={240}>
@@ -760,8 +768,8 @@ function ReportsPage() {
                 <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCompactCOP} width={58} />
                 <Tooltip formatter={(value: number, name: string) => [formatCOP(value), name]} />
                 <Legend />
-                <Line type="monotone" dataKey="revenuePrior" name={`Ingresos ${financialComparison.previousYear}`} stroke="#64748b" strokeDasharray="5 4" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="revenueCurrent" name={`Ingresos ${financialComparison.year}`} stroke="#15803d" strokeWidth={2.5} dot={{ r: 2 }} />
+                <Line type="monotone" dataKey="revenuePrior" name={`Ingresos ${financialComparison.previousPeriodLabel}`} stroke="#64748b" strokeDasharray="5 4" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="revenueCurrent" name={`Ingresos ${financialComparison.currentPeriodLabel}`} stroke="#15803d" strokeWidth={2.5} dot={{ r: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : <p className="py-10 text-center text-sm text-muted-foreground">Sin ingresos registrados en estos periodos.</p>}
@@ -769,7 +777,7 @@ function ReportsPage() {
         <section className="p-5 rounded-xl border border-border bg-card">
           <div className="mb-3">
             <h2 className="text-sm font-semibold flex items-center gap-2"><DollarSign className="size-4 text-primary" /> Costos mensuales</h2>
-            <p className="text-xs text-muted-foreground">{financialComparison.previousYear} frente a {financialComparison.year} · COP</p>
+            <p className="text-xs text-muted-foreground">{financialComparison.comparisonLabel} · COP</p>
           </div>
           {financialByMonth.some((row) => row.costsCurrent > 0 || row.costsPrior > 0) ? (
             <ResponsiveContainer width="100%" height={240}>
@@ -779,8 +787,8 @@ function ReportsPage() {
                 <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCompactCOP} width={58} />
                 <Tooltip formatter={(value: number, name: string) => [formatCOP(value), name]} />
                 <Legend />
-                <Line type="monotone" dataKey="costsPrior" name={`Costos ${financialComparison.previousYear}`} stroke="#b45309" strokeDasharray="5 4" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="costsCurrent" name={`Costos ${financialComparison.year}`} stroke="#c2410c" strokeWidth={2.5} dot={{ r: 2 }} />
+                <Line type="monotone" dataKey="costsPrior" name={`Costos ${financialComparison.previousPeriodLabel}`} stroke="#b45309" strokeDasharray="5 4" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="costsCurrent" name={`Costos ${financialComparison.currentPeriodLabel}`} stroke="#c2410c" strokeWidth={2.5} dot={{ r: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : <p className="py-10 text-center text-sm text-muted-foreground">Sin costos registrados en estos periodos.</p>}
@@ -882,14 +890,14 @@ function ReportsPage() {
 
       {costsQuery.data && harvestsQuery.data && (
         <section className="p-5 rounded-xl border border-border bg-card">
-          <h2 className="text-sm font-semibold flex items-center gap-2 mb-3"><BarChart3 className="size-4 text-primary" /> Comparativa anual: {financialComparison.previousYear} vs. {financialComparison.year}</h2>
+          <h2 className="text-sm font-semibold flex items-center gap-2 mb-3"><BarChart3 className="size-4 text-primary" /> Comparación financiera: {financialComparison.comparisonLabel}</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
             <div>
-              <p className="text-xs text-muted-foreground">Ingresos {financialComparison.previousYear}</p>
+              <p className="text-xs text-muted-foreground">Ingresos {financialComparison.previousPeriodLabel}</p>
               <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.previousRevenue)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Ingresos {financialComparison.year}</p>
+              <p className="text-xs text-muted-foreground">Ingresos {financialComparison.currentPeriodLabel}</p>
               <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.currentRevenue)}</p>
             </div>
             <div>
@@ -900,11 +908,11 @@ function ReportsPage() {
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Costos {financialComparison.previousYear}</p>
+              <p className="text-xs text-muted-foreground">Costos {financialComparison.previousPeriodLabel}</p>
               <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.previousCosts)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Costos {financialComparison.year}</p>
+              <p className="text-xs text-muted-foreground">Costos {financialComparison.currentPeriodLabel}</p>
               <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.currentCosts)}</p>
             </div>
             <div>

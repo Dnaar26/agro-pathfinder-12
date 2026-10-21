@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Sun, CloudRain, CloudDrizzle, CloudSun, Droplets, Wind, AlertTriangle } from "lucide-react";
+import { Sun, CloudRain, CloudDrizzle, CloudSun, Droplets, Wind, AlertTriangle, RefreshCw } from "lucide-react";
 import { fetchWeatherForecast, type DailyForecast, type WeatherAlerts } from "@/lib/services/weather";
+import { Button } from "@/components/ui/button";
 
 export function WeatherForecast({ lat, lng, parcelName }: { lat: number; lng: number; parcelName?: string }) {
   const { t } = useTranslation();
@@ -10,17 +11,34 @@ export function WeatherForecast({ lat, lng, parcelName }: { lat: number; lng: nu
     queryFn: () => fetchWeatherForecast(lat, lng),
     staleTime: 30 * 60 * 1000,
     gcTime: 2 * 60 * 60 * 1000,
-    retry: 1,
+    retry: false,
   });
   const forecast: DailyForecast[] = forecastQuery.data?.daily ?? [];
   const alerts: WeatherAlerts | null = forecastQuery.data?.alerts ?? null;
 
   if (forecastQuery.isLoading) return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
-  if (forecastQuery.isError) return <p className="text-sm text-muted-foreground">{t("weather.no_forecast")}</p>;
+  if (forecastQuery.isError && forecast.length === 0) return (
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/25 p-3">
+      <p className="text-sm text-muted-foreground">{t("weather.update_failed")}</p>
+      <Button type="button" variant="outline" size="sm" onClick={() => forecastQuery.refetch()} disabled={forecastQuery.isFetching}>
+        <RefreshCw className={`size-4 ${forecastQuery.isFetching ? "animate-spin" : ""}`} aria-hidden="true" />
+        {t("weather.retry")}
+      </Button>
+    </div>
+  );
   if (forecast.length === 0) return <p className="text-sm text-muted-foreground">{t("weather.no_forecast")}</p>;
 
   return (
     <div className="space-y-3">
+      {forecastQuery.isError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/25 p-3">
+          <p className="text-sm text-muted-foreground">{t("weather.update_failed")}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => forecastQuery.refetch()} disabled={forecastQuery.isFetching}>
+            <RefreshCw className={`size-4 ${forecastQuery.isFetching ? "animate-spin" : ""}`} aria-hidden="true" />
+            {t("weather.retry")}
+          </Button>
+        </div>
+      )}
       {alerts && (alerts.hasFrost || alerts.hasHeavyRain) && (
         <div className="space-y-1">
           {alerts.days.map((d) => d.alerts.map((a) => (

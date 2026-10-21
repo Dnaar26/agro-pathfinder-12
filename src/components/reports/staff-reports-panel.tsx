@@ -1,11 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import {
-  listAllPestIncidentsGlobal,
-  getGlobalProductivityRanking,
-  getGlobalInventoryConsolidated,
-  listTechnicalAssistance,
-} from "@/lib/queries";
+import { listAllPestIncidentsGlobal, getGlobalProductivityRanking, getGlobalInventoryConsolidated, listTechnicalAssistance } from "@/lib/queries";
 import { generatePdfReport } from "@/lib/pdf-report";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,56 +9,32 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
-import {
-  Bug,
-  Trophy,
-  Package,
-  Wrench,
-  Download,
-  FileSpreadsheet,
-  Layers,
-  DollarSign,
-  TrendingUp,
-  MapPin,
-  AlertTriangle,
-  User,
-  Activity,
-  Loader2,
-  Wheat,
-} from "lucide-react";
+import { Bug, Trophy, Package, Wrench, Download, FileSpreadsheet, Layers, DollarSign, TrendingUp, MapPin, AlertTriangle, User, Activity, Loader2, Wheat } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { formatCurrencyInt } from "@/lib/currency";
+import { CHART_COLORS } from "@/lib/chart-colors";
+import { severityClass, severityLabel } from "@/lib/status-styles";
 
-const formatCOP = (n: number) =>
-  "$ " + n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
-const severityColors: Record<string, string> = {
-  BAJA: "bg-blue-500/15 text-blue-700 border-blue-500/30",
-  MEDIA: "bg-amber-500/15 text-amber-700 border-amber-500/30",
-  ALTA: "bg-orange-500/15 text-orange-700 border-orange-500/30",
-  CRITICA: "bg-red-500/15 text-red-700 border-red-500/30 font-bold",
-};
+const formatCOP = formatCurrencyInt;
 
 type SummaryChartPoint = { label: string; value: number };
 
-function SummaryBarChart({ title, data, loading, formatValue = (value) => value.toLocaleString("es-CO"), color = "#15803d" }: {
-  title: string;
-  data: SummaryChartPoint[];
-  loading: boolean;
-  formatValue?: (value: number) => string;
-  color?: string;
-}) {
+function SummaryBarChart({ title, data, loading, formatValue = (value) => value.toLocaleString("es-CO"), color = CHART_COLORS[0] }: { title: string; data: SummaryChartPoint[]; loading: boolean; formatValue?: (value: number) => string; color?: string }) {
   return (
     <Card className="p-4 border-border">
       <h3 className="text-sm font-semibold mb-3">{title}</h3>
       {loading ? (
-        <div className="h-48 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="size-4 animate-spin mr-2" />Cargando resumen...</div>
+        <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">
+          <Loader2 className="size-4 animate-spin mr-2" />
+          Cargando resumen...
+        </div>
       ) : data.length === 0 ? (
         <p className="h-48 flex items-center justify-center text-sm text-muted-foreground">Aún no hay datos para graficar.</p>
       ) : (
         <ResponsiveContainer width="100%" height={Math.max(210, data.length * 32)}>
           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 4 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-muted" />
-            <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : String(value)} />
+            <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(value) => (value >= 1000 ? `${(value / 1000).toFixed(0)}k` : String(value))} />
             <YAxis type="category" dataKey="label" width={112} tick={{ fontSize: 10 }} interval={0} />
             <Tooltip formatter={(value: number) => [formatValue(value), title]} />
             <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]} maxBarSize={22} />
@@ -109,16 +80,19 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
     const harvests = rankingQuery.data?.harvests ?? [];
     const costs = rankingQuery.data?.costs ?? [];
 
-    const map: Record<string, {
-      cropName: string;
-      farmerName: string;
-      parcelName: string;
-      areaM2: number;
-      harvestedQty: number;
-      totalRevenue: number;
-      totalCost: number;
-      unit: string;
-    }> = {};
+    const map: Record<
+      string,
+      {
+        cropName: string;
+        farmerName: string;
+        parcelName: string;
+        areaM2: number;
+        harvestedQty: number;
+        totalRevenue: number;
+        totalCost: number;
+        unit: string;
+      }
+    > = {};
 
     for (const h of harvests) {
       const crop = h.crops?.crop_catalog?.name || "Cultivo";
@@ -186,20 +160,19 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
 
   const visiblePests = useMemo(() => {
     const query = pestSearch.trim().toLocaleLowerCase("es-CO");
-    const severityRank: Record<string, number> = { CRITICA: 0, ALTA: 1, MEDIA: 2, BAJA: 3 };
+    const severityRank: Record<string, number> = {
+      CRITICA: 0,
+      ALTA: 1,
+      MEDIA: 2,
+      BAJA: 3,
+    };
     return [...(pestsQuery.data ?? [])]
       .filter((pest: any) => {
         const matchesSeverity = pestSeverityFilter === "ALL" || pest.severity === pestSeverityFilter;
-        const searchText = [
-          pest.pest_name,
-          pest.crops?.crop_catalog?.name,
-          pest.crops?.parcels?.name,
-          pest.crops?.parcels?.profiles?.full_name,
-        ].filter(Boolean).join(" ").toLocaleLowerCase("es-CO");
+        const searchText = [pest.pest_name, pest.crops?.crop_catalog?.name, pest.crops?.parcels?.name, pest.crops?.parcels?.profiles?.full_name].filter(Boolean).join(" ").toLocaleLowerCase("es-CO");
         return matchesSeverity && (!query || searchText.includes(query));
       })
-      .sort((a: any, b: any) => (severityRank[a.severity] ?? 4) - (severityRank[b.severity] ?? 4)
-        || new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+      .sort((a: any, b: any) => (severityRank[a.severity] ?? 4) - (severityRank[b.severity] ?? 4) || new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
   }, [pestsQuery.data, pestSearch, pestSeverityFilter]);
 
   const pestSeverityChart = useMemo(() => {
@@ -207,7 +180,10 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
     const counts = new Map<string, number>();
     for (const pest of visiblePests) counts.set(pest.severity || "SIN CLASIFICAR", (counts.get(pest.severity || "SIN CLASIFICAR") ?? 0) + 1);
     return [...severityOrder, ...[...counts.keys()].filter((severity) => !severityOrder.includes(severity))]
-      .map((severity) => ({ label: severity === "CRITICA" ? "Crítica" : severity === "SIN CLASIFICAR" ? "Sin clasificar" : `${severity[0]}${severity.slice(1).toLowerCase()}`, value: counts.get(severity) ?? 0 }))
+      .map((severity) => ({
+        label: severity === "CRITICA" ? "Crítica" : severity === "SIN CLASIFICAR" ? "Sin clasificar" : `${severity[0]}${severity.slice(1).toLowerCase()}`,
+        value: counts.get(severity) ?? 0,
+      }))
       .filter((point) => point.value > 0);
   }, [visiblePests]);
 
@@ -216,13 +192,23 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
   const rankingChart = useMemo(() => {
     const totals = new Map<string, number>();
     for (const row of rankingData) totals.set(row.farmerName, (totals.get(row.farmerName) ?? 0) + row.totalRevenue);
-    return [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
-      .map(([label, value]) => ({ label: label.length > 20 ? `${label.slice(0, 19)}…` : label, value }));
+    return [...totals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([label, value]) => ({
+        label: label.length > 20 ? `${label.slice(0, 19)}…` : label,
+        value,
+      }));
   }, [rankingData]);
 
-  const inventoryChart = useMemo(() => Object.entries(inventoryData.byCategory)
-    .sort((a, b) => b[1].value - a[1].value).slice(0, 8)
-    .map(([label, values]) => ({ label, value: values.value })), [inventoryData.byCategory]);
+  const inventoryChart = useMemo(
+    () =>
+      Object.entries(inventoryData.byCategory)
+        .sort((a, b) => b[1].value - a[1].value)
+        .slice(0, 8)
+        .map(([label, values]) => ({ label, value: values.value })),
+    [inventoryData.byCategory],
+  );
 
   const visitChart = useMemo(() => {
     const counts = new Map<string, number>();
@@ -246,25 +232,27 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           orientation: "landscape",
           summary: [
             { label: "Incidencias filtradas", value: String(pests.length) },
-            { label: "Severidad crítica/alta", value: String(priorityPestCount) },
-            { label: "Parcelas afectadas", value: String(new Set(pests.map((p: any) => p.crops?.parcels?.id).filter(Boolean)).size) },
+            {
+              label: "Severidad crítica/alta",
+              value: String(priorityPestCount),
+            },
+            {
+              label: "Parcelas afectadas",
+              value: String(new Set(pests.map((p: any) => p.crops?.parcels?.id).filter(Boolean)).size),
+            },
           ],
-          charts: [{ title: "Incidencias por severidad (vista filtrada)", data: pestSeverityChart, color: [180, 83, 9] }],
+          charts: [
+            {
+              title: "Incidencias por severidad (vista filtrada)",
+              data: pestSeverityChart,
+              color: [180, 83, 9],
+            },
+          ],
           sections: [
             {
               title: "Incidencias Reportadas por Lote y Productor",
               head: ["Fecha", "Plaga", "Severidad", "Cultivo", "Parcela", "Productor", "Coordenadas", "Tratamiento"],
-              body: pests.map((p: any) => [
-                p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—",
-                p.pest_name || "—",
-                p.severity || "—",
-                p.crops?.crop_catalog?.name || "—",
-                p.crops?.parcels?.name || "—",
-                p.crops?.parcels?.profiles?.full_name || "—",
-                p.crops?.parcels?.latitude != null && p.crops?.parcels?.longitude != null
-                  ? `${p.crops.parcels.latitude}, ${p.crops.parcels.longitude}` : "—",
-                p.treatment || "—",
-              ]),
+              body: pests.map((p: any) => [p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—", p.pest_name || "—", p.severity || "—", p.crops?.crop_catalog?.name || "—", p.crops?.parcels?.name || "—", p.crops?.parcels?.profiles?.full_name || "—", p.crops?.parcels?.latitude != null && p.crops?.parcels?.longitude != null ? `${p.crops.parcels.latitude}, ${p.crops.parcels.longitude}` : "—", p.treatment || "—"]),
             },
           ],
         });
@@ -276,26 +264,35 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           subtitle: `Generado el ${dateStr} • SIGIC Staff Report`,
           orientation: "landscape",
           summary: [
-            { label: "Productores", value: String(new Set(rankingData.map((row) => row.farmerName)).size) },
-            { label: "Ingresos", value: formatCOP(rankingData.reduce((sum, row) => sum + row.totalRevenue, 0)) },
-            { label: "Costos", value: formatCOP(rankingData.reduce((sum, row) => sum + row.totalCost, 0)) },
-            { label: "Margen", value: formatCOP(rankingData.reduce((sum, row) => sum + row.totalRevenue - row.totalCost, 0)) },
+            {
+              label: "Productores",
+              value: String(new Set(rankingData.map((row) => row.farmerName)).size),
+            },
+            {
+              label: "Ingresos",
+              value: formatCOP(rankingData.reduce((sum, row) => sum + row.totalRevenue, 0)),
+            },
+            {
+              label: "Costos",
+              value: formatCOP(rankingData.reduce((sum, row) => sum + row.totalCost, 0)),
+            },
+            {
+              label: "Margen",
+              value: formatCOP(rankingData.reduce((sum, row) => sum + row.totalRevenue - row.totalCost, 0)),
+            },
           ],
-          charts: [{ title: "Ingresos por productor · Top 8", data: rankingChart, valueFormatter: formatCOP }],
+          charts: [
+            {
+              title: "Ingresos por productor · Top 8",
+              data: rankingChart,
+              valueFormatter: formatCOP,
+            },
+          ],
           sections: [
             {
               title: "Productores y Rendimiento de Cultivos",
               head: ["Productor", "Cultivo", "Parcela", "Área (ha)", "Cosecha", "Ingresos", "Costos", "Margen"],
-              body: rankingData.map((r) => [
-                r.farmerName,
-                r.cropName,
-                r.parcelName,
-                (r.areaM2 / 10000).toFixed(2),
-                `${r.harvestedQty.toFixed(1)} ${r.unit}`,
-                formatCOP(r.totalRevenue),
-                formatCOP(r.totalCost),
-                formatCOP(r.totalRevenue - r.totalCost),
-              ]),
+              body: rankingData.map((r) => [r.farmerName, r.cropName, r.parcelName, (r.areaM2 / 10000).toFixed(2), `${r.harvestedQty.toFixed(1)} ${r.unit}`, formatCOP(r.totalRevenue), formatCOP(r.totalCost), formatCOP(r.totalRevenue - r.totalCost)]),
             },
           ],
         });
@@ -307,23 +304,29 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           subtitle: `Generado el ${dateStr} • Valor Total: ${formatCOP(inventoryData.totalVal)}`,
           orientation: "landscape",
           summary: [
-            { label: "Insumos registrados", value: String(inventoryData.items.length) },
-            { label: "Categorías", value: String(Object.keys(inventoryData.byCategory).length) },
+            {
+              label: "Insumos registrados",
+              value: String(inventoryData.items.length),
+            },
+            {
+              label: "Categorías",
+              value: String(Object.keys(inventoryData.byCategory).length),
+            },
             { label: "Valor total", value: formatCOP(inventoryData.totalVal) },
           ],
-          charts: [{ title: "Valor por categoría · Top 8", data: inventoryChart, valueFormatter: formatCOP, color: [3, 105, 161] }],
+          charts: [
+            {
+              title: "Valor por categoría · Top 8",
+              data: inventoryChart,
+              valueFormatter: formatCOP,
+              color: [3, 105, 161],
+            },
+          ],
           sections: [
             {
               title: "Listado Agregado de Insumos",
               head: ["Insumo", "Categoría", "Productor", "Stock", "Costo Unit.", "Valor Total"],
-              body: inventoryData.items.map((i: any) => [
-                i.name,
-                i.category || "—",
-                i.profiles?.full_name || "—",
-                `${Number(i.stock_qty).toFixed(2)} ${i.unit || ""}`,
-                formatCOP(Number(i.unit_cost || 0)),
-                formatCOP(Number(i.stock_qty || 0) * Number(i.unit_cost || 0)),
-              ]),
+              body: inventoryData.items.map((i: any) => [i.name, i.category || "—", i.profiles?.full_name || "—", `${Number(i.stock_qty).toFixed(2)} ${i.unit || ""}`, formatCOP(Number(i.unit_cost || 0)), formatCOP(Number(i.stock_qty || 0) * Number(i.unit_cost || 0))]),
             },
           ],
         });
@@ -336,23 +339,31 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           subtitle: `Generado el ${dateStr} • SIGIC Staff Report`,
           orientation: "landscape",
           summary: [
-            { label: "Asistencias", value: String(visitsQuery.data?.length ?? 0) },
-            { label: "Técnicos", value: String(new Set((visitsQuery.data ?? []).map((v: any) => v.profiles?.full_name).filter(Boolean)).size) },
-            { label: "Productores atendidos", value: String(new Set((visitsQuery.data ?? []).map((v: any) => v.crops?.parcels?.profiles?.full_name).filter(Boolean)).size) },
+            {
+              label: "Asistencias",
+              value: String(visitsQuery.data?.length ?? 0),
+            },
+            {
+              label: "Técnicos",
+              value: String(new Set((visitsQuery.data ?? []).map((v: any) => v.profiles?.full_name).filter(Boolean)).size),
+            },
+            {
+              label: "Productores atendidos",
+              value: String(new Set((visitsQuery.data ?? []).map((v: any) => v.crops?.parcels?.profiles?.full_name).filter(Boolean)).size),
+            },
           ],
-          charts: [{ title: "Asistencias por tipo de labor", data: visitChart, color: [3, 105, 161] }],
+          charts: [
+            {
+              title: "Asistencias por tipo de labor",
+              data: visitChart,
+              color: [3, 105, 161],
+            },
+          ],
           sections: [
             {
               title: "Visitas e Intervenciones Registradas",
               head: ["Fecha", "Labor", "Técnico Responsable", "Productor", "Parcela", "Notas"],
-              body: visits.map((v: any) => [
-                v.performed_at ? format(new Date(v.performed_at), "dd/MM/yyyy") : "—",
-                v.kind || "—",
-                v.profiles?.full_name || "Técnico",
-                v.crops?.parcels?.profiles?.full_name || "—",
-                v.crops?.parcels?.name || "—",
-                v.notes || "—",
-              ]),
+              body: visits.map((v: any) => [v.performed_at ? format(new Date(v.performed_at), "dd/MM/yyyy") : "—", v.kind || "—", v.profiles?.full_name || "Técnico", v.crops?.parcels?.profiles?.full_name || "—", v.crops?.parcels?.name || "—", v.notes || "—"]),
             },
           ],
         });
@@ -374,69 +385,16 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
 
       if (activeTab === "plagas-zonales") {
         filename = "plagas-zonales";
-        rows = [
-          ["Monitoreo Fitosanitario Zonal SIGIC"],
-          [`Registros incluidos: ${visiblePests.length}`],
-          ["Fecha", "Plaga", "Severidad", "Cultivo", "Parcela", "Productor", "Latitud", "Longitud", "Tratamiento", "Notas"],
-          ...visiblePests.map((p: any) => [
-            p.date || "",
-            p.pest_name || "",
-            p.severity || "",
-            p.crops?.crop_catalog?.name || "",
-            p.crops?.parcels?.name || "",
-            p.crops?.parcels?.profiles?.full_name || "",
-            p.crops?.parcels?.latitude ?? "",
-            p.crops?.parcels?.longitude ?? "",
-            p.treatment || "",
-            p.notes || "",
-          ]),
-        ];
+        rows = [["Monitoreo Fitosanitario Zonal SIGIC"], [`Registros incluidos: ${visiblePests.length}`], ["Fecha", "Plaga", "Severidad", "Cultivo", "Parcela", "Productor", "Latitud", "Longitud", "Tratamiento", "Notas"], ...visiblePests.map((p: any) => [p.date || "", p.pest_name || "", p.severity || "", p.crops?.crop_catalog?.name || "", p.crops?.parcels?.name || "", p.crops?.parcels?.profiles?.full_name || "", p.crops?.parcels?.latitude ?? "", p.crops?.parcels?.longitude ?? "", p.treatment || "", p.notes || ""])];
       } else if (activeTab === "ranking") {
         filename = "ranking-productividad";
-        rows = [
-          ["Ranking de Productividad y Rentabilidad SIGIC"],
-          ["Productor", "Cultivo", "Parcela", "Área (ha)", "Cantidad Cosechada", "Unidad", "Ingresos (COP)", "Costos (COP)", "Margen (COP)"],
-          ...rankingData.map((r) => [
-            r.farmerName,
-            r.cropName,
-            r.parcelName,
-            (r.areaM2 / 10000).toFixed(2),
-            r.harvestedQty.toFixed(2),
-            r.unit,
-            r.totalRevenue.toFixed(2),
-            r.totalCost.toFixed(2),
-            (r.totalRevenue - r.totalCost).toFixed(2),
-          ]),
-        ];
+        rows = [["Ranking de Productividad y Rentabilidad SIGIC"], ["Productor", "Cultivo", "Parcela", "Área (ha)", "Cantidad Cosechada", "Unidad", "Ingresos (COP)", "Costos (COP)", "Margen (COP)"], ...rankingData.map((r) => [r.farmerName, r.cropName, r.parcelName, (r.areaM2 / 10000).toFixed(2), r.harvestedQty.toFixed(2), r.unit, r.totalRevenue.toFixed(2), r.totalCost.toFixed(2), (r.totalRevenue - r.totalCost).toFixed(2)])];
       } else if (activeTab === "inventario-global") {
         filename = "inventario-consolidado";
-        rows = [
-          ["Inventario Consolidado de Insumos SIGIC"],
-          ["Insumo", "Categoría", "Productor", "Stock", "Unidad", "Costo Unitario (COP)", "Valor Total (COP)"],
-          ...inventoryData.items.map((i: any) => [
-            i.name,
-            i.category || "",
-            i.profiles?.full_name || "",
-            Number(i.stock_qty).toFixed(2),
-            i.unit || "",
-            Number(i.unit_cost || 0).toFixed(2),
-            (Number(i.stock_qty || 0) * Number(i.unit_cost || 0)).toFixed(2),
-          ]),
-        ];
+        rows = [["Inventario Consolidado de Insumos SIGIC"], ["Insumo", "Categoría", "Productor", "Stock", "Unidad", "Costo Unitario (COP)", "Valor Total (COP)"], ...inventoryData.items.map((i: any) => [i.name, i.category || "", i.profiles?.full_name || "", Number(i.stock_qty).toFixed(2), i.unit || "", Number(i.unit_cost || 0).toFixed(2), (Number(i.stock_qty || 0) * Number(i.unit_cost || 0)).toFixed(2)])];
       } else {
         filename = "asistencias-tecnicas";
-        rows = [
-          ["Bitácora de Asistencias Técnicas SIGIC"],
-          ["Fecha", "Labor", "Técnico", "Productor", "Parcela", "Notas"],
-          ...(visitsQuery.data ?? []).map((v: any) => [
-            v.performed_at ? format(new Date(v.performed_at), "yyyy-MM-dd") : "",
-            v.kind || "",
-            v.profiles?.full_name || "",
-            v.crops?.parcels?.profiles?.full_name || "",
-            v.crops?.parcels?.name || "",
-            v.notes || "",
-          ]),
-        ];
+        rows = [["Bitácora de Asistencias Técnicas SIGIC"], ["Fecha", "Labor", "Técnico", "Productor", "Parcela", "Notas"], ...(visitsQuery.data ?? []).map((v: any) => [v.performed_at ? format(new Date(v.performed_at), "yyyy-MM-dd") : "", v.kind || "", v.profiles?.full_name || "", v.crops?.parcels?.profiles?.full_name || "", v.crops?.parcels?.name || "", v.notes || ""])];
       }
 
       const csvContent =
@@ -450,7 +408,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                 s = s.replace(/"/g, '""');
                 return /[",\n]/.test(s) ? `"${s}"` : s;
               })
-              .join(",")
+              .join(","),
           )
           .join("\n");
 
@@ -470,15 +428,13 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
   return (
     <div className="space-y-6">
       {/* Encabezado Staff */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-emerald-950/20 via-primary/5 to-transparent border border-primary/20 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-border bg-card p-5">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Layers className="size-5 text-primary" />
             Reportes Especializados — Rol {userRole === "admin" ? "Administrador" : "Técnico"}
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Módulos analíticos para supervisión agronómica, sanidad zonal y productividad.
-          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">Módulos analíticos para supervisión agronómica, sanidad zonal y productividad.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-1.5 text-xs">
@@ -518,21 +474,11 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           <div className="flex flex-col gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-end">
             <label className="flex-1 space-y-1 text-xs font-medium">
               Buscar plaga, cultivo, parcela o productor
-              <input
-                type="search"
-                value={pestSearch}
-                onChange={(event) => setPestSearch(event.target.value)}
-                placeholder="Escribe para filtrar"
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
+              <input type="search" value={pestSearch} onChange={(event) => setPestSearch(event.target.value)} placeholder="Escribe para filtrar" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" />
             </label>
             <label className="space-y-1 text-xs font-medium sm:w-52">
               Severidad
-              <select
-                value={pestSeverityFilter}
-                onChange={(event) => setPestSeverityFilter(event.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
+              <select value={pestSeverityFilter} onChange={(event) => setPestSeverityFilter(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <option value="ALL">Todas</option>
                 <option value="CRITICA">Crítica</option>
                 <option value="ALTA">Alta</option>
@@ -541,10 +487,12 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
               </select>
             </label>
           </div>
-          <SummaryBarChart title="Incidencias por severidad" data={pestSeverityChart} loading={pestsQuery.isLoading} color="#b45309" />
-          <div className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${priorityPestCount > 0 ? "border-red-500/30 bg-red-500/5" : "border-border bg-muted/20"}`} aria-live="polite">
-            <AlertTriangle className={`size-4 shrink-0 ${priorityPestCount > 0 ? "text-red-600" : "text-muted-foreground"}`} />
-            <span><strong>{priorityPestCount}</strong> registros con severidad crítica o alta entre {visiblePests.length} coincidencias. La lista se ordena primero por mayor severidad.</span>
+          <SummaryBarChart title="Incidencias por severidad" data={pestSeverityChart} loading={pestsQuery.isLoading} color={CHART_COLORS[2]} />
+          <div className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${priorityPestCount > 0 ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/20"}`} aria-live="polite">
+            <AlertTriangle className={`size-4 shrink-0 ${priorityPestCount > 0 ? "text-destructive" : "text-muted-foreground"}`} />
+            <span>
+              <strong>{priorityPestCount}</strong> registros con severidad crítica o alta entre {visiblePests.length} coincidencias. La lista se ordena primero por mayor severidad.
+            </span>
           </div>
           <Card className="p-4 border-border">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -556,7 +504,12 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                 <Loader2 className="size-4 animate-spin" /> Cargando incidencias zonales...
               </div>
             ) : pestsQuery.isError ? (
-              <div role="alert" className="py-6 text-center text-sm text-destructive">No se pudieron cargar las incidencias. <Button variant="link" size="sm" onClick={() => void pestsQuery.refetch()}>Reintentar</Button></div>
+              <div role="alert" className="py-6 text-center text-sm text-destructive">
+                No se pudieron cargar las incidencias.{" "}
+                <Button variant="link" size="sm" onClick={() => void pestsQuery.refetch()}>
+                  Reintentar
+                </Button>
+              </div>
             ) : visiblePests.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">No hay incidencias que coincidan con los filtros.</p>
             ) : (
@@ -577,13 +530,11 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                   <tbody className="divide-y divide-border/50">
                     {visiblePests.map((p: any) => (
                       <tr key={p.id} className="hover:bg-muted/30">
-                        <td className="py-2 px-3 whitespace-nowrap text-muted-foreground">
-                          {p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—"}
-                        </td>
+                        <td className="py-2 px-3 whitespace-nowrap text-muted-foreground">{p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—"}</td>
                         <td className="py-2 px-3 font-semibold text-foreground">{p.pest_name}</td>
                         <td className="py-2 px-3">
-                          <Badge variant="outline" className={`text-[10px] ${severityColors[p.severity] ?? ""}`}>
-                            {p.severity}
+                          <Badge variant="outline" className={`text-[10px] ${severityClass(p.severity)}`}>
+                            {severityLabel(p.severity)}
                           </Badge>
                         </td>
                         <td className="py-2 px-3">{p.crops?.crop_catalog?.name ?? "—"}</td>
@@ -591,16 +542,12 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                         <td className="py-2 px-3 font-medium">{p.crops?.parcels?.profiles?.full_name ?? "—"}</td>
                         <td className="py-2 px-3">
                           {p.crops?.parcels?.latitude != null && p.crops?.parcels?.longitude != null ? (
-                            <a
-                              href={`https://www.google.com/maps?q=${p.crops.parcels.latitude},${p.crops.parcels.longitude}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline"
-                              aria-label={`Abrir ubicación de ${p.crops?.parcels?.name ?? "la parcela"} en mapa`}
-                            >
+                            <a href={`https://www.google.com/maps?q=${p.crops.parcels.latitude},${p.crops.parcels.longitude}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline" aria-label={`Abrir ubicación de ${p.crops?.parcels?.name ?? "la parcela"} en mapa`}>
                               <MapPin className="size-3.5" /> Mapa
                             </a>
-                          ) : <span className="text-muted-foreground">Sin coordenadas</span>}
+                          ) : (
+                            <span className="text-muted-foreground">Sin coordenadas</span>
+                          )}
                         </td>
                         <td className="py-2 px-3 text-muted-foreground max-w-[200px] truncate">{p.treatment || "—"}</td>
                       </tr>
@@ -617,7 +564,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           <SummaryBarChart title="Ingresos por productor · Top 8" data={rankingChart} loading={rankingQuery.isLoading} formatValue={formatCOP} />
           <Card className="p-4 border-border">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <Trophy className="size-4 text-amber-500" />
+              <Trophy className="size-4 text-warning-text" />
               Ranking de Productores por Ingresos y Cosecha
             </h3>
             {rankingQuery.isLoading ? (
@@ -625,7 +572,12 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                 <Loader2 className="size-4 animate-spin" /> Consolidando rendimiento...
               </div>
             ) : rankingQuery.isError ? (
-              <div role="alert" className="py-6 text-center text-sm text-destructive">No se pudo consolidar el ranking. <Button variant="link" size="sm" onClick={() => void rankingQuery.refetch()}>Reintentar</Button></div>
+              <div role="alert" className="py-6 text-center text-sm text-destructive">
+                No se pudo consolidar el ranking.{" "}
+                <Button variant="link" size="sm" onClick={() => void rankingQuery.refetch()}>
+                  Reintentar
+                </Button>
+              </div>
             ) : rankingData.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">No hay datos de cosecha registrados.</p>
             ) : (
@@ -657,14 +609,11 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                           <td className="py-2 px-3 text-right tabular-nums font-medium">
                             {r.harvestedQty.toFixed(1)} {r.unit}
                           </td>
-                          <td className="py-2 px-3 text-right font-bold text-emerald-600 tabular-nums">
-                            {formatCOP(r.totalRevenue)}
-                          </td>
-                          <td className="py-2 px-3 text-right text-red-600 tabular-nums">
-                            {formatCOP(r.totalCost)}
-                          </td>
-                          <td className={`py-2 px-3 text-right font-bold tabular-nums ${net >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                            {net >= 0 ? "+" : ""}{formatCOP(net)}
+                          <td className="py-2 px-3 text-right font-bold text-success tabular-nums">{formatCOP(r.totalRevenue)}</td>
+                          <td className="py-2 px-3 text-right text-destructive tabular-nums">{formatCOP(r.totalCost)}</td>
+                          <td className={`py-2 px-3 text-right font-bold tabular-nums ${net >= 0 ? "text-success" : "text-destructive"}`}>
+                            {net >= 0 ? "+" : ""}
+                            {formatCOP(net)}
                           </td>
                         </tr>
                       );
@@ -681,7 +630,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Card className="p-4 border-border/70 shadow-xs">
               <span className="text-xs text-muted-foreground">Valorización Global</span>
-              <p className="text-xl font-bold mt-1 text-emerald-600">{formatCOP(inventoryData.totalVal)}</p>
+              <p className="text-xl font-bold mt-1 text-success">{formatCOP(inventoryData.totalVal)}</p>
             </Card>
             <Card className="p-4 border-border/70 shadow-xs">
               <span className="text-xs text-muted-foreground">Total Insumos Registrados</span>
@@ -693,7 +642,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
             </Card>
           </div>
 
-          <SummaryBarChart title="Valor del inventario por categoría · Top 8" data={inventoryChart} loading={inventoryQuery.isLoading} formatValue={formatCOP} color="#0369a1" />
+          <SummaryBarChart title="Valor del inventario por categoría · Top 8" data={inventoryChart} loading={inventoryQuery.isLoading} formatValue={formatCOP} color={CHART_COLORS[5]} />
 
           <Card className="p-4 border-border">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -705,7 +654,12 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                 <Loader2 className="size-4 animate-spin" /> Consolidando insumos...
               </div>
             ) : inventoryQuery.isError ? (
-              <div role="alert" className="py-6 text-center text-sm text-destructive">No se pudo cargar el inventario global. <Button variant="link" size="sm" onClick={() => void inventoryQuery.refetch()}>Reintentar</Button></div>
+              <div role="alert" className="py-6 text-center text-sm text-destructive">
+                No se pudo cargar el inventario global.{" "}
+                <Button variant="link" size="sm" onClick={() => void inventoryQuery.refetch()}>
+                  Reintentar
+                </Button>
+              </div>
             ) : inventoryData.items.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">No hay insumos registrados en el sistema.</p>
             ) : (
@@ -735,9 +689,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                           {Number(i.stock_qty).toFixed(2)} {i.unit}
                         </td>
                         <td className="py-2 px-3 text-right tabular-nums">{formatCOP(Number(i.unit_cost || 0))}</td>
-                        <td className="py-2 px-3 text-right font-bold text-emerald-600 tabular-nums">
-                          {formatCOP(Number(i.stock_qty || 0) * Number(i.unit_cost || 0))}
-                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-success tabular-nums">{formatCOP(Number(i.stock_qty || 0) * Number(i.unit_cost || 0))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -749,7 +701,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
 
         {/* Tab 4: Asistencias Técnicas */}
         <TabsContent value="visitas" className="space-y-4">
-          <SummaryBarChart title="Asistencias por tipo de labor" data={visitChart} loading={visitsQuery.isLoading} color="#0369a1" />
+          <SummaryBarChart title="Asistencias por tipo de labor" data={visitChart} loading={visitsQuery.isLoading} color={CHART_COLORS[5]} />
           <Card className="p-4 border-border">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
               <Wrench className="size-4 text-primary" />
@@ -760,7 +712,12 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                 <Loader2 className="size-4 animate-spin" /> Cargando visitas...
               </div>
             ) : visitsQuery.isError ? (
-              <div role="alert" className="py-6 text-center text-sm text-destructive">No se pudieron cargar las asistencias. <Button variant="link" size="sm" onClick={() => void visitsQuery.refetch()}>Reintentar</Button></div>
+              <div role="alert" className="py-6 text-center text-sm text-destructive">
+                No se pudieron cargar las asistencias.{" "}
+                <Button variant="link" size="sm" onClick={() => void visitsQuery.refetch()}>
+                  Reintentar
+                </Button>
+              </div>
             ) : (visitsQuery.data ?? []).length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">No hay asistencias técnicas registradas.</p>
             ) : (
@@ -779,9 +736,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
                   <tbody className="divide-y divide-border/50">
                     {(visitsQuery.data ?? []).map((v: any) => (
                       <tr key={v.id} className="hover:bg-muted/30">
-                        <td className="py-2 px-3 whitespace-nowrap text-muted-foreground">
-                          {v.performed_at ? format(new Date(v.performed_at), "dd/MM/yyyy") : "—"}
-                        </td>
+                        <td className="py-2 px-3 whitespace-nowrap text-muted-foreground">{v.performed_at ? format(new Date(v.performed_at), "dd/MM/yyyy") : "—"}</td>
                         <td className="py-2 px-3 font-semibold text-foreground">{v.kind}</td>
                         <td className="py-2 px-3 text-primary font-medium">{v.profiles?.full_name || "Técnico"}</td>
                         <td className="py-2 px-3 text-muted-foreground">{v.crops?.parcels?.profiles?.full_name || "—"}</td>

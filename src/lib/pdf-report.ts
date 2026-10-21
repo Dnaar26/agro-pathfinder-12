@@ -39,6 +39,7 @@ async function loadLogo(): Promise<string | null> {
   try {
     const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
     const res = await fetch(`${baseUrl}/sigic-logo.png`);
+    if (!res.ok) return null;
     const blob = await res.blob();
     cachedLogo = await new Promise<string>((resolve, reject) => {
       const r = new FileReader();
@@ -53,7 +54,11 @@ async function loadLogo(): Promise<string | null> {
 }
 
 function templateLabel(t: PdfReportTemplate): string {
-  return { actividades: "Reporte de Actividades", parcelas: "Inventario de Parcelas", resumen: "Resumen Ejecutivo" }[t];
+  return {
+    actividades: "Reporte de Actividades",
+    parcelas: "Inventario de Parcelas",
+    resumen: "Resumen Ejecutivo",
+  }[t];
 }
 
 function drawHeader(doc: jsPDF, opts: PdfReportOptions, logoDataUrl: string | null) {
@@ -61,7 +66,11 @@ function drawHeader(doc: jsPDF, opts: PdfReportOptions, logoDataUrl: string | nu
   doc.setFillColor(...BRAND);
   doc.rect(0, 0, w, 22, "F");
   if (logoDataUrl) {
-    try { doc.addImage(logoDataUrl, "PNG", 8, 4, 14, 14); } catch { /* noop */ }
+    try {
+      doc.addImage(logoDataUrl, "PNG", 8, 4, 14, 14);
+    } catch {
+      /* noop */
+    }
   }
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
@@ -218,7 +227,11 @@ export async function generatePdfReport(opts: PdfReportOptions): Promise<jsPDF> 
   const [jspdfModule, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
   const jsPDFClass = (jspdfModule as any).jsPDF || (jspdfModule as any).default?.jsPDF || jspdfModule.default;
   const autoTable = (autoTableModule as any).default || autoTableModule;
-  const doc = new jsPDFClass({ orientation: opts.orientation ?? "landscape", unit: "mm", format: "a4" });
+  const doc = new jsPDFClass({
+    orientation: opts.orientation ?? "landscape",
+    unit: "mm",
+    format: "a4",
+  });
   const logo = await loadLogo();
   drawHeader(doc, opts, logo);
 
@@ -228,7 +241,11 @@ export async function generatePdfReport(opts: PdfReportOptions): Promise<jsPDF> 
 
   for (const section of opts.sections) {
     if (section.title) {
-      if (y > doc.internal.pageSize.getHeight() - 40) { doc.addPage(); drawHeader(doc, opts, logo); y = 40; }
+      if (y > doc.internal.pageSize.getHeight() - 40) {
+        doc.addPage();
+        drawHeader(doc, opts, logo);
+        y = 40;
+      }
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.text(section.title, 14, y);
@@ -243,7 +260,9 @@ export async function generatePdfReport(opts: PdfReportOptions): Promise<jsPDF> 
       alternateRowStyles: { fillColor: [245, 248, 244] },
       columnStyles: section.columnStyles,
       margin: { left: 14, right: 14, bottom: 18 },
-      didDrawPage: () => { drawHeader(doc, opts, logo); },
+      didDrawPage: () => {
+        drawHeader(doc, opts, logo);
+      },
     });
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
   }

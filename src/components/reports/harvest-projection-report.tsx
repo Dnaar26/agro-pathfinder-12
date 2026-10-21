@@ -9,18 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { format, differenceInDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
-import {
-  CalendarClock,
-  Download,
-  FileSpreadsheet,
-  Clock,
-  AlertTriangle,
-  Wheat,
-  BellRing,
-  Loader2,
-  CheckCircle2,
-  Droplet,
-} from "lucide-react";
+import { CalendarClock, Download, FileSpreadsheet, Clock, AlertTriangle, Wheat, BellRing, Loader2, CheckCircle2, Droplet } from "lucide-react";
 
 export function HarvestProjectionReport() {
   const [exporting, setExporting] = useState(false);
@@ -35,11 +24,7 @@ export function HarvestProjectionReport() {
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", u.user.id)
-        .maybeSingle();
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", u.user.id).maybeSingle();
       return { fullName: data?.full_name || "Agricultor" };
     },
   });
@@ -70,37 +55,18 @@ export function HarvestProjectionReport() {
     setExporting(true);
     try {
       const farmerName = profileQuery.data?.fullName || "Agricultor";
-      const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: es });
-
-      const harvestRows = crops.map((c) => {
-        const diff = c.estimated_harvest_date
-          ? differenceInDays(new Date(c.estimated_harvest_date), new Date())
-          : null;
-        const statusText =
-          diff !== null
-            ? diff < 0
-              ? `Vencida (${Math.abs(diff)}d)`
-              : diff === 0
-              ? "Hoy"
-              : `En ${diff} días`
-            : "Sin fecha";
-
-        return [
-          c.crop_catalog?.name || "Cultivo",
-          c.parcels?.name || "—",
-          c.status || "—",
-          c.planting_date ? format(new Date(c.planting_date), "dd/MM/yyyy") : "—",
-          c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "dd/MM/yyyy") : "—",
-          statusText,
-        ];
+      const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", {
+        locale: es,
       });
 
-      const alertRows = alerts.map((a: any) => [
-        a.scheduled_at ? format(new Date(a.scheduled_at), "dd/MM/yyyy") : "—",
-        a.kind || "—",
-        a.title || "—",
-        a.body || "Sin descripción",
-      ]);
+      const harvestRows = crops.map((c) => {
+        const diff = c.estimated_harvest_date ? differenceInDays(new Date(c.estimated_harvest_date), new Date()) : null;
+        const statusText = diff !== null ? (diff < 0 ? `Vencida (${Math.abs(diff)}d)` : diff === 0 ? "Hoy" : `En ${diff} días`) : "Sin fecha";
+
+        return [c.crop_catalog?.name || "Cultivo", c.parcels?.name || "—", c.status || "—", c.planting_date ? format(new Date(c.planting_date), "dd/MM/yyyy") : "—", c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "dd/MM/yyyy") : "—", statusText];
+      });
+
+      const alertRows = alerts.map((a: any) => [a.scheduled_at ? format(new Date(a.scheduled_at), "dd/MM/yyyy") : "—", a.kind || "—", a.title || "—", a.body || "Sin descripción"]);
 
       const doc = await generatePdfReport({
         template: "resumen",
@@ -126,12 +92,14 @@ export function HarvestProjectionReport() {
             body: harvestRows,
           },
           ...(alertRows.length > 0
-            ? [{
-                title: "Labores y Alertas Pendientes en Campo",
-                head: ["Fecha Programada", "Tipo de Labor", "Título", "Detalles"],
-                body: alertRows,
-                columnStyles: { 3: { cellWidth: 70 } },
-              }]
+            ? [
+                {
+                  title: "Labores y Alertas Pendientes en Campo",
+                  head: ["Fecha Programada", "Tipo de Labor", "Título", "Detalles"],
+                  body: alertRows,
+                  columnStyles: { 3: { cellWidth: 70 } },
+                },
+              ]
             : []),
         ],
       });
@@ -157,27 +125,13 @@ export function HarvestProjectionReport() {
         ["--- CULTIVOS Y COSECHAS ESTIMADAS ---"],
         ["Cultivo", "Parcela", "Estado", "Fecha Siembra", "Cosecha Estimada", "Días Restantes"],
         ...crops.map((c) => {
-          const diff = c.estimated_harvest_date
-            ? differenceInDays(new Date(c.estimated_harvest_date), new Date())
-            : "";
-          return [
-            c.crop_catalog?.name || "",
-            c.parcels?.name || "",
-            c.status || "",
-            c.planting_date ? format(new Date(c.planting_date), "yyyy-MM-dd") : "",
-            c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "yyyy-MM-dd") : "",
-            diff !== "" ? String(diff) : "",
-          ];
+          const diff = c.estimated_harvest_date ? differenceInDays(new Date(c.estimated_harvest_date), new Date()) : "";
+          return [c.crop_catalog?.name || "", c.parcels?.name || "", c.status || "", c.planting_date ? format(new Date(c.planting_date), "yyyy-MM-dd") : "", c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "yyyy-MM-dd") : "", diff !== "" ? String(diff) : ""];
         }),
         [],
         ["--- ALERTAS Y LABORES PENDIENTES ---"],
         ["Fecha", "Tipo", "Título", "Detalle"],
-        ...alerts.map((a: any) => [
-          a.scheduled_at ? format(new Date(a.scheduled_at), "yyyy-MM-dd") : "",
-          a.kind || "",
-          a.title || "",
-          a.body || "",
-        ]),
+        ...alerts.map((a: any) => [a.scheduled_at ? format(new Date(a.scheduled_at), "yyyy-MM-dd") : "", a.kind || "", a.title || "", a.body || ""]),
       ];
 
       const csvContent =
@@ -189,7 +143,7 @@ export function HarvestProjectionReport() {
                 const s = String(val ?? "").replace(/"/g, '""');
                 return /[",\n]/.test(s) ? `"${s}"` : s;
               })
-              .join(",")
+              .join(","),
           )
           .join("\n");
 
@@ -218,9 +172,9 @@ export function HarvestProjectionReport() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-amber-900/10 via-amber-600/5 to-transparent border border-amber-500/20 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-border bg-card p-5">
         <div className="flex items-center gap-2">
-          <div className="size-9 rounded-xl bg-amber-600/15 text-amber-600 grid place-items-center">
+          <div className="size-9 rounded-lg bg-warning/15 text-warning-text grid place-items-center">
             <CalendarClock className="size-5" />
           </div>
           <div>
@@ -247,29 +201,27 @@ export function HarvestProjectionReport() {
         <Card className="p-4 border-border/70 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Cosecha en ≤ 15 días</span>
-            <Wheat className="size-4 text-emerald-600" />
+            <Wheat className="size-4 text-success" />
           </div>
-          <p className="text-2xl font-bold mt-2 text-emerald-600">{harvestStats.next15Days}</p>
+          <p className="text-2xl font-bold mt-2 text-success">{harvestStats.next15Days}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">preparar logística</p>
         </Card>
 
         <Card className="p-4 border-border/70 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Cosecha 16 a 30 días</span>
-            <Clock className="size-4 text-blue-600" />
+            <Clock className="size-4 text-info" />
           </div>
-          <p className="text-2xl font-bold mt-2 text-blue-600">{harvestStats.next30Days}</p>
+          <p className="text-2xl font-bold mt-2 text-info">{harvestStats.next30Days}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">fase de llenado</p>
         </Card>
 
-        <Card className={`p-4 border shadow-xs ${harvestStats.overdue > 0 ? "border-amber-500/40 bg-amber-500/5" : "border-border/70"}`}>
+        <Card className={`p-4 border ${harvestStats.overdue > 0 ? "border-warning/40 bg-warning/5" : "border-border/70"}`}>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Fecha Cumplida</span>
-            <AlertTriangle className={`size-4 ${harvestStats.overdue > 0 ? "text-amber-600" : "text-muted-foreground"}`} />
+            <AlertTriangle className={`size-4 ${harvestStats.overdue > 0 ? "text-warning-text" : "text-muted-foreground"}`} />
           </div>
-          <p className={`text-2xl font-bold mt-2 ${harvestStats.overdue > 0 ? "text-amber-600" : "text-foreground"}`}>
-            {harvestStats.overdue}
-          </p>
+          <p className={`text-2xl font-bold mt-2 ${harvestStats.overdue > 0 ? "text-warning-text" : "text-foreground"}`}>{harvestStats.overdue}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">revisar madurez</p>
         </Card>
 
@@ -290,9 +242,7 @@ export function HarvestProjectionReport() {
           Proyección Fenológica y Fechas Estimadas
         </h3>
         {crops.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-6">
-            No tienes cultivos activos en campo en este momento.
-          </p>
+          <p className="text-xs text-muted-foreground text-center py-6">No tienes cultivos activos en campo en este momento.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -308,41 +258,19 @@ export function HarvestProjectionReport() {
               </thead>
               <tbody className="divide-y divide-border/50">
                 {crops.map((c: any) => {
-                  const diff = c.estimated_harvest_date
-                    ? differenceInDays(new Date(c.estimated_harvest_date), new Date())
-                    : null;
+                  const diff = c.estimated_harvest_date ? differenceInDays(new Date(c.estimated_harvest_date), new Date()) : null;
                   return (
                     <tr key={c.id} className="hover:bg-muted/30">
-                      <td className="py-2.5 px-3 font-semibold text-foreground">
-                        {c.crop_catalog?.name ?? "Cultivo"}
-                      </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">
-                        {c.parcels?.name ?? "—"}
-                      </td>
+                      <td className="py-2.5 px-3 font-semibold text-foreground">{c.crop_catalog?.name ?? "Cultivo"}</td>
+                      <td className="py-2.5 px-3 text-muted-foreground">{c.parcels?.name ?? "—"}</td>
                       <td className="py-2.5 px-3">
                         <Badge variant="outline" className="text-[10px]">
                           {c.status}
                         </Badge>
                       </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">
-                        {c.planting_date ? format(new Date(c.planting_date), "dd/MM/yyyy") : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 font-medium">
-                        {c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "dd/MM/yyyy") : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-bold tabular-nums">
-                        {diff !== null ? (
-                          diff < 0 ? (
-                            <span className="text-amber-600">Vencida hace {Math.abs(diff)}d</span>
-                          ) : diff <= 15 ? (
-                            <span className="text-emerald-600 font-bold">{diff} días (Próxima)</span>
-                          ) : (
-                            <span className="text-foreground">{diff} días</span>
-                          )
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
+                      <td className="py-2.5 px-3 text-muted-foreground">{c.planting_date ? format(new Date(c.planting_date), "dd/MM/yyyy") : "—"}</td>
+                      <td className="py-2.5 px-3 font-medium">{c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "dd/MM/yyyy") : "—"}</td>
+                      <td className="py-2.5 px-3 text-right font-bold tabular-nums">{diff !== null ? diff < 0 ? <span className="text-amber-600">Vencida hace {Math.abs(diff)}d</span> : diff <= 15 ? <span className="text-emerald-600 font-bold">{diff} días (Próxima)</span> : <span className="text-foreground">{diff} días</span> : <span className="text-muted-foreground">—</span>}</td>
                     </tr>
                   );
                 })}
@@ -367,7 +295,11 @@ export function HarvestProjectionReport() {
                     {a.kind}
                   </Badge>
                   <span className="text-[10px] text-muted-foreground">
-                    {a.scheduled_at ? format(new Date(a.scheduled_at), "dd MMM", { locale: es }) : "—"}
+                    {a.scheduled_at
+                      ? format(new Date(a.scheduled_at), "dd MMM", {
+                          locale: es,
+                        })
+                      : "—"}
                   </span>
                 </div>
                 <p className="font-semibold text-foreground pt-1">{a.title}</p>

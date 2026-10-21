@@ -9,41 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { format, differenceInDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
-import {
-  Sprout,
-  Download,
-  FileSpreadsheet,
-  TrendingUp,
-  DollarSign,
-  Wheat,
-  Loader2,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-} from "lucide-react";
+import { formatCurrencyInt } from "@/lib/currency";
+import { CROP_STATUS_OPTIONS, cropStatusClass, cropStatusLabel } from "@/lib/status-styles";
+import { Sprout, Download, FileSpreadsheet, TrendingUp, DollarSign, Wheat, Loader2, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 
-const formatCOP = (n: number) =>
-  "$ " + n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
-const statusLabel: Record<string, string> = {
-  PLANEADO: "Planeado",
-  SEMBRADO: "Sembrado",
-  CRECIMIENTO: "En crecimiento",
-  MANTENIMIENTO: "Mantenimiento",
-  COSECHA: "En cosecha",
-  POSTCOSECHA: "Post-cosecha",
-  FINALIZADO: "Finalizado",
-};
-
-const statusColors: Record<string, string> = {
-  PLANEADO: "bg-slate-500/15 text-slate-700 border-slate-500/30",
-  SEMBRADO: "bg-blue-500/15 text-blue-700 border-blue-500/30",
-  CRECIMIENTO: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
-  MANTENIMIENTO: "bg-amber-500/15 text-amber-700 border-amber-500/30",
-  COSECHA: "bg-orange-500/15 text-orange-700 border-orange-500/30",
-  POSTCOSECHA: "bg-purple-500/15 text-purple-700 border-purple-500/30",
-  FINALIZADO: "bg-muted/50 text-muted-foreground border-border",
-};
+const formatCOP = formatCurrencyInt;
+const statusLabel = Object.fromEntries(CROP_STATUS_OPTIONS) as Record<string, string>;
 
 export function CropPerformanceReport() {
   const [exporting, setExporting] = useState(false);
@@ -61,11 +32,7 @@ export function CropPerformanceReport() {
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", u.user.id)
-        .maybeSingle();
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", u.user.id).maybeSingle();
       return { fullName: data?.full_name || "Agricultor" };
     },
   });
@@ -83,14 +50,10 @@ export function CropPerformanceReport() {
         const unit = String(harvest.unit || "KG").toUpperCase();
         harvestByUnit.set(unit, (harvestByUnit.get(unit) ?? 0) + Number(harvest.harvested_qty || 0));
       }
-      const harvestSummary = [...harvestByUnit.entries()]
-        .map(([unit, quantity]) => `${quantity.toLocaleString("es-CO", { maximumFractionDigits: 2 })} ${unit}`)
-        .join(" + ");
+      const harvestSummary = [...harvestByUnit.entries()].map(([unit, quantity]) => `${quantity.toLocaleString("es-CO", { maximumFractionDigits: 2 })} ${unit}`).join(" + ");
       const activityCount = (c.activities ?? []).length;
       const daysInField = c.planting_date ? differenceInDays(new Date(), new Date(c.planting_date)) : 0;
-      const daysToHarvest = c.estimated_harvest_date
-        ? differenceInDays(new Date(c.estimated_harvest_date), new Date())
-        : null;
+      const daysToHarvest = c.estimated_harvest_date ? differenceInDays(new Date(c.estimated_harvest_date), new Date()) : null;
       return {
         ...c,
         totalCost,
@@ -113,9 +76,7 @@ export function CropPerformanceReport() {
   const visibleCropMetrics = useMemo(() => {
     const query = cropSearch.trim().toLocaleLowerCase("es-CO");
     const filtered = cropMetrics.filter((crop) => {
-      const matchesStatus = statusFilter === "ALL"
-        || (statusFilter === "ACTIVE" && ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO", "COSECHA"].includes(crop.status))
-        || crop.status === statusFilter;
+      const matchesStatus = statusFilter === "ALL" || (statusFilter === "ACTIVE" && ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO", "COSECHA"].includes(crop.status)) || crop.status === statusFilter;
       const searchText = `${crop.crop_catalog?.name ?? ""} ${crop.parcels?.name ?? ""}`.toLocaleLowerCase("es-CO");
       return matchesStatus && (!query || searchText.includes(query));
     });
@@ -125,13 +86,8 @@ export function CropPerformanceReport() {
       if (sortBy === "margin-high") return b.netMargin - a.netMargin;
       if (sortBy === "harvest-date") return (a.daysToHarvest ?? Infinity) - (b.daysToHarvest ?? Infinity);
 
-      const priority = (crop: typeof filtered[number]) =>
-        crop.daysToHarvest !== null && crop.daysToHarvest < 0 ? 0
-          : crop.daysToHarvest !== null && crop.daysToHarvest <= 7 ? 1
-            : crop.totalCost > 0 && crop.netMargin < 0 ? 2 : 3;
-      return priority(a) - priority(b)
-        || (a.daysToHarvest ?? Infinity) - (b.daysToHarvest ?? Infinity)
-        || a.netMargin - b.netMargin;
+      const priority = (crop: (typeof filtered)[number]) => (crop.daysToHarvest !== null && crop.daysToHarvest < 0 ? 0 : crop.daysToHarvest !== null && crop.daysToHarvest <= 7 ? 1 : crop.totalCost > 0 && crop.netMargin < 0 ? 2 : 3);
+      return priority(a) - priority(b) || (a.daysToHarvest ?? Infinity) - (b.daysToHarvest ?? Infinity) || a.netMargin - b.netMargin;
     });
   }, [cropMetrics, cropSearch, statusFilter, sortBy]);
 
@@ -140,21 +96,11 @@ export function CropPerformanceReport() {
     setExporting(true);
     try {
       const farmerName = profileQuery.data?.fullName || "Agricultor";
-      const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: es });
+      const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", {
+        locale: es,
+      });
 
-      const summaryBody = cropMetrics.map((c) => [
-        c.crop_catalog?.name ?? "—",
-        c.parcels?.name ?? "—",
-        statusLabel[c.status] ?? c.status,
-        c.planting_date ? format(new Date(c.planting_date), "dd/MM/yyyy") : "—",
-        c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "dd/MM/yyyy") : "—",
-        String(c.activityCount),
-        formatCOP(c.totalCost),
-        formatCOP(c.totalRevenue),
-        c.totalRevenue > 0 || c.totalCost > 0 ? (c.netMargin >= 0 ? `+${formatCOP(c.netMargin)}` : formatCOP(c.netMargin)) : "—",
-        c.harvestSummary || "—",
-        c.costPerUnit !== null ? `${formatCOP(c.costPerUnit)} / ${[...new Set((c.crop_harvests ?? []).map((h: any) => String(h.unit || "KG").toUpperCase()))][0]}` : "—",
-      ]);
+      const summaryBody = cropMetrics.map((c) => [c.crop_catalog?.name ?? "—", c.parcels?.name ?? "—", statusLabel[c.status] ?? c.status, c.planting_date ? format(new Date(c.planting_date), "dd/MM/yyyy") : "—", c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "dd/MM/yyyy") : "—", String(c.activityCount), formatCOP(c.totalCost), formatCOP(c.totalRevenue), c.totalRevenue > 0 || c.totalCost > 0 ? (c.netMargin >= 0 ? `+${formatCOP(c.netMargin)}` : formatCOP(c.netMargin)) : "—", c.harvestSummary || "—", c.costPerUnit !== null ? `${formatCOP(c.costPerUnit)} / ${[...new Set((c.crop_harvests ?? []).map((h: any) => String(h.unit || "KG").toUpperCase()))][0]}` : "—"]);
 
       const doc = await generatePdfReport({
         template: "resumen",
@@ -196,29 +142,7 @@ export function CropPerformanceReport() {
   const handleExportCSV = () => {
     try {
       const farmerName = profileQuery.data?.fullName || "Agricultor";
-      const rows = [
-        ["Reporte de Rendimiento de Cultivos SIGIC"],
-        [`Agricultor: ${farmerName}`],
-        [`Fecha: ${format(new Date(), "yyyy-MM-dd HH:mm")}`],
-        [],
-        ["Cultivo", "Parcela", "Estado", "Fecha Siembra", "Cosecha Estimada", "Días en Campo", "Días Para Cosecha", "Cosecha Total", "Costo por unidad cosechada (COP)", "N° Actividades", "Costo Total (COP)", "Ingreso Total (COP)", "Margen Neto (COP)", "Margen sobre ingresos (%)"],
-        ...cropMetrics.map((c) => [
-          c.crop_catalog?.name ?? "—",
-          c.parcels?.name ?? "—",
-          statusLabel[c.status] ?? c.status,
-          c.planting_date ? format(new Date(c.planting_date), "yyyy-MM-dd") : "—",
-          c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "yyyy-MM-dd") : "—",
-          c.daysInField,
-          c.daysToHarvest !== null ? c.daysToHarvest : "—",
-          c.harvestSummary || "—",
-          c.costPerUnit !== null ? c.costPerUnit.toFixed(2) : "—",
-          c.activityCount,
-          c.totalCost.toFixed(2),
-          c.totalRevenue.toFixed(2),
-          c.netMargin.toFixed(2),
-          c.marginRate !== null ? c.marginRate.toFixed(1) : "—",
-        ]),
-      ];
+      const rows = [["Reporte de Rendimiento de Cultivos SIGIC"], [`Agricultor: ${farmerName}`], [`Fecha: ${format(new Date(), "yyyy-MM-dd HH:mm")}`], [], ["Cultivo", "Parcela", "Estado", "Fecha Siembra", "Cosecha Estimada", "Días en Campo", "Días Para Cosecha", "Cosecha Total", "Costo por unidad cosechada (COP)", "N° Actividades", "Costo Total (COP)", "Ingreso Total (COP)", "Margen Neto (COP)", "Margen sobre ingresos (%)"], ...cropMetrics.map((c) => [c.crop_catalog?.name ?? "—", c.parcels?.name ?? "—", statusLabel[c.status] ?? c.status, c.planting_date ? format(new Date(c.planting_date), "yyyy-MM-dd") : "—", c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "yyyy-MM-dd") : "—", c.daysInField, c.daysToHarvest !== null ? c.daysToHarvest : "—", c.harvestSummary || "—", c.costPerUnit !== null ? c.costPerUnit.toFixed(2) : "—", c.activityCount, c.totalCost.toFixed(2), c.totalRevenue.toFixed(2), c.netMargin.toFixed(2), c.marginRate !== null ? c.marginRate.toFixed(1) : "—"])];
 
       const csvContent =
         "\uFEFF" +
@@ -231,7 +155,7 @@ export function CropPerformanceReport() {
                 s = s.replace(/"/g, '""');
                 return /[",\n]/.test(s) ? `"${s}"` : s;
               })
-              .join(",")
+              .join(","),
           )
           .join("\n");
 
@@ -260,9 +184,9 @@ export function CropPerformanceReport() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-green-900/10 via-green-600/5 to-transparent border border-green-500/20 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-border bg-card p-5">
         <div className="flex items-center gap-2">
-          <div className="size-9 rounded-xl bg-green-600/15 text-green-600 grid place-items-center">
+          <div className="size-9 rounded-lg bg-success/15 text-success grid place-items-center">
             <Sprout className="size-5" />
           </div>
           <div>
@@ -289,31 +213,32 @@ export function CropPerformanceReport() {
         <Card className="p-4 border-border/70 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Cultivos Totales</span>
-            <Sprout className="size-4 text-green-600" />
+            <Sprout className="size-4 text-success" />
           </div>
           <p className="text-2xl font-bold mt-2">{cropMetrics.length}</p>
         </Card>
         <Card className="p-4 border-border/70 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Activos</span>
-            <CheckCircle2 className="size-4 text-emerald-600" />
+            <CheckCircle2 className="size-4 text-success" />
           </div>
-          <p className="text-2xl font-bold mt-2 text-emerald-600">{activeCrops}</p>
+          <p className="text-2xl font-bold mt-2 text-success">{activeCrops}</p>
         </Card>
         <Card className="p-4 border-red-500/20 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Costos Totales</span>
-            <DollarSign className="size-4 text-red-600" />
+            <DollarSign className="size-4 text-destructive" />
           </div>
-          <p className="text-lg font-bold mt-2 text-red-600">{formatCOP(globalCost)}</p>
+          <p className="text-lg font-bold mt-2 text-destructive">{formatCOP(globalCost)}</p>
         </Card>
         <Card className={`p-4 shadow-xs border ${globalRevenue - globalCost >= 0 ? "border-emerald-500/30" : "border-red-500/30"}`}>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Margen Bruto</span>
-            <TrendingUp className={`size-4 ${globalRevenue - globalCost >= 0 ? "text-emerald-600" : "text-red-600"}`} />
+            <TrendingUp className={`size-4 ${globalRevenue - globalCost >= 0 ? "text-success" : "text-destructive"}`} />
           </div>
-          <p className={`text-lg font-bold mt-2 ${globalRevenue - globalCost >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-            {globalRevenue - globalCost >= 0 ? "+" : ""}{formatCOP(globalRevenue - globalCost)}
+          <p className={`text-lg font-bold mt-2 ${globalRevenue - globalCost >= 0 ? "text-success" : "text-destructive"}`}>
+            {globalRevenue - globalCost >= 0 ? "+" : ""}
+            {formatCOP(globalRevenue - globalCost)}
           </p>
         </Card>
       </div>
@@ -321,33 +246,23 @@ export function CropPerformanceReport() {
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_190px_210px]">
         <label className="space-y-1 text-xs font-medium">
           Buscar cultivo o parcela
-          <input
-            type="search"
-            value={cropSearch}
-            onChange={(event) => setCropSearch(event.target.value)}
-            placeholder="Nombre del cultivo o parcela"
-            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
+          <input type="search" value={cropSearch} onChange={(event) => setCropSearch(event.target.value)} placeholder="Nombre del cultivo o parcela" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" />
         </label>
         <label className="space-y-1 text-xs font-medium">
           Estado
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <option value="ALL">Todos</option>
             <option value="ACTIVE">Activos en campo</option>
-            {Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            {Object.entries(statusLabel).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </label>
         <label className="space-y-1 text-xs font-medium">
           Ordenar por
-          <select
-            value={sortBy}
-            onChange={(event) => setSortBy(event.target.value)}
-            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
+          <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <option value="priority">Prioridad de atención</option>
             <option value="harvest-date">Cosecha más próxima</option>
             <option value="margin-low">Menor margen</option>
@@ -383,8 +298,8 @@ export function CropPerformanceReport() {
                     Parcela: <span className="font-medium text-foreground">{c.parcels?.name ?? "—"}</span>
                   </p>
                 </div>
-                <Badge variant="outline" className={`text-[10px] ${statusColors[c.status] ?? ""}`}>
-                  {statusLabel[c.status] ?? c.status}
+                <Badge variant="outline" className={`text-[10px] ${cropStatusClass(c.status)}`}>
+                  {cropStatusLabel(c.status)}
                 </Badge>
               </div>
 
@@ -398,12 +313,8 @@ export function CropPerformanceReport() {
                   <p className="text-lg font-bold">{c.daysInField}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-[11px] text-muted-foreground">
-                    {c.daysToHarvest !== null && c.daysToHarvest >= 0 ? "Días p/ cosecha" : "Cosecha"}
-                  </p>
-                  <p className={`text-lg font-bold ${c.daysToHarvest !== null && c.daysToHarvest <= 7 && c.daysToHarvest >= 0 ? "text-amber-600" : ""}`}>
-                    {c.daysToHarvest !== null ? (c.daysToHarvest < 0 ? "Vencida" : c.daysToHarvest) : "—"}
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">{c.daysToHarvest !== null && c.daysToHarvest >= 0 ? "Días p/ cosecha" : "Cosecha"}</p>
+                  <p className={`text-lg font-bold ${c.daysToHarvest !== null && c.daysToHarvest <= 7 && c.daysToHarvest >= 0 ? "text-warning-text" : ""}`}>{c.daysToHarvest !== null ? (c.daysToHarvest < 0 ? "Vencida" : c.daysToHarvest) : "—"}</p>
                 </div>
               </div>
 
@@ -415,16 +326,17 @@ export function CropPerformanceReport() {
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase">Costo</p>
-                    <p className="text-sm font-bold text-red-600">{formatCOP(c.totalCost)}</p>
+                    <p className="text-sm font-bold text-destructive">{formatCOP(c.totalCost)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase">Ingreso</p>
-                    <p className="text-sm font-bold text-emerald-600">{formatCOP(c.totalRevenue)}</p>
+                    <p className="text-sm font-bold text-success">{formatCOP(c.totalRevenue)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase">Margen</p>
-                    <p className={`text-sm font-bold ${c.netMargin >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                      {c.netMargin >= 0 ? "+" : ""}{formatCOP(c.netMargin)}
+                    <p className={`text-sm font-bold ${c.netMargin >= 0 ? "text-success" : "text-destructive"}`}>
+                      {c.netMargin >= 0 ? "+" : ""}
+                      {formatCOP(c.netMargin)}
                     </p>
                   </div>
                   <div>
@@ -438,9 +350,12 @@ export function CropPerformanceReport() {
               {c.estimated_harvest_date && (
                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <Clock className="size-3" />
-                  Cosecha est.: {format(new Date(c.estimated_harvest_date), "dd MMM yyyy", { locale: es })}
+                  Cosecha est.:{" "}
+                  {format(new Date(c.estimated_harvest_date), "dd MMM yyyy", {
+                    locale: es,
+                  })}
                   {c.daysToHarvest !== null && c.daysToHarvest < 0 && (
-                    <span className="flex items-center gap-1 text-red-600 font-semibold">
+                    <span className="flex items-center gap-1 text-destructive font-semibold">
                       <AlertTriangle className="size-3" /> Fecha vencida
                     </span>
                   )}

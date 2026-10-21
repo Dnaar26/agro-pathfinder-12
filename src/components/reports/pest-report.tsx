@@ -9,24 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
-import {
-  Bug,
-  Download,
-  FileSpreadsheet,
-  AlertTriangle,
-  ShieldCheck,
-  ShieldAlert,
-  Loader2,
-  Calendar,
-  Activity,
-} from "lucide-react";
-
-const severityColors: Record<string, string> = {
-  BAJA: "bg-blue-500/15 text-blue-700 border-blue-500/30",
-  MEDIA: "bg-amber-500/15 text-amber-700 border-amber-500/30",
-  ALTA: "bg-orange-500/15 text-orange-700 border-orange-500/30",
-  CRITICA: "bg-red-500/15 text-red-700 border-red-500/30 font-bold",
-};
+import { severityClass, severityLabel } from "@/lib/status-styles";
+import { Bug, Download, FileSpreadsheet, AlertTriangle, ShieldCheck, ShieldAlert, Loader2, Calendar, Activity } from "lucide-react";
 
 export function PestReport() {
   const [exporting, setExporting] = useState(false);
@@ -42,11 +26,7 @@ export function PestReport() {
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", u.user.id)
-        .maybeSingle();
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", u.user.id).maybeSingle();
       return { fullName: data?.full_name || "Agricultor" };
     },
   });
@@ -79,17 +59,11 @@ export function PestReport() {
     setExporting(true);
     try {
       const farmerName = profileQuery.data?.fullName || "Agricultor";
-      const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: es });
+      const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", {
+        locale: es,
+      });
 
-      const bodyRows = filteredPests.map((p) => [
-        p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—",
-        p.pest_name || "—",
-        p.severity || "—",
-        p.crops?.crop_catalog?.name || "—",
-        p.crops?.parcels?.name || "—",
-        p.treatment || "Sin tratamiento registrado",
-        p.notes || "—",
-      ]);
+      const bodyRows = filteredPests.map((p) => [p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—", p.pest_name || "—", p.severity || "—", p.crops?.crop_catalog?.name || "—", p.crops?.parcels?.name || "—", p.treatment || "Sin tratamiento registrado", p.notes || "—"]);
 
       const doc = await generatePdfReport({
         template: "resumen",
@@ -131,22 +105,7 @@ export function PestReport() {
   const handleExportCSV = () => {
     try {
       const farmerName = profileQuery.data?.fullName || "Agricultor";
-      const rows = [
-        ["Reporte de Sanidad y Control de Plagas SIGIC"],
-        [`Agricultor: ${farmerName}`],
-        [`Fecha: ${format(new Date(), "yyyy-MM-dd HH:mm")}`],
-        [],
-        ["Fecha", "Plaga o Incidente", "Severidad", "Cultivo", "Parcela", "Tratamiento Aplicado", "Notas"],
-        ...filteredPests.map((p) => [
-          p.date || "—",
-          p.pest_name || "—",
-          p.severity || "—",
-          p.crops?.crop_catalog?.name || "—",
-          p.crops?.parcels?.name || "—",
-          p.treatment || "",
-          p.notes || "",
-        ]),
-      ];
+      const rows = [["Reporte de Sanidad y Control de Plagas SIGIC"], [`Agricultor: ${farmerName}`], [`Fecha: ${format(new Date(), "yyyy-MM-dd HH:mm")}`], [], ["Fecha", "Plaga o Incidente", "Severidad", "Cultivo", "Parcela", "Tratamiento Aplicado", "Notas"], ...filteredPests.map((p) => [p.date || "—", p.pest_name || "—", p.severity || "—", p.crops?.crop_catalog?.name || "—", p.crops?.parcels?.name || "—", p.treatment || "", p.notes || ""])];
 
       const csvContent =
         "\uFEFF" +
@@ -157,7 +116,7 @@ export function PestReport() {
                 const s = String(val ?? "").replace(/"/g, '""');
                 return /[",\n]/.test(s) ? `"${s}"` : s;
               })
-              .join(",")
+              .join(","),
           )
           .join("\n");
 
@@ -186,22 +145,15 @@ export function PestReport() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-red-900/10 via-amber-600/5 to-transparent border border-red-500/20 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-border bg-card p-5">
         <div className="flex items-center gap-2">
-          <div className="size-9 rounded-xl bg-red-600/15 text-red-600 grid place-items-center">
+          <div className="size-9 rounded-lg bg-destructive/10 text-destructive grid place-items-center">
             <Bug className="size-5" />
           </div>
           <div>
             <h2 className="text-xl font-bold tracking-tight">Reporte de Sanidad y Plagas</h2>
             <p className="text-xs text-muted-foreground">
-              {stats.total} incidencias registradas •{" "}
-              {stats.critica + stats.alta > 0 ? (
-                <span className="text-red-600 font-semibold">
-                  {stats.critica + stats.alta} de atención prioritaria
-                </span>
-              ) : (
-                <span className="text-emerald-600 font-semibold">Bajo control fitosanitario</span>
-              )}
+              {stats.total} incidencias registradas • {stats.critica + stats.alta > 0 ? <span className="text-destructive font-semibold">{stats.critica + stats.alta} de atención prioritaria</span> : <span className="text-success font-semibold">Bajo control fitosanitario</span>}
             </p>
           </div>
         </div>
@@ -228,30 +180,30 @@ export function PestReport() {
           <p className="text-[11px] text-muted-foreground mt-0.5">monitoreadas</p>
         </Card>
 
-        <Card className={`p-4 border shadow-xs ${stats.critica > 0 ? "border-red-500/40 bg-red-500/5" : "border-border/70"}`}>
+        <Card className={`p-4 border ${stats.critica > 0 ? "border-destructive/40 bg-destructive/5" : "border-border/70"}`}>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Críticas</span>
-            <ShieldAlert className={`size-4 ${stats.critica > 0 ? "text-red-600" : "text-muted-foreground"}`} />
+            <ShieldAlert className={`size-4 ${stats.critica > 0 ? "text-destructive" : "text-muted-foreground"}`} />
           </div>
-          <p className={`text-2xl font-bold mt-2 ${stats.critica > 0 ? "text-red-600" : "text-foreground"}`}>{stats.critica}</p>
+          <p className={`text-2xl font-bold mt-2 ${stats.critica > 0 ? "text-destructive" : "text-foreground"}`}>{stats.critica}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">intervención inmediata</p>
         </Card>
 
         <Card className="p-4 border-border/70 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Alta Severidad</span>
-            <AlertTriangle className="size-4 text-orange-600" />
+            <AlertTriangle className="size-4 text-warning-text" />
           </div>
-          <p className="text-2xl font-bold mt-2 text-orange-600">{stats.alta}</p>
+          <p className="text-2xl font-bold mt-2 text-warning-text">{stats.alta}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">en tratamiento</p>
         </Card>
 
         <Card className="p-4 border-border/70 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Baja / Media</span>
-            <ShieldCheck className="size-4 text-emerald-600" />
+            <ShieldCheck className="size-4 text-success" />
           </div>
-          <p className="text-2xl font-bold mt-2 text-emerald-600">{stats.baja + stats.media}</p>
+          <p className="text-2xl font-bold mt-2 text-success">{stats.baja + stats.media}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">control preventivo</p>
         </Card>
       </div>
@@ -260,13 +212,7 @@ export function PestReport() {
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Filtrar por severidad:</span>
         {["ALL", "CRITICA", "ALTA", "MEDIA", "BAJA"].map((sev) => (
-          <Button
-            key={sev}
-            variant={filterSeverity === sev ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilterSeverity(sev)}
-            className="text-xs h-7 px-2.5"
-          >
+          <Button key={sev} variant={filterSeverity === sev ? "default" : "outline"} size="sm" onClick={() => setFilterSeverity(sev)} className="text-xs h-7 px-2.5">
             {sev === "ALL" ? "Todas" : sev}
           </Button>
         ))}
@@ -281,7 +227,7 @@ export function PestReport() {
 
         {filteredPests.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground text-xs">
-            <ShieldCheck className="size-8 mx-auto mb-2 text-emerald-500 opacity-60" />
+            <ShieldCheck className="size-8 mx-auto mb-2 text-success opacity-60" />
             No hay incidencias registradas para el filtro seleccionado.
           </div>
         ) : (
@@ -300,33 +246,19 @@ export function PestReport() {
               <tbody className="divide-y divide-border/50">
                 {filteredPests.map((p: any) => (
                   <tr key={p.id} className="hover:bg-muted/30">
-                    <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
-                      {p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—"}
-                    </td>
-                    <td className="py-2.5 px-3 font-semibold text-foreground">
-                      {p.pest_name}
-                    </td>
+                    <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">{p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—"}</td>
+                    <td className="py-2.5 px-3 font-semibold text-foreground">{p.pest_name}</td>
                     <td className="py-2.5 px-3">
-                      <Badge variant="outline" className={`text-[10px] ${severityColors[p.severity] ?? ""}`}>
-                        {p.severity}
+                      <Badge variant="outline" className={`text-[10px] ${severityClass(p.severity)}`}>
+                        {severityLabel(p.severity)}
                       </Badge>
                     </td>
                     <td className="py-2.5 px-3">
                       <p className="font-medium text-foreground">{p.crops?.crop_catalog?.name ?? "Cultivo"}</p>
                       <p className="text-[11px] text-muted-foreground">Parcela: {p.crops?.parcels?.name ?? "—"}</p>
                     </td>
-                    <td className="py-2.5 px-3 max-w-[200px]">
-                      {p.treatment ? (
-                        <span className="p-1.5 rounded bg-muted/60 text-[11px] text-foreground block">
-                          {p.treatment}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground italic">Sin tratamiento</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3 max-w-[220px] text-muted-foreground">
-                      {p.notes || "—"}
-                    </td>
+                    <td className="py-2.5 px-3 max-w-[200px]">{p.treatment ? <span className="p-1.5 rounded bg-muted/60 text-[11px] text-foreground block">{p.treatment}</span> : <span className="text-muted-foreground italic">Sin tratamiento</span>}</td>
+                    <td className="py-2.5 px-3 max-w-[220px] text-muted-foreground">{p.notes || "—"}</td>
                   </tr>
                 ))}
               </tbody>

@@ -30,6 +30,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-text: var(--warning-text);
   --color-success: var(--success);
   --color-highlight: var(--highlight);
   --color-highlight-foreground: var(--highlight-foreground);
@@ -51,6 +52,9 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
 }
 
 @layer base {
@@ -88,6 +92,7 @@
     --destructive-foreground: oklch(0.985 0.006 135);
     --warning: oklch(0.8 0.15 80);
     --warning-foreground: oklch(0.25 0.06 80);
+    --warning-text: oklch(0.47 0.08 70);
     --success: oklch(0.55 0.14 150);
     --info: oklch(0.52 0.11 235);
     --earth: oklch(0.45 0.07 55);
@@ -101,6 +106,9 @@
     --chart-3: oklch(0.82 0.15 92);
     --chart-4: oklch(0.5 0.07 55);
     --chart-5: oklch(0.58 0.2 27);
+    --chart-6: oklch(0.5 0.07 240);
+    --chart-7: oklch(0.62 0.02 155);
+    --chart-8: oklch(0.4 0.015 160);
 
     --sidebar: oklch(0.2 0.035 152);
     --sidebar-foreground: oklch(0.93 0.015 135);
@@ -135,6 +143,7 @@
     --destructive-foreground: oklch(0.15 0.03 27);
     --warning: oklch(0.8 0.15 80);
     --warning-foreground: oklch(0.22 0.05 80);
+    --warning-text: oklch(0.82 0.09 85);
     --success: oklch(0.72 0.15 148);
     --info: oklch(0.74 0.1 235);
     --earth: oklch(0.65 0.07 55);
@@ -146,6 +155,9 @@
     --chart-3: oklch(0.82 0.15 92);
     --chart-4: oklch(0.65 0.08 55);
     --chart-5: oklch(0.68 0.19 27);
+    --chart-6: oklch(0.72 0.08 240);
+    --chart-7: oklch(0.7 0.02 155);
+    --chart-8: oklch(0.82 0.015 155);
     --sidebar: oklch(0.14 0.022 152);
     --sidebar-foreground: oklch(0.93 0.015 135);
     --sidebar-primary: oklch(0.82 0.15 92);
@@ -158,8 +170,12 @@
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html { scroll-behavior: smooth; }
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -169,28 +185,50 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  h1, h2, h3, h4 {
+  h1,
+  h2,
+  h3,
+  h4 {
     font-family: var(--font-display);
     letter-spacing: 0;
     line-height: 1.15;
     text-wrap: balance;
   }
-  p { text-wrap: pretty; }
+  p {
+    text-wrap: pretty;
+  }
 
   /* Foco visible y consistente (WCAG 2.4.7) */
-  :where(a, button, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
+  :where(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role="button"],
+    [tabindex]
+  ):focus-visible {
     outline: 2px solid var(--color-ring);
     outline-offset: 2px;
   }
   @media (forced-colors: active) {
-    :where(a, button, input, select, textarea, [role="button"]):focus-visible { outline-color: Highlight; }
+    :where(a, button, input, select, textarea, [role="button"]):focus-visible {
+      outline-color: Highlight;
+    }
   }
 
-  ::selection { background: color-mix(in oklab, var(--color-primary) 28%, transparent); }
+  ::selection {
+    background: color-mix(in oklab, var(--color-primary) 28%, transparent);
+  }
 
   @media (prefers-reduced-motion: reduce) {
-    html { scroll-behavior: auto; }
-    *, *::before, *::after {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
       animation-duration: 0.001ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.001ms !important;
@@ -212,7 +250,9 @@
     font-weight: 600;
     transform: translateY(-200%);
   }
-  .skip-link:focus { transform: none; }
+  .skip-link:focus {
+    transform: none;
+  }
 
   /* Motivos de marca desactivados: las superficies deben mantenerse sobrias. */
   .surcos,
@@ -220,5 +260,7 @@
     pointer-events: none;
   }
 
-  .tabular { font-variant-numeric: tabular-nums; }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }

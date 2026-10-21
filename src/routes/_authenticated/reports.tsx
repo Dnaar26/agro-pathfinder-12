@@ -24,7 +24,8 @@ import { FarmerReport } from "@/components/reports/farmer-report";
 import { StaffReportsPanel } from "@/components/reports/staff-reports-panel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-
+import { formatCurrencyInt } from "@/lib/currency";
+import { CHART_COLORS, KIND_COLORS } from "@/lib/chart-colors";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({ meta: [{ title: "Reportes — SIGIC" }] }),
@@ -47,7 +48,9 @@ function download(filename: string, content: BlobPart, mime: string) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
+  a.href = url;
+  a.download = filename;
+  a.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -55,8 +58,8 @@ const ALL = "__all__";
 const REPORT_FILTERS_KEY = "sigic:reports:filters";
 const SAVED_REPORT_FILTERS_KEY = "sigic:reports:saved-filters";
 const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-const formatCOP = (value: number) => new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
-const formatCompactCOP = (value: number) => value >= 1000000 ? `$${(value / 1000000).toFixed(1)} M` : value >= 1000 ? `$${(value / 1000).toFixed(0)} mil` : `$${value.toFixed(0)}`;
+const formatCOP = formatCurrencyInt;
+const formatCompactCOP = (value: number) => (value >= 1000000 ? `$${(value / 1000000).toFixed(1)} M` : value >= 1000 ? `$${(value / 1000).toFixed(0)} mil` : `$${value.toFixed(0)}`);
 const formatMonthLabel = (month: string) => format(new Date(`${month}-01T12:00:00`), "MMM yy", { locale: es });
 
 type ReportFilterState = {
@@ -68,7 +71,11 @@ type ReportFilterState = {
   chartYear?: string;
 };
 
-type SavedReportFilter = { id: string; name: string; filters: ReportFilterState };
+type SavedReportFilter = {
+  id: string;
+  name: string;
+  filters: ReportFilterState;
+};
 
 function validChartYear(value?: string) {
   const year = Number(value);
@@ -81,26 +88,13 @@ function readSavedReportFilters(): SavedReportFilter[] {
   try {
     const saved: unknown = JSON.parse(window.localStorage.getItem(SAVED_REPORT_FILTERS_KEY) ?? "[]");
     if (!Array.isArray(saved)) return [];
-    return saved.filter((item): item is SavedReportFilter =>
-      item && typeof item.id === "string" && item.id.length > 0 && typeof item.name === "string" &&
-      item.name.trim().length > 0 && item.filters && typeof item.filters === "object",
-    ).slice(0, 20);
+    return saved.filter((item): item is SavedReportFilter => item && typeof item.id === "string" && item.id.length > 0 && typeof item.name === "string" && item.name.trim().length > 0 && item.filters && typeof item.filters === "object").slice(0, 20);
   } catch {
     return [];
   }
 }
 
-const kindColors: Record<string, string> = {
-  RIEGO: "#2563eb",
-  FERTILIZACION: "#16a34a",
-  MONITOREO: "#ca8a04",
-  COSECHA: "#dc2626",
-  PODA: "#7c3aed",
-  APLICACION: "#ea580c",
-  SIEMBRA: "#059669",
-};
-
-const CHART_COLORS = ["#2563eb", "#16a34a", "#ca8a04", "#dc2626", "#7c3aed", "#ea580c", "#059669", "#0891b2"];
+const kindColors = KIND_COLORS;
 
 function SkeletonCard() {
   return (
@@ -125,11 +119,17 @@ function ReportsPage() {
   const myRoles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
   const isStaff = (myRoles.data ?? []).some((r: string) => ["tecnico", "admin"].includes(r));
   const isAgricultor = !isStaff;
-  const acts = useQuery({ queryKey: ["report-acts"], queryFn: listAllActivitiesForReport });
+  const acts = useQuery({
+    queryKey: ["report-acts"],
+    queryFn: listAllActivitiesForReport,
+  });
   const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
   const catalog = useQuery({ queryKey: ["catalog"], queryFn: listCatalog });
   const alerts = useQuery({ queryKey: ["alerts"], queryFn: listAlerts });
-  const schedReports = useQuery({ queryKey: ["sched-reports"], queryFn: listScheduledReports });
+  const schedReports = useQuery({
+    queryKey: ["sched-reports"],
+    queryFn: listScheduledReports,
+  });
 
   const costsQuery = useQuery({
     queryKey: ["report-costs", chartYear],
@@ -199,7 +199,17 @@ function ReportsPage() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(REPORT_FILTERS_KEY, JSON.stringify({ template, parcelFilter, cropFilter, from, to, chartYear } satisfies ReportFilterState));
+      window.localStorage.setItem(
+        REPORT_FILTERS_KEY,
+        JSON.stringify({
+          template,
+          parcelFilter,
+          cropFilter,
+          from,
+          to,
+          chartYear,
+        } satisfies ReportFilterState),
+      );
     } catch {
       // El modo privado puede bloquear el almacenamiento local.
     }
@@ -238,10 +248,12 @@ function ReportsPage() {
       return;
     }
     const id = existing?.id ?? (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`);
-    const nextFilter: SavedReportFilter = { id, name, filters: { template, parcelFilter, cropFilter, from, to, chartYear } };
-    setSavedFilters((current) => existing
-      ? current.map((filter) => filter.id === existing.id ? nextFilter : filter)
-      : [...current, nextFilter]);
+    const nextFilter: SavedReportFilter = {
+      id,
+      name,
+      filters: { template, parcelFilter, cropFilter, from, to, chartYear },
+    };
+    setSavedFilters((current) => (existing ? current.map((filter) => (filter.id === existing.id ? nextFilter : filter)) : [...current, nextFilter]));
     setSelectedSavedFilter(id);
     setSavedFilterName("");
     toast.success(existing ? "Filtro actualizado" : "Filtro guardado");
@@ -255,7 +267,10 @@ function ReportsPage() {
 
   const schedMut = async () => {
     if (!schedRecipients.trim()) return;
-    const recipients = schedRecipients.split(",").map((e) => e.trim()).filter(Boolean);
+    const recipients = schedRecipients
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean);
     const invalidRecipients = recipients.filter((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
     if (invalidRecipients.length > 0) {
       toast.error(`Correo inválido: ${invalidRecipients[0]}`);
@@ -274,7 +289,9 @@ function ReportsPage() {
       toast.success("Reporte programado");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo programar el reporte");
-    } finally { setSchedCreating(false); }
+    } finally {
+      setSchedCreating(false);
+    }
   };
 
   async function handleToggleScheduledReport(id: string, enabled: boolean) {
@@ -326,9 +343,7 @@ function ReportsPage() {
     const year = Number(chartYear);
     const today = new Date();
     const period = createYearComparison(year, today);
-    const matchesFarmFilter = (row: any) =>
-      (parcelFilter === ALL || row.crops?.parcels?.name === parcelFilter) &&
-      (cropFilter === ALL || row.crops?.crop_catalog?.name === cropFilter);
+    const matchesFarmFilter = (row: any) => (parcelFilter === ALL || row.crops?.parcels?.name === parcelFilter) && (cropFilter === ALL || row.crops?.crop_catalog?.name === cropFilter);
     const costs = (costsQuery.data ?? []).filter(matchesFarmFilter);
     const harvests = (harvestsQuery.data ?? []).filter(matchesFarmFilter);
     const currentCosts = costs.filter((row: any) => isWithinPeriod(row.created_at, period.currentStart, period.currentEnd));
@@ -375,7 +390,13 @@ function ReportsPage() {
   }, [financialComparison.costs]);
 
   const financialByMonth = useMemo(() => {
-    const rows = MONTH_LABELS.map((month) => ({ month, revenueCurrent: 0, revenuePrior: 0, costsCurrent: 0, costsPrior: 0 }));
+    const rows = MONTH_LABELS.map((month) => ({
+      month,
+      revenueCurrent: 0,
+      revenuePrior: 0,
+      costsCurrent: 0,
+      costsPrior: 0,
+    }));
     const add = (items: any[], dateKey: "created_at" | "performed_at", valueKey: "total" | "total_revenue", target: "revenueCurrent" | "revenuePrior" | "costsCurrent" | "costsPrior") => {
       items.forEach((item) => {
         const date = item[dateKey];
@@ -401,7 +422,9 @@ function ReportsPage() {
       const m = format(new Date(a.performed_at), "yyyy-MM");
       map[m] = (map[m] ?? 0) + 1;
     });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([month, count]) => ({ month, count }));
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, count]) => ({ month, count }));
   }, [filtered]);
 
   function exportCSV() {
@@ -422,20 +445,35 @@ function ReportsPage() {
     let doc;
     if (template === "actividades") {
       doc = await generatePdfReport({
-        template, author,
+        template,
+        author,
         title: "Bitácora de Actividades Agrícolas",
         subtitle: `${totalAct} registros encontrados`,
         filters,
         summary: [
           { label: "Actividades", value: totalAct.toLocaleString("es-CO") },
-          { label: "Parcelas incluidas", value: filteredParcels.length.toLocaleString("es-CO") },
-          { label: `Ingresos ${financialComparison.currentPeriodLabel}`, value: formatCOP(totalRevenue) },
-          { label: `Costos ${financialComparison.currentPeriodLabel}`, value: formatCOP(totalCost) },
+          {
+            label: "Parcelas incluidas",
+            value: filteredParcels.length.toLocaleString("es-CO"),
+          },
+          {
+            label: `Ingresos ${financialComparison.currentPeriodLabel}`,
+            value: formatCOP(totalRevenue),
+          },
+          {
+            label: `Costos ${financialComparison.currentPeriodLabel}`,
+            value: formatCOP(totalCost),
+          },
         ],
-        charts: [{
-          title: "Actividades por tipo",
-          data: Object.entries(byKind).map(([label, value]) => ({ label, value })),
-        }],
+        charts: [
+          {
+            title: "Actividades por tipo",
+            data: Object.entries(byKind).map(([label, value]) => ({
+              label,
+              value,
+            })),
+          },
+        ],
         sections: [
           {
             title: "Detalle de actividades",
@@ -452,45 +490,63 @@ function ReportsPage() {
       });
     } else if (template === "parcelas") {
       doc = await generatePdfReport({
-        template, author,
+        template,
+        author,
         title: "Inventario de Parcelas",
         subtitle: `${filteredParcels.length} parcelas`,
         filters: { Parcela: filters.Parcela },
         summary: [
-          { label: "Parcelas", value: filteredParcels.length.toLocaleString("es-CO") },
-          { label: "Área total", value: `${(filteredParcels.reduce((sum: number, parcel: any) => sum + Number(parcel.area_m2 || 0), 0) / 10000).toFixed(2)} ha` },
+          {
+            label: "Parcelas",
+            value: filteredParcels.length.toLocaleString("es-CO"),
+          },
+          {
+            label: "Área total",
+            value: `${(filteredParcels.reduce((sum: number, parcel: any) => sum + Number(parcel.area_m2 || 0), 0) / 10000).toFixed(2)} ha`,
+          },
         ],
-        charts: [{
-          title: "Parcelas por tipo de suelo",
-          data: Object.entries(filteredParcels.reduce((soilCounts: Record<string, number>, parcel: any) => {
-            const soil = parcel.soil_types?.name ?? "Sin especificar";
-            soilCounts[soil] = (soilCounts[soil] ?? 0) + 1;
-            return soilCounts;
-          }, {})).map(([label, value]) => ({ label, value })),
-        }],
+        charts: [
+          {
+            title: "Parcelas por tipo de suelo",
+            data: Object.entries(
+              filteredParcels.reduce((soilCounts: Record<string, number>, parcel: any) => {
+                const soil = parcel.soil_types?.name ?? "Sin especificar";
+                soilCounts[soil] = (soilCounts[soil] ?? 0) + 1;
+                return soilCounts;
+              }, {}),
+            ).map(([label, value]) => ({ label, value })),
+          },
+        ],
         orientation: "portrait",
         sections: [
           {
             title: "Listado",
             head: ["Nombre", "Área (m²)", "Suelo", "Latitud", "Longitud"],
-            body: filteredParcels.map((p: any) => [
-              p.name, p.area_m2, p.soil_types?.name ?? "—",
-              p.latitude ?? "—", p.longitude ?? "—",
-            ]),
+            body: filteredParcels.map((p: any) => [p.name, p.area_m2, p.soil_types?.name ?? "—", p.latitude ?? "—", p.longitude ?? "—"]),
           },
         ],
       });
     } else {
       doc = await generatePdfReport({
-        template, author,
+        template,
+        author,
         title: "Resumen Ejecutivo",
         subtitle: "Indicadores generales del periodo",
         filters,
         summary: [
           { label: "Actividades", value: totalAct.toLocaleString("es-CO") },
-          { label: "Alertas pendientes", value: pendingAlerts.toLocaleString("es-CO") },
-          { label: `Ingresos ${financialComparison.currentPeriodLabel}`, value: formatCOP(totalRevenue) },
-          { label: `Margen ${financialComparison.currentPeriodLabel}`, value: formatCOP(totalRevenue - totalCost) },
+          {
+            label: "Alertas pendientes",
+            value: pendingAlerts.toLocaleString("es-CO"),
+          },
+          {
+            label: `Ingresos ${financialComparison.currentPeriodLabel}`,
+            value: formatCOP(totalRevenue),
+          },
+          {
+            label: `Margen ${financialComparison.currentPeriodLabel}`,
+            value: formatCOP(totalRevenue - totalCost),
+          },
         ],
         charts: [
           {
@@ -501,7 +557,10 @@ function ReportsPage() {
           },
           {
             title: "Costos por tipo",
-            data: Object.entries(costsByKind).map(([label, value]) => ({ label, value })),
+            data: Object.entries(costsByKind).map(([label, value]) => ({
+              label,
+              value,
+            })),
             valueFormatter: formatCOP,
             color: [180, 83, 9],
           },
@@ -517,9 +576,9 @@ function ReportsPage() {
               ["Actividades en periodo", totalAct],
               ["Tipos de actividad distintos", Object.keys(byKind).length],
               ["Alertas pendientes", pendingAlerts],
-              ["Costo total ($)", `$ ${totalCost.toFixed(2)}`],
-              ["Ingreso total ($)", `$ ${totalRevenue.toFixed(2)}`],
-              ["Margen bruto ($)", `$ ${(totalRevenue - totalCost).toFixed(2)}`],
+              ["Costo total", formatCOP(totalCost)],
+              ["Ingreso total", formatCOP(totalRevenue)],
+              ["Margen bruto", formatCOP(totalRevenue - totalCost)],
             ],
           },
           {
@@ -529,21 +588,16 @@ function ReportsPage() {
           },
           {
             title: "Costos por tipo",
-            head: ["Tipo", "Total ($)"],
-            body: Object.entries(costsByKind).map(([k, v]) => [k, `$ ${v.toFixed(2)}`]),
+            head: ["Tipo", "Total"],
+            body: Object.entries(costsByKind).map(([k, v]) => [k, formatCOP(v)]),
           },
           {
             title: "Cosechas recientes",
-            head: ["Cultivo", "Cantidad", "Unit. ($)", "Total ($)", "Fecha"],
+            head: ["Cultivo", "Cantidad", "Precio unitario", "Total", "Fecha"],
             body: [...financialComparison.harvests]
               .sort((a: any, b: any) => new Date(b.performed_at).getTime() - new Date(a.performed_at).getTime())
-              .slice(0, 20).map((h: any) => [
-              h.crops?.crop_catalog?.name ?? "—",
-              `${h.harvested_qty} ${h.unit ?? ""}`,
-              `$ ${Number(h.sale_price || 0).toFixed(2)}`,
-              `$ ${Number(h.total_revenue || 0).toFixed(2)}`,
-              h.performed_at ? format(new Date(h.performed_at), "yyyy-MM-dd") : "—",
-            ]),
+              .slice(0, 20)
+              .map((h: any) => [h.crops?.crop_catalog?.name ?? "—", `${h.harvested_qty} ${h.unit ?? ""}`, formatCOP(Number(h.sale_price || 0)), formatCOP(Number(h.total_revenue || 0)), h.performed_at ? format(new Date(h.performed_at), "yyyy-MM-dd") : "—"]),
           },
         ],
       });
@@ -555,9 +609,13 @@ function ReportsPage() {
   if (myRoles.isLoading) {
     return (
       <div className="space-y-6">
-        <header><h1 className="text-3xl font-bold">Reportes</h1></header>
+        <header>
+          <h1 className="text-3xl font-bold">Reportes</h1>
+        </header>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SkeletonCard /><SkeletonCard /><SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       </div>
     );
@@ -577,9 +635,13 @@ function ReportsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <header><h1 className="text-3xl font-bold">Reportes</h1></header>
+        <header>
+          <h1 className="text-3xl font-bold">Reportes</h1>
+        </header>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SkeletonCard /><SkeletonCard /><SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       </div>
     );
@@ -588,12 +650,25 @@ function ReportsPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <header><h1 className="text-3xl font-bold">Reportes</h1></header>
+        <header>
+          <h1 className="text-3xl font-bold">Reportes</h1>
+        </header>
         <Card className="p-6 text-center">
           <AlertTriangle className="size-8 text-destructive mx-auto mb-2" />
           <p className="text-destructive font-medium">Error al cargar datos</p>
           <p className="text-sm text-muted-foreground mt-1">Reintentá más tarde o contactá al administrador.</p>
-          <Button variant="outline" className="mt-4" onClick={() => { acts.refetch(); parcels.refetch(); catalog.refetch(); alerts.refetch(); costsQuery.refetch(); harvestsQuery.refetch(); }}>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={() => {
+              acts.refetch();
+              parcels.refetch();
+              catalog.refetch();
+              alerts.refetch();
+              costsQuery.refetch();
+              harvestsQuery.refetch();
+            }}
+          >
             Reintentar
           </Button>
         </Card>
@@ -607,9 +682,7 @@ function ReportsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Centro de Reportes</h1>
-            <p className="text-xs text-muted-foreground">
-              Panel analítico e institucional para rol {userRole === "admin" ? "Administrador" : "Técnico"}.
-            </p>
+            <p className="text-xs text-muted-foreground">Panel analítico e institucional para rol {userRole === "admin" ? "Administrador" : "Técnico"}.</p>
           </div>
           <TabsList className="bg-muted/60 p-1">
             <TabsTrigger value="specialized" className="text-xs gap-1.5 py-1.5">
@@ -633,383 +706,453 @@ function ReportsPage() {
             <p className="text-sm text-muted-foreground">Plantillas configurables con logo, encabezado y pie de página.</p>
           </header>
 
-
-      <section className="p-5 rounded-xl border border-border bg-card space-y-4">
-        <h2 className="text-sm font-semibold flex items-center gap-2"><Filter className="size-4 text-primary" /> Configuración del reporte</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-          <div>
-            <Label className="text-xs">Plantilla</Label>
-            <Select value={template} onValueChange={(v) => setTemplate(v as PdfReportTemplate)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="actividades">Bitácora de actividades</SelectItem>
-                <SelectItem value="parcelas">Inventario de parcelas</SelectItem>
-                <SelectItem value="resumen">Resumen ejecutivo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs">Parcela</Label>
-            <Combobox
-              value={parcelFilter}
-              onChange={setParcelFilter}
-              options={[
-                { value: ALL, label: "Todas" },
-                ...(parcels.data ?? []).map((p: any) => ({ value: p.name, label: p.name })),
-              ]}
-              placeholder="Todas"
-              searchPlaceholder="Buscar parcela…"
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Tipo de cultivo</Label>
-            <Combobox
-              value={cropFilter}
-              onChange={setCropFilter}
-              disabled={template === "parcelas"}
-              options={[
-                { value: ALL, label: "Todos" },
-                ...(catalog.data ?? []).map((c: any) => ({ value: c.name, label: c.name })),
-              ]}
-              placeholder="Todos"
-              searchPlaceholder="Buscar cultivo…"
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Desde</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} disabled={template === "parcelas"} max={to || undefined} />
-          </div>
-          <div>
-            <Label className="text-xs">Hasta</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} disabled={template === "parcelas"} min={from || undefined} />
-          </div>
-          <div>
-            <Label className="text-xs">Año (gráficos)</Label>
-            <Select value={chartYear} onValueChange={setChartYear}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-                  <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
-          <div className="w-full sm:w-56">
-            <Label className="text-xs">Filtros guardados</Label>
-            <Select value={selectedSavedFilter} onValueChange={applySavedFilter}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar filtro" /></SelectTrigger>
-              <SelectContent>
-                {savedFilters.map((filter) => <SelectItem key={filter.id} value={filter.id}>{filter.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-full sm:w-56">
-            <Label htmlFor="saved-filter-name" className="text-xs">Guardar configuración actual</Label>
-            <Input id="saved-filter-name" value={savedFilterName} onChange={(event) => setSavedFilterName(event.target.value)} maxLength={60} placeholder="Nombre del filtro" />
-          </div>
-          <Button type="button" variant="outline" onClick={saveCurrentFilter}><Save className="size-4 mr-1" /> Guardar</Button>
-          <Button type="button" variant="ghost" size="icon" onClick={deleteSelectedFilter} disabled={!selectedSavedFilter} aria-label="Eliminar filtro guardado" title="Eliminar filtro guardado">
-            <Trash2 className="size-4" />
-          </Button>
-        </div>
-        {dateError && <p className="text-xs text-destructive">{dateError}</p>}
-        <div className="flex flex-wrap gap-3 pt-2">
-          <Button onClick={exportPDF} disabled={!!dateError || acts.isRefetching}><FileText className="size-4 mr-1" /> Generar PDF</Button>
-          <Button variant="outline" onClick={exportCSV} disabled={template !== "actividades"}>
-            <Download className="size-4 mr-1" /> Exportar CSV
-          </Button>
-          <Button variant="outline" onClick={() => exportParcelsToExcel(parcels.data ?? [])} disabled={template !== "parcelas"}>
-            <FileSpreadsheet className="size-4 mr-1" /> Exportar Excel
-          </Button>
-          <Button variant="ghost" onClick={() => { setParcelFilter(ALL); setCropFilter(ALL); setFrom(""); setTo(""); setChartYear(validChartYear()); setSelectedSavedFilter(""); }}>
-            Limpiar filtros
-          </Button>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-5 rounded-xl border border-border bg-card">
-          <p className="text-sm text-muted-foreground">Parcelas incluidas</p>
-          <p className="mt-2 text-3xl font-bold">{filteredParcels.length}</p>
-        </div>
-        <div className="p-5 rounded-xl border border-border bg-card">
-          <p className="text-sm text-muted-foreground">Actividades filtradas</p>
-          <p className="mt-2 text-3xl font-bold">{totalAct}</p>
-        </div>
-        <div className="p-5 rounded-xl border border-border bg-card">
-          <p className="text-sm text-muted-foreground">Alertas pendientes</p>
-          <p className="mt-2 text-3xl font-bold flex items-center gap-2">
-            {pendingAlerts}
-            {pendingAlerts > 0 && <AlertTriangle className="size-5 text-amber-500" />}
-          </p>
-        </div>
-        <div className="p-5 rounded-xl border border-border bg-card">
-          <p className="text-sm text-muted-foreground">Margen bruto</p>
-          <p className={cn("mt-2 text-3xl font-bold flex items-center gap-2", totalRevenue - totalCost < 0 ? "text-red-600" : "text-green-600")}>
-            {totalRevenue - totalCost < 0 ? <TrendingDown className="size-5" /> : <TrendingUp className="size-5" />}
-            {formatCOP(totalRevenue - totalCost)}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <section className="p-5 rounded-xl border border-border bg-card">
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold flex items-center gap-2"><TrendingUp className="size-4 text-primary" /> Ingresos mensuales</h2>
-            <p className="text-xs text-muted-foreground">{financialComparison.comparisonLabel} · COP</p>
-          </div>
-          {financialByMonth.some((row) => row.revenueCurrent > 0 || row.revenuePrior > 0) ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={financialByMonth} margin={{ left: 8, right: 12, top: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCompactCOP} width={58} />
-                <Tooltip formatter={(value: number, name: string) => [formatCOP(value), name]} />
-                <Legend />
-                <Line type="monotone" dataKey="revenuePrior" name={`Ingresos ${financialComparison.previousPeriodLabel}`} stroke="#64748b" strokeDasharray="5 4" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="revenueCurrent" name={`Ingresos ${financialComparison.currentPeriodLabel}`} stroke="#15803d" strokeWidth={2.5} dot={{ r: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : <p className="py-10 text-center text-sm text-muted-foreground">Sin ingresos registrados en estos periodos.</p>}
-        </section>
-        <section className="p-5 rounded-xl border border-border bg-card">
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold flex items-center gap-2"><DollarSign className="size-4 text-primary" /> Costos mensuales</h2>
-            <p className="text-xs text-muted-foreground">{financialComparison.comparisonLabel} · COP</p>
-          </div>
-          {financialByMonth.some((row) => row.costsCurrent > 0 || row.costsPrior > 0) ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={financialByMonth} margin={{ left: 8, right: 12, top: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCompactCOP} width={58} />
-                <Tooltip formatter={(value: number, name: string) => [formatCOP(value), name]} />
-                <Legend />
-                <Line type="monotone" dataKey="costsPrior" name={`Costos ${financialComparison.previousPeriodLabel}`} stroke="#b45309" strokeDasharray="5 4" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="costsCurrent" name={`Costos ${financialComparison.currentPeriodLabel}`} stroke="#c2410c" strokeWidth={2.5} dot={{ r: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : <p className="py-10 text-center text-sm text-muted-foreground">Sin costos registrados en estos periodos.</p>}
-        </section>
-      </div>
-
-      {activityTrend.length > 1 && (
-        <section className="p-5 rounded-xl border border-border bg-card">
-          <h2 className="text-sm font-semibold flex items-center gap-2 mb-4"><BarChart3 className="size-4 text-primary" /> Actividades por mes</h2>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={activityTrend}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="month" className="text-xs" tick={{ fontSize: 11 }} tickFormatter={formatMonthLabel} />
-              <YAxis className="text-xs" tick={{ fontSize: 11 }} />
-              <Tooltip labelFormatter={(month: string) => formatMonthLabel(month)} />
-              <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </section>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="p-5 rounded-xl border border-border bg-card">
-          <h2 className="text-sm font-semibold flex items-center gap-2 mb-4"><FileBarChart className="size-4 text-primary" /> Actividades por tipo</h2>
-          <div className="space-y-2">
-            {Object.entries(byKind).map(([k, v]) => (
-              <div key={k} className="flex items-center gap-3">
-                <span className="flex items-center gap-1.5 w-40 text-sm">
-                  <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: kindColors[k] ?? "#6b7280" }} />
-                  {k}
-                </span>
-                <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, (v / Math.max(1, totalAct)) * 100)}%`, backgroundColor: kindColors[k] ?? "#6b7280" }} />
-                </div>
-                <span className="text-sm w-10 text-right text-muted-foreground">{v}</span>
+          <section className="p-5 rounded-xl border border-border bg-card space-y-4">
+            <h2 className="text-sm font-semibold flex items-center gap-2">
+              <Filter className="size-4 text-primary" /> Configuración del reporte
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+              <div>
+                <Label className="text-xs">Plantilla</Label>
+                <Select value={template} onValueChange={(v) => setTemplate(v as PdfReportTemplate)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="actividades">Bitácora de actividades</SelectItem>
+                    <SelectItem value="parcelas">Inventario de parcelas</SelectItem>
+                    <SelectItem value="resumen">Resumen ejecutivo</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            ))}
-            {Object.keys(byKind).length === 0 && <p className="text-sm text-muted-foreground">Sin datos para los filtros seleccionados.</p>}
-          </div>
-        </section>
-
-        {Object.keys(costsByKind).length > 0 && (
-          <section className="p-5 rounded-xl border border-border bg-card">
-            <h2 className="text-sm font-semibold flex items-center gap-2 mb-4"><DollarSign className="size-4 text-primary" /> Costos por tipo</h2>
-            <div className="space-y-2">
-              {Object.entries(costsByKind).map(([k, v], i) => (
-                <div key={k} className="flex items-center gap-3">
-                  <span className="w-40 text-sm truncate">{k}</span>
-                  <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full" style={{
-                      width: `${Math.min(100, (v / Math.max(1, totalCost)) * 100)}%`,
-                      backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
-                    }} />
-                  </div>
-                  <span className="text-sm w-24 text-right text-muted-foreground font-mono">$ {v.toFixed(0)}</span>
-                </div>
-              ))}
+              <div>
+                <Label className="text-xs">Parcela</Label>
+                <Combobox
+                  value={parcelFilter}
+                  onChange={setParcelFilter}
+                  options={[
+                    { value: ALL, label: "Todas" },
+                    ...(parcels.data ?? []).map((p: any) => ({
+                      value: p.name,
+                      label: p.name,
+                    })),
+                  ]}
+                  placeholder="Todas"
+                  searchPlaceholder="Buscar parcela…"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Tipo de cultivo</Label>
+                <Combobox
+                  value={cropFilter}
+                  onChange={setCropFilter}
+                  disabled={template === "parcelas"}
+                  options={[
+                    { value: ALL, label: "Todos" },
+                    ...(catalog.data ?? []).map((c: any) => ({
+                      value: c.name,
+                      label: c.name,
+                    })),
+                  ]}
+                  placeholder="Todos"
+                  searchPlaceholder="Buscar cultivo…"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Desde</Label>
+                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} disabled={template === "parcelas"} max={to || undefined} />
+              </div>
+              <div>
+                <Label className="text-xs">Hasta</Label>
+                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} disabled={template === "parcelas"} min={from || undefined} />
+              </div>
+              <div>
+                <Label className="text-xs">Año (gráficos)</Label>
+                <Select value={chartYear} onValueChange={setChartYear}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                      <SelectItem key={y} value={y.toString()}>
+                        {y}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground text-right mt-2 font-mono">Total: $ {totalCost.toFixed(2)}</p>
+            <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+              <div className="w-full sm:w-56">
+                <Label className="text-xs">Filtros guardados</Label>
+                <Select value={selectedSavedFilter} onValueChange={applySavedFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar filtro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {savedFilters.map((filter) => (
+                      <SelectItem key={filter.id} value={filter.id}>
+                        {filter.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-full sm:w-56">
+                <Label htmlFor="saved-filter-name" className="text-xs">
+                  Guardar configuración actual
+                </Label>
+                <Input id="saved-filter-name" value={savedFilterName} onChange={(event) => setSavedFilterName(event.target.value)} maxLength={60} placeholder="Nombre del filtro" />
+              </div>
+              <Button type="button" variant="outline" onClick={saveCurrentFilter}>
+                <Save className="size-4 mr-1" /> Guardar
+              </Button>
+              <Button type="button" variant="ghost" size="icon" onClick={deleteSelectedFilter} disabled={!selectedSavedFilter} aria-label="Eliminar filtro guardado" title="Eliminar filtro guardado">
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+            {dateError && <p className="text-xs text-destructive">{dateError}</p>}
+            <div className="flex flex-wrap gap-3 pt-2">
+              <Button onClick={exportPDF} disabled={!!dateError || acts.isRefetching}>
+                <FileText className="size-4 mr-1" /> Generar PDF
+              </Button>
+              <Button variant="outline" onClick={exportCSV} disabled={template !== "actividades"}>
+                <Download className="size-4 mr-1" /> Exportar CSV
+              </Button>
+              <Button variant="outline" onClick={() => exportParcelsToExcel(parcels.data ?? [])} disabled={template !== "parcelas"}>
+                <FileSpreadsheet className="size-4 mr-1" /> Exportar Excel
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setParcelFilter(ALL);
+                  setCropFilter(ALL);
+                  setFrom("");
+                  setTo("");
+                  setChartYear(validChartYear());
+                  setSelectedSavedFilter("");
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            </div>
           </section>
-        )}
-      </div>
 
-      <section className="p-5 rounded-xl border border-border bg-card">
-        <h2 className="text-sm font-semibold flex items-center gap-2 mb-3"><DollarSign className="size-4 text-primary" /> Rentabilidad</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div>
-            <p className="text-xs text-muted-foreground">Costo total</p>
-            <p className="text-xl font-bold font-mono text-red-600">$ {totalCost.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Ingreso total</p>
-            <p className="text-xl font-bold font-mono text-green-600">$ {totalRevenue.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Margen bruto</p>
-            <p className={cn("text-xl font-bold font-mono", totalRevenue - totalCost >= 0 ? "text-green-600" : "text-red-600")}>
-              {totalRevenue - totalCost >= 0 ? "+" : ""}$ {(totalRevenue - totalCost).toFixed(2)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Rentabilidad</p>
-            <p className={cn("text-xl font-bold font-mono", totalRevenue - totalCost >= 0 ? "text-green-600" : "text-red-600")}>
-              {totalCost > 0 ? `${((totalRevenue - totalCost) / totalCost * 100).toFixed(1)}%` : "—"}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <AiReportInsights
-        activities={filtered}
-        parcels={parcels.data ?? []}
-        totalCost={totalCost}
-        totalRevenue={totalRevenue}
-        pendingAlerts={pendingAlerts}
-        costsByKind={costsByKind}
-        byKind={byKind}
-      />
-
-      {costsQuery.data && harvestsQuery.data && (
-        <section className="p-5 rounded-xl border border-border bg-card">
-          <h2 className="text-sm font-semibold flex items-center gap-2 mb-3"><BarChart3 className="size-4 text-primary" /> Comparación financiera: {financialComparison.comparisonLabel}</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground">Ingresos {financialComparison.previousPeriodLabel}</p>
-              <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.previousRevenue)}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-5 rounded-xl border border-border bg-card">
+              <p className="text-sm text-muted-foreground">Parcelas incluidas</p>
+              <p className="mt-2 text-3xl font-bold">{filteredParcels.length}</p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Ingresos {financialComparison.currentPeriodLabel}</p>
-              <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.currentRevenue)}</p>
+            <div className="p-5 rounded-xl border border-border bg-card">
+              <p className="text-sm text-muted-foreground">Actividades filtradas</p>
+              <p className="mt-2 text-3xl font-bold">{totalAct}</p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Variación ingresos</p>
-              <p className={cn("text-lg font-bold font-mono flex items-center gap-1", financialComparison.currentRevenue >= financialComparison.previousRevenue ? "text-green-600" : "text-red-600")}>
-                {financialComparison.currentRevenue >= financialComparison.previousRevenue ? <TrendingUp className="size-4" /> : <TrendingDown className="size-4" />}
-                {financialComparison.previousRevenue > 0 ? `${(((financialComparison.currentRevenue - financialComparison.previousRevenue) / financialComparison.previousRevenue) * 100).toFixed(1)}%` : financialComparison.currentRevenue > 0 ? "Nuevo" : "0%"}
+            <div className="p-5 rounded-xl border border-border bg-card">
+              <p className="text-sm text-muted-foreground">Alertas pendientes</p>
+              <p className="mt-2 text-3xl font-bold flex items-center gap-2">
+                {pendingAlerts}
+                {pendingAlerts > 0 && <AlertTriangle className="size-5 text-warning-text" />}
               </p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Costos {financialComparison.previousPeriodLabel}</p>
-              <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.previousCosts)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Costos {financialComparison.currentPeriodLabel}</p>
-              <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.currentCosts)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Variación costos</p>
-              <p className={cn("text-lg font-bold font-mono flex items-center gap-1", financialComparison.currentCosts <= financialComparison.previousCosts ? "text-green-600" : "text-red-600")}>
-                {financialComparison.currentCosts <= financialComparison.previousCosts ? <TrendingDown className="size-4" /> : <TrendingUp className="size-4" />}
-                {financialComparison.previousCosts > 0 ? `${(((financialComparison.currentCosts - financialComparison.previousCosts) / financialComparison.previousCosts) * 100).toFixed(1)}%` : financialComparison.currentCosts > 0 ? "Nuevo" : "0%"}
+            <div className="p-5 rounded-xl border border-border bg-card">
+              <p className="text-sm text-muted-foreground">Margen bruto</p>
+              <p className={cn("mt-2 text-3xl font-bold flex items-center gap-2", totalRevenue - totalCost < 0 ? "text-destructive" : "text-success")}>
+                {totalRevenue - totalCost < 0 ? <TrendingDown className="size-5" /> : <TrendingUp className="size-5" />}
+                {formatCOP(totalRevenue - totalCost)}
               </p>
             </div>
           </div>
-        </section>
-      )}
 
-      <section className="p-5 rounded-xl border border-border bg-card space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold flex items-center gap-2"><CalendarClock className="size-4 text-primary" /> Programaciones de reportes</h2>
-          <Dialog open={schedDialog} onOpenChange={setSchedDialog}>
-            <DialogTrigger asChild>
-              <Button size="sm"><Plus className="size-3.5 mr-1" /> Nuevo</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Programar reporte</DialogTitle></DialogHeader>
-              <div className="space-y-3">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <section className="p-5 rounded-xl border border-border bg-card">
+              <div className="mb-3">
+                <h2 className="text-sm font-semibold flex items-center gap-2">
+                  <TrendingUp className="size-4 text-primary" /> Ingresos mensuales
+                </h2>
+                <p className="text-xs text-muted-foreground">{financialComparison.comparisonLabel} · COP</p>
+              </div>
+              {financialByMonth.some((row) => row.revenueCurrent > 0 || row.revenuePrior > 0) ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <LineChart data={financialByMonth} margin={{ left: 8, right: 12, top: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCompactCOP} width={58} />
+                    <Tooltip formatter={(value: number, name: string) => [formatCOP(value), name]} />
+                    <Legend />
+                    <Line type="monotone" dataKey="revenuePrior" name={`Ingresos ${financialComparison.previousPeriodLabel}`} stroke={CHART_COLORS[6]} strokeDasharray="5 4" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="revenueCurrent" name={`Ingresos ${financialComparison.currentPeriodLabel}`} stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 2 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="py-10 text-center text-sm text-muted-foreground">Sin ingresos registrados en estos periodos.</p>
+              )}
+            </section>
+            <section className="p-5 rounded-xl border border-border bg-card">
+              <div className="mb-3">
+                <h2 className="text-sm font-semibold flex items-center gap-2">
+                  <DollarSign className="size-4 text-primary" /> Costos mensuales
+                </h2>
+                <p className="text-xs text-muted-foreground">{financialComparison.comparisonLabel} · COP</p>
+              </div>
+              {financialByMonth.some((row) => row.costsCurrent > 0 || row.costsPrior > 0) ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <LineChart data={financialByMonth} margin={{ left: 8, right: 12, top: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCompactCOP} width={58} />
+                    <Tooltip formatter={(value: number, name: string) => [formatCOP(value), name]} />
+                    <Legend />
+                    <Line type="monotone" dataKey="costsPrior" name={`Costos ${financialComparison.previousPeriodLabel}`} stroke={CHART_COLORS[2]} strokeDasharray="5 4" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="costsCurrent" name={`Costos ${financialComparison.currentPeriodLabel}`} stroke={CHART_COLORS[4]} strokeWidth={2.5} dot={{ r: 2 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="py-10 text-center text-sm text-muted-foreground">Sin costos registrados en estos periodos.</p>
+              )}
+            </section>
+          </div>
+
+          {activityTrend.length > 1 && (
+            <section className="p-5 rounded-xl border border-border bg-card">
+              <h2 className="text-sm font-semibold flex items-center gap-2 mb-4">
+                <BarChart3 className="size-4 text-primary" /> Actividades por mes
+              </h2>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={activityTrend}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="month" className="text-xs" tick={{ fontSize: 11 }} tickFormatter={formatMonthLabel} />
+                  <YAxis className="text-xs" tick={{ fontSize: 11 }} />
+                  <Tooltip labelFormatter={(month: string) => formatMonthLabel(month)} />
+                  <Bar dataKey="count" fill={CHART_COLORS[5]} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </section>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <section className="p-5 rounded-xl border border-border bg-card">
+              <h2 className="text-sm font-semibold flex items-center gap-2 mb-4">
+                <FileBarChart className="size-4 text-primary" /> Actividades por tipo
+              </h2>
+              <div className="space-y-2">
+                {Object.entries(byKind).map(([k, v]) => (
+                  <div key={k} className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5 w-40 text-sm">
+                      <span
+                        className="size-2.5 rounded-full shrink-0"
+                        style={{
+                          backgroundColor: kindColors[k] ?? CHART_COLORS[6],
+                        }}
+                      />
+                      {k}
+                    </span>
+                    <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.min(100, (v / Math.max(1, totalAct)) * 100)}%`,
+                          backgroundColor: kindColors[k] ?? CHART_COLORS[6],
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm w-10 text-right text-muted-foreground">{v}</span>
+                  </div>
+                ))}
+                {Object.keys(byKind).length === 0 && <p className="text-sm text-muted-foreground">Sin datos para los filtros seleccionados.</p>}
+              </div>
+            </section>
+
+            {Object.keys(costsByKind).length > 0 && (
+              <section className="p-5 rounded-xl border border-border bg-card">
+                <h2 className="text-sm font-semibold flex items-center gap-2 mb-4">
+                  <DollarSign className="size-4 text-primary" /> Costos por tipo
+                </h2>
+                <div className="space-y-2">
+                  {Object.entries(costsByKind).map(([k, v], i) => (
+                    <div key={k} className="flex items-center gap-3">
+                      <span className="w-40 text-sm truncate">{k}</span>
+                      <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.min(100, (v / Math.max(1, totalCost)) * 100)}%`,
+                            backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+                          }}
+                        />
+                      </div>
+                      <span className="text-sm w-24 text-right text-muted-foreground font-mono">$ {v.toFixed(0)}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground text-right mt-2 font-mono">Total: {formatCOP(totalCost)}</p>
+              </section>
+            )}
+          </div>
+
+          <section className="p-5 rounded-xl border border-border bg-card">
+            <h2 className="text-sm font-semibold flex items-center gap-2 mb-3">
+              <DollarSign className="size-4 text-primary" /> Rentabilidad
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Costo total</p>
+                <p className="text-xl font-bold font-mono text-destructive">{formatCOP(totalCost)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Ingreso total</p>
+                <p className="text-xl font-bold font-mono text-success">{formatCOP(totalRevenue)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Margen bruto</p>
+                <p className={cn("text-xl font-bold font-mono", totalRevenue - totalCost >= 0 ? "text-success" : "text-destructive")}>
+                  {totalRevenue - totalCost >= 0 ? "+" : ""}
+                  {formatCOP(totalRevenue - totalCost)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Rentabilidad</p>
+                <p className={cn("text-xl font-bold font-mono", totalRevenue - totalCost >= 0 ? "text-success" : "text-destructive")}>{totalCost > 0 ? `${(((totalRevenue - totalCost) / totalCost) * 100).toFixed(1)}%` : "—"}</p>
+              </div>
+            </div>
+          </section>
+
+          <AiReportInsights activities={filtered} parcels={parcels.data ?? []} totalCost={totalCost} totalRevenue={totalRevenue} pendingAlerts={pendingAlerts} costsByKind={costsByKind} byKind={byKind} />
+
+          {costsQuery.data && harvestsQuery.data && (
+            <section className="p-5 rounded-xl border border-border bg-card">
+              <h2 className="text-sm font-semibold flex items-center gap-2 mb-3">
+                <BarChart3 className="size-4 text-primary" /> Comparación financiera: {financialComparison.comparisonLabel}
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                 <div>
-                  <Label className="text-xs">Plantilla</Label>
-                  <Select value={schedTemplate} onValueChange={(v) => setSchedTemplate(v as PdfReportTemplate)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="actividades">Bitácora de actividades</SelectItem>
-                      <SelectItem value="parcelas">Inventario de parcelas</SelectItem>
-                      <SelectItem value="resumen">Resumen ejecutivo</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <p className="text-xs text-muted-foreground">Ingresos {financialComparison.previousPeriodLabel}</p>
+                  <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.previousRevenue)}</p>
                 </div>
                 <div>
-                  <Label className="text-xs">Correos (separados por coma)</Label>
-                  <Input value={schedRecipients} onChange={(e) => setSchedRecipients(e.target.value)} placeholder="correo@ejemplo.com, otro@ejemplo.com" />
+                  <p className="text-xs text-muted-foreground">Ingresos {financialComparison.currentPeriodLabel}</p>
+                  <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.currentRevenue)}</p>
                 </div>
                 <div>
-                  <Label className="text-xs">Frecuencia</Label>
-                  <Select value={schedFreq} onValueChange={setSchedFreq}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Diario</SelectItem>
-                      <SelectItem value="weekly">Semanal</SelectItem>
-                      <SelectItem value="monthly">Mensual</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <p className="text-xs text-muted-foreground">Variación ingresos</p>
+                  <p className={cn("text-lg font-bold font-mono flex items-center gap-1", financialComparison.currentRevenue >= financialComparison.previousRevenue ? "text-success" : "text-destructive")}>
+                    {financialComparison.currentRevenue >= financialComparison.previousRevenue ? <TrendingUp className="size-4" /> : <TrendingDown className="size-4" />}
+                    {financialComparison.previousRevenue > 0 ? `${(((financialComparison.currentRevenue - financialComparison.previousRevenue) / financialComparison.previousRevenue) * 100).toFixed(1)}%` : financialComparison.currentRevenue > 0 ? "Nuevo" : "0%"}
+                  </p>
                 </div>
-                <Button onClick={schedMut} disabled={schedCreating || !schedRecipients.trim()} className="w-full">
-                  {schedCreating ? "Guardando..." : "Programar"}
+                <div>
+                  <p className="text-xs text-muted-foreground">Costos {financialComparison.previousPeriodLabel}</p>
+                  <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.previousCosts)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Costos {financialComparison.currentPeriodLabel}</p>
+                  <p className="text-lg font-bold font-mono">{formatCOP(financialComparison.currentCosts)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Variación costos</p>
+                  <p className={cn("text-lg font-bold font-mono flex items-center gap-1", financialComparison.currentCosts <= financialComparison.previousCosts ? "text-success" : "text-destructive")}>
+                    {financialComparison.currentCosts <= financialComparison.previousCosts ? <TrendingDown className="size-4" /> : <TrendingUp className="size-4" />}
+                    {financialComparison.previousCosts > 0 ? `${(((financialComparison.currentCosts - financialComparison.previousCosts) / financialComparison.previousCosts) * 100).toFixed(1)}%` : financialComparison.currentCosts > 0 ? "Nuevo" : "0%"}
+                  </p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section className="p-5 rounded-xl border border-border bg-card space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <CalendarClock className="size-4 text-primary" /> Programaciones de reportes
+              </h2>
+              <Dialog open={schedDialog} onOpenChange={setSchedDialog}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="size-3.5 mr-1" /> Nuevo
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Programar reporte</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs">Plantilla</Label>
+                      <Select value={schedTemplate} onValueChange={(v) => setSchedTemplate(v as PdfReportTemplate)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="actividades">Bitácora de actividades</SelectItem>
+                          <SelectItem value="parcelas">Inventario de parcelas</SelectItem>
+                          <SelectItem value="resumen">Resumen ejecutivo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Correos (separados por coma)</Label>
+                      <Input value={schedRecipients} onChange={(e) => setSchedRecipients(e.target.value)} placeholder="correo@ejemplo.com, otro@ejemplo.com" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Frecuencia</Label>
+                      <Select value={schedFreq} onValueChange={setSchedFreq}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="daily">Diario</SelectItem>
+                          <SelectItem value="weekly">Semanal</SelectItem>
+                          <SelectItem value="monthly">Mensual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={schedMut} disabled={schedCreating || !schedRecipients.trim()} className="w-full">
+                      {schedCreating ? "Guardando..." : "Programar"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+            <p className="text-xs text-muted-foreground">Las frecuencias y destinatarios se guardan, pero el envío automático requiere configurar un proceso programado y un proveedor de correo.</p>
+            {schedReports.isLoading ? (
+              <div className="space-y-2">
+                <SkeletonCard />
+                <SkeletonCard />
+              </div>
+            ) : schedReports.isError ? (
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm">
+                <span className="text-destructive">No se pudieron cargar las programaciones.</span>
+                <Button variant="outline" size="sm" onClick={() => void schedReports.refetch()}>
+                  Reintentar
                 </Button>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-        <p className="text-xs text-muted-foreground">Las frecuencias y destinatarios se guardan, pero el envío automático requiere configurar un proceso programado y un proveedor de correo.</p>
-        {schedReports.isLoading ? (
-          <div className="space-y-2">
-            <SkeletonCard /><SkeletonCard />
-          </div>
-        ) : schedReports.isError ? (
-          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm">
-            <span className="text-destructive">No se pudieron cargar las programaciones.</span>
-            <Button variant="outline" size="sm" onClick={() => void schedReports.refetch()}>Reintentar</Button>
-          </div>
-        ) : (schedReports.data ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No hay reportes programados todavía.</p>
-        ) : (
-          <div className="space-y-2">
-            {(schedReports.data ?? []).map((r: any) => (
-              <div key={r.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
-                <div className="flex items-center gap-3">
-                  <div className={cn("size-2 rounded-full", r.enabled ? "bg-green-500" : "bg-muted-foreground")} />
-                  <div>
-                    <p className="text-sm font-medium capitalize">{r.template}</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="size-3" /> {r.schedule} &middot; <Mail className="size-3 ml-1" /> {r.recipients?.join(", ")}
-                    </p>
+            ) : (schedReports.data ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No hay reportes programados todavía.</p>
+            ) : (
+              <div className="space-y-2">
+                {(schedReports.data ?? []).map((r: any) => (
+                  <div key={r.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("size-2 rounded-full", r.enabled ? "bg-green-500" : "bg-muted-foreground")} />
+                      <div>
+                        <p className="text-sm font-medium capitalize">{r.template}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="size-3" /> {r.schedule} &middot; <Mail className="size-3 ml-1" /> {r.recipients?.join(", ")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="size-8" onClick={() => void handleToggleScheduledReport(r.id, !r.enabled)} aria-label={r.enabled ? "Deshabilitar reporte" : "Habilitar reporte"} title={r.enabled ? "Deshabilitar" : "Habilitar"}>
+                        {r.enabled ? <CheckCircle2 className="size-4 text-success" /> : <XCircle className="size-4 text-muted-foreground" />}
+                      </Button>
+                      <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => void handleDeleteScheduledReport(r.id)} aria-label="Eliminar reporte" title="Eliminar">
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="size-8" onClick={() => void handleToggleScheduledReport(r.id, !r.enabled)} aria-label={r.enabled ? "Deshabilitar reporte" : "Habilitar reporte"} title={r.enabled ? "Deshabilitar" : "Habilitar"}>
-                    {r.enabled ? <CheckCircle2 className="size-4 text-green-600" /> : <XCircle className="size-4 text-muted-foreground" />}
-                  </Button>
-                  <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => void handleDeleteScheduledReport(r.id)} aria-label="Eliminar reporte" title="Eliminar">
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            )}
+          </section>
         </TabsContent>
       </Tabs>
     </div>
   );
 }
-

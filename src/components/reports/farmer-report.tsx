@@ -8,57 +8,20 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import {
-  Download,
-  MapPin,
-  Sprout,
-  DollarSign,
-  BellRing,
-  Wheat,
-  TrendingUp,
-  TrendingDown,
-  FileSpreadsheet,
-  Leaf,
-  Activity,
-  Sparkles,
-  Calendar,
-  Layers,
-  CheckCircle2,
-  AlertTriangle,
-  RefreshCw,
-  Loader2,
-  Droplet,
-  Package,
-  Scissors,
-  Bug,
-  Eye,
-} from "lucide-react";
+import { Download, MapPin, Sprout, DollarSign, BellRing, Wheat, TrendingUp, TrendingDown, FileSpreadsheet, Leaf, Activity, Sparkles, Calendar, Layers, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Droplet, Package, Scissors, Bug, Eye } from "lucide-react";
 import { generatePdfReport } from "@/lib/pdf-report";
 import { chatWithGroq } from "@/lib/api/groq-chat.server";
 import { toast } from "sonner";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-} from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import { InventoryReport } from "@/components/reports/inventory-report";
 import { CropPerformanceReport } from "@/components/reports/crop-performance-report";
 import { PestReport } from "@/components/reports/pest-report";
 import { HarvestProjectionReport } from "@/components/reports/harvest-projection-report";
 import { inferCategory } from "@/lib/queries";
+import { formatCurrencyInt } from "@/lib/currency";
+import { CHART_COLORS } from "@/lib/chart-colors";
 
-
-const formatCOP = (n: number) =>
-  "$ " +
-  n.toLocaleString("es-CO", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
+const formatCOP = formatCurrencyInt;
 
 const kindLabels: Record<string, string> = {
   RIEGO: "Riego",
@@ -93,11 +56,7 @@ export function FarmerReport() {
       const { data: u, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       if (!u.user) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("full_name, phone")
-        .eq("id", u.user.id)
-        .maybeSingle();
+      const { data, error } = await supabase.from("profiles").select("full_name, phone").eq("id", u.user.id).maybeSingle();
       if (error) throw error;
       return {
         fullName: data?.full_name || u.user.user_metadata?.full_name || "Agricultor",
@@ -111,10 +70,7 @@ export function FarmerReport() {
   const parcels = useQuery({
     queryKey: ["farmer-report-parcels"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("parcels")
-        .select("id, name, area_m2, soil_types(name), crops(id, status, planting_date, estimated_harvest_date, crop_catalog(name, cycle_days))")
-        .order("name");
+      const { data, error } = await supabase.from("parcels").select("id, name, area_m2, soil_types(name), crops(id, status, planting_date, estimated_harvest_date, crop_catalog(name, cycle_days))").order("name");
       if (error) throw error;
       return data ?? [];
     },
@@ -126,11 +82,7 @@ export function FarmerReport() {
     queryFn: async () => {
       const since = new Date();
       since.setDate(since.getDate() - 60);
-      const { data, error } = await supabase
-        .from("activities")
-        .select("id, kind, performed_at, notes, crops(id, crop_catalog(name), parcels(name))")
-        .gte("performed_at", since.toISOString())
-        .order("performed_at", { ascending: false });
+      const { data, error } = await supabase.from("activities").select("id, kind, performed_at, notes, crops(id, crop_catalog(name), parcels(name))").gte("performed_at", since.toISOString()).order("performed_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
@@ -151,16 +103,7 @@ export function FarmerReport() {
           if (page.length < 1000) return rows;
         }
       };
-      const [costs, harvests] = await Promise.all([
-        loadAll(() => sb.from("crop_costs")
-          .select("id, total, kind, description, created_at, crops(crop_catalog(name))")
-          .order("created_at", { ascending: false })
-          .order("id", { ascending: true })),
-        loadAll(() => sb.from("crop_harvests")
-          .select("id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops(crop_catalog(name))")
-          .order("performed_at", { ascending: false })
-          .order("id", { ascending: true })),
-      ]);
+      const [costs, harvests] = await Promise.all([loadAll(() => sb.from("crop_costs").select("id, total, kind, description, created_at, crops(crop_catalog(name))").order("created_at", { ascending: false }).order("id", { ascending: true })), loadAll(() => sb.from("crop_harvests").select("id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops(crop_catalog(name))").order("performed_at", { ascending: false }).order("id", { ascending: true }))]);
       return { costs, harvests };
     },
   });
@@ -169,11 +112,7 @@ export function FarmerReport() {
   const alerts = useQuery({
     queryKey: ["farmer-report-alerts"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("alerts")
-        .select("id, message, status, kind, created_at")
-        .eq("status", "PENDIENTE")
-        .order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("alerts").select("id, message, status, kind, created_at").eq("status", "PENDIENTE").order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
@@ -186,11 +125,7 @@ export function FarmerReport() {
       const { data: u, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       if (!u.user) return { items: [], lowStock: [] };
-      const { data, error } = await (supabase as any)
-        .from("inventory_items")
-        .select("*")
-        .eq("owner_id", u.user.id)
-        .order("name");
+      const { data, error } = await (supabase as any).from("inventory_items").select("*").eq("owner_id", u.user.id).order("name");
       if (error) throw error;
       const rawItems = (data ?? []) as any[];
       const items = rawItems.map((i) => ({
@@ -202,8 +137,6 @@ export function FarmerReport() {
     },
   });
 
-
-
   // Cálculos estadísticos
   const totalAreaHa = useMemo(() => {
     const m2 = (parcels.data ?? []).reduce((acc, p: any) => acc + Number(p.area_m2 || 0), 0);
@@ -212,22 +145,14 @@ export function FarmerReport() {
 
   const activeCropsCount = useMemo(() => {
     return (parcels.data ?? []).reduce((s: number, p: any) => {
-      const active = (p.crops ?? []).filter((c: any) =>
-        ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO"].includes(c.status)
-      );
+      const active = (p.crops ?? []).filter((c: any) => ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO"].includes(c.status));
       return s + active.length;
     }, 0);
   }, [parcels.data]);
 
-  const totalCost = useMemo(
-    () => (financials.data?.costs ?? []).reduce((s: number, c: any) => s + Number(c.total || 0), 0),
-    [financials.data]
-  );
+  const totalCost = useMemo(() => (financials.data?.costs ?? []).reduce((s: number, c: any) => s + Number(c.total || 0), 0), [financials.data]);
 
-  const totalRevenue = useMemo(
-    () => (financials.data?.harvests ?? []).reduce((s: number, h: any) => s + Number(h.total_revenue || 0), 0),
-    [financials.data]
-  );
+  const totalRevenue = useMemo(() => (financials.data?.harvests ?? []).reduce((s: number, h: any) => s + Number(h.total_revenue || 0), 0), [financials.data]);
 
   const netMargin = totalRevenue - totalCost;
 
@@ -251,16 +176,45 @@ export function FarmerReport() {
     };
   }, [financials.data]);
 
-  const percentChange = (current: number, previous: number) =>
-    previous > 0 ? ((current - previous) / previous) * 100 : current > 0 ? null : 0;
+  const percentChange = (current: number, previous: number) => (previous > 0 ? ((current - previous) / previous) * 100 : current > 0 ? null : 0);
 
   const financialComparisonMetrics = [
-    { label: `Ingresos ${financialYearComparison.year}`, value: financialYearComparison.currentRevenue, type: "money" as const, lowerIsBetter: false },
-    { label: `Ingresos ${financialYearComparison.previousYear}`, value: financialYearComparison.previousRevenue, type: "money" as const, lowerIsBetter: false },
-    { label: "Variación ingresos", value: percentChange(financialYearComparison.currentRevenue, financialYearComparison.previousRevenue), type: "percent" as const, lowerIsBetter: false },
-    { label: `Costos ${financialYearComparison.year}`, value: financialYearComparison.currentCosts, type: "money" as const, lowerIsBetter: true },
-    { label: `Costos ${financialYearComparison.previousYear}`, value: financialYearComparison.previousCosts, type: "money" as const, lowerIsBetter: true },
-    { label: "Variación costos", value: percentChange(financialYearComparison.currentCosts, financialYearComparison.previousCosts), type: "percent" as const, lowerIsBetter: true },
+    {
+      label: `Ingresos ${financialYearComparison.year}`,
+      value: financialYearComparison.currentRevenue,
+      type: "money" as const,
+      lowerIsBetter: false,
+    },
+    {
+      label: `Ingresos ${financialYearComparison.previousYear}`,
+      value: financialYearComparison.previousRevenue,
+      type: "money" as const,
+      lowerIsBetter: false,
+    },
+    {
+      label: "Variación ingresos",
+      value: percentChange(financialYearComparison.currentRevenue, financialYearComparison.previousRevenue),
+      type: "percent" as const,
+      lowerIsBetter: false,
+    },
+    {
+      label: `Costos ${financialYearComparison.year}`,
+      value: financialYearComparison.currentCosts,
+      type: "money" as const,
+      lowerIsBetter: true,
+    },
+    {
+      label: `Costos ${financialYearComparison.previousYear}`,
+      value: financialYearComparison.previousCosts,
+      type: "money" as const,
+      lowerIsBetter: true,
+    },
+    {
+      label: "Variación costos",
+      value: percentChange(financialYearComparison.currentCosts, financialYearComparison.previousCosts),
+      type: "percent" as const,
+      lowerIsBetter: true,
+    },
   ];
 
   // Datos para gráfico mensual (Ingresos vs Costos)
@@ -268,7 +222,12 @@ export function FarmerReport() {
     const now = new Date();
     const periods = Array.from({ length: 12 }, (_, index) => {
       const date = new Date(now.getFullYear(), now.getMonth() - 11 + index, 1);
-      return { key: format(date, "yyyy-MM"), month: format(date, "MMM yy", { locale: es }), ingresos: 0, costos: 0 };
+      return {
+        key: format(date, "yyyy-MM"),
+        month: format(date, "MMM yy", { locale: es }),
+        ingresos: 0,
+        costos: 0,
+      };
     });
     const byMonth = new Map(periods.map((period) => [period.key, period]));
 
@@ -284,19 +243,19 @@ export function FarmerReport() {
       if (period) period.costos += Number(c.total || 0);
     });
 
-    return periods.map(({ month, ingresos, costos }) => ({ month, ingresos, costos }));
+    return periods.map(({ month, ingresos, costos }) => ({
+      month,
+      ingresos,
+      costos,
+    }));
   }, [financials.data]);
 
   // Diagnóstico con IA Agrónoma
   const requestAiDiagnosis = async () => {
     setAiLoading(true);
     try {
-      const parcelsList = (parcels.data ?? [])
-        .map((p: any) => `${p.name} (${(Number(p.area_m2) / 10000).toFixed(1)} ha, suelo ${p.soil_types?.name ?? "estándar"})`)
-        .join("; ");
-      const cropsList = (parcels.data ?? [])
-        .flatMap((p: any) => (p.crops ?? []).map((c: any) => `${c.crop_catalog?.name ?? "Cultivo"} (${c.status})`))
-        .join(", ");
+      const parcelsList = (parcels.data ?? []).map((p: any) => `${p.name} (${(Number(p.area_m2) / 10000).toFixed(1)} ha, suelo ${p.soil_types?.name ?? "estándar"})`).join("; ");
+      const cropsList = (parcels.data ?? []).flatMap((p: any) => (p.crops ?? []).map((c: any) => `${c.crop_catalog?.name ?? "Cultivo"} (${c.status})`)).join(", ");
       const pendingAlertsList = (alerts.data ?? []).map((a: any) => a.message).join("; ");
 
       const prompt = `Como Asistente Agronómico Oficial de SIGIC, realiza una evaluación ejecutiva y accionable de mi finca con los siguientes datos actuales:
@@ -339,50 +298,24 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
     setExporting(true);
     try {
       const farmerName = profile.data?.fullName || "Agricultor";
-      const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: es });
-
-      const parcelRows = (parcels.data ?? []).map((p: any) => {
-        const crops = (p.crops ?? [])
-          .map((c: any) => `${c.crop_catalog?.name ?? "Cultivo"} (${c.status})`)
-          .join(", ") || "Sin cultivo activo";
-        return [
-          p.name,
-          `${(Number(p.area_m2) / 10000).toFixed(2)} ha`,
-          p.soil_types?.name ?? "Estándar",
-          crops,
-        ];
+      const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", {
+        locale: es,
       });
 
-      const actRows = (activities.data ?? []).slice(0, 25).map((a: any) => [
-        format(new Date(a.performed_at), "dd/MM/yyyy"),
-        kindLabels[a.kind] ?? a.kind,
-        a.crops?.crop_catalog?.name ?? "—",
-        a.crops?.parcels?.name ?? "—",
-        a.notes || "Sin notas",
-      ]);
+      const parcelRows = (parcels.data ?? []).map((p: any) => {
+        const crops = (p.crops ?? []).map((c: any) => `${c.crop_catalog?.name ?? "Cultivo"} (${c.status})`).join(", ") || "Sin cultivo activo";
+        return [p.name, `${(Number(p.area_m2) / 10000).toFixed(2)} ha`, p.soil_types?.name ?? "Estándar", crops];
+      });
 
-      const harvestRows = (financials.data?.harvests ?? []).slice(0, 15).map((h: any) => [
-        h.crops?.crop_catalog?.name ?? "—",
-        `${Number(h.harvested_qty).toFixed(1)} ${h.unit || "KG"}`,
-        formatCOP(Number(h.sale_price || 0)),
-        formatCOP(Number(h.total_revenue || 0)),
-        h.performed_at ? format(new Date(h.performed_at), "dd/MM/yyyy") : "—",
-      ]);
+      const actRows = (activities.data ?? []).slice(0, 25).map((a: any) => [format(new Date(a.performed_at), "dd/MM/yyyy"), kindLabels[a.kind] ?? a.kind, a.crops?.crop_catalog?.name ?? "—", a.crops?.parcels?.name ?? "—", a.notes || "Sin notas"]);
+
+      const harvestRows = (financials.data?.harvests ?? []).slice(0, 15).map((h: any) => [h.crops?.crop_catalog?.name ?? "—", `${Number(h.harvested_qty).toFixed(1)} ${h.unit || "KG"}`, formatCOP(Number(h.sale_price || 0)), formatCOP(Number(h.total_revenue || 0)), h.performed_at ? format(new Date(h.performed_at), "dd/MM/yyyy") : "—"]);
 
       const inventoryItems = (inventory.data?.items ?? []) as any[];
       const lowStockItems = (inventory.data?.lowStock ?? []) as any[];
-      const inventoryValue = inventoryItems.reduce(
-        (s, i) => s + Number(i.stock_qty || 0) * Number(i.unit_cost || 0), 0
-      );
+      const inventoryValue = inventoryItems.reduce((s, i) => s + Number(i.stock_qty || 0) * Number(i.unit_cost || 0), 0);
 
-      const inventoryRows = inventoryItems.slice(0, 20).map((i) => [
-        i.name,
-        i.category || "—",
-        `${Number(i.stock_qty).toFixed(2)} ${i.unit || ""}`,
-        formatCOP(Number(i.unit_cost || 0)),
-        formatCOP(Number(i.stock_qty || 0) * Number(i.unit_cost || 0)),
-        Number(i.stock_qty) <= Number(i.min_stock) ? "⚠ Stock bajo" : "OK",
-      ]);
+      const inventoryRows = inventoryItems.slice(0, 20).map((i) => [i.name, i.category || "—", `${Number(i.stock_qty).toFixed(2)} ${i.unit || ""}`, formatCOP(Number(i.unit_cost || 0)), formatCOP(Number(i.stock_qty || 0) * Number(i.unit_cost || 0)), Number(i.stock_qty) <= Number(i.min_stock) ? "⚠ Stock bajo" : "OK"]);
 
       const doc = await generatePdfReport({
         template: "resumen",
@@ -395,12 +328,35 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
           { label: "Cultivos activos", value: String(activeCropsCount) },
           { label: "Ingresos", value: formatCOP(totalRevenue) },
           { label: "Margen", value: formatCOP(netMargin) },
-          { label: `Ingresos ${financialYearComparison.currentLabel}`, value: formatCOP(financialYearComparison.currentRevenue) },
-          { label: `Costos ${financialYearComparison.currentLabel}`, value: formatCOP(financialYearComparison.currentCosts) },
+          {
+            label: `Ingresos ${financialYearComparison.currentLabel}`,
+            value: formatCOP(financialYearComparison.currentRevenue),
+          },
+          {
+            label: `Costos ${financialYearComparison.currentLabel}`,
+            value: formatCOP(financialYearComparison.currentCosts),
+          },
         ],
         charts: [
-          { title: "Ingresos mensuales · últimos 12 meses", data: monthlyChartData.map((row) => ({ label: row.month, value: row.ingresos })), maxItems: 12, valueFormatter: formatCOP },
-          { title: "Costos mensuales · últimos 12 meses", data: monthlyChartData.map((row) => ({ label: row.month, value: row.costos })), maxItems: 12, valueFormatter: formatCOP, color: [180, 83, 9] },
+          {
+            title: "Ingresos mensuales · últimos 12 meses",
+            data: monthlyChartData.map((row) => ({
+              label: row.month,
+              value: row.ingresos,
+            })),
+            maxItems: 12,
+            valueFormatter: formatCOP,
+          },
+          {
+            title: "Costos mensuales · últimos 12 meses",
+            data: monthlyChartData.map((row) => ({
+              label: row.month,
+              value: row.costos,
+            })),
+            maxItems: 12,
+            valueFormatter: formatCOP,
+            color: [180, 83, 9],
+          },
         ],
         sections: [
           {
@@ -442,15 +398,16 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
             body: harvestRows,
           },
           ...(inventoryRows.length > 0
-            ? [{
-                title: "Resumen de Inventario de Insumos",
-                head: ["Ítem", "Categoría", "Stock", "Costo Unit.", "Valor Total", "Estado"],
-                body: inventoryRows,
-              }]
+            ? [
+                {
+                  title: "Resumen de Inventario de Insumos",
+                  head: ["Ítem", "Categoría", "Stock", "Costo Unit.", "Valor Total", "Estado"],
+                  body: inventoryRows,
+                },
+              ]
             : []),
         ],
       });
-
 
       doc.save(`SIGIC-Reporte-${farmerName.replace(/\s+/g, "_")}-${format(new Date(), "yyyyMMdd")}.pdf`);
       toast.success("Reporte PDF descargado con éxito");
@@ -464,41 +421,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
   // Exportar CSV
   const handleExportCSV = () => {
     try {
-      const rows = [
-        ["Reporte Agrícola SIGIC"],
-        [`Agricultor: ${profile.data?.fullName || "Agricultor"}`],
-        [`Fecha: ${format(new Date(), "yyyy-MM-dd")}`],
-        [],
-        ["--- MIS PARCELAS ---"],
-        ["Parcela", "Área (ha)", "Tipo de Suelo", "Cultivos"],
-        ...(parcels.data ?? []).map((p: any) => [
-          p.name,
-          (Number(p.area_m2) / 10000).toFixed(2),
-          p.soil_types?.name ?? "—",
-          (p.crops ?? []).map((c: any) => `${c.crop_catalog?.name ?? "Cultivo"}(${c.status})`).join("; "),
-        ]),
-        [],
-        ["--- BITÁCORA DE LABORES RECIENTES ---"],
-        ["Fecha", "Labor", "Cultivo", "Parcela", "Notas"],
-        ...(activities.data ?? []).map((a: any) => [
-          format(new Date(a.performed_at), "yyyy-MM-dd HH:mm"),
-          kindLabels[a.kind] ?? a.kind,
-          a.crops?.crop_catalog?.name ?? "—",
-          a.crops?.parcels?.name ?? "—",
-          a.notes ?? "",
-        ]),
-        [],
-        ["--- REGISTRO DE COSECHAS ---"],
-        ["Cultivo", "Cantidad", "Unidad", "Precio Unitario (COP)", "Ingreso Total (COP)", "Fecha"],
-        ...(financials.data?.harvests ?? []).map((h: any) => [
-          h.crops?.crop_catalog?.name ?? "—",
-          h.harvested_qty,
-          h.unit || "KG",
-          h.sale_price || 0,
-          h.total_revenue || 0,
-          h.performed_at ? format(new Date(h.performed_at), "yyyy-MM-dd") : "—",
-        ]),
-      ];
+      const rows = [["Reporte Agrícola SIGIC"], [`Agricultor: ${profile.data?.fullName || "Agricultor"}`], [`Fecha: ${format(new Date(), "yyyy-MM-dd")}`], [], ["--- MIS PARCELAS ---"], ["Parcela", "Área (ha)", "Tipo de Suelo", "Cultivos"], ...(parcels.data ?? []).map((p: any) => [p.name, (Number(p.area_m2) / 10000).toFixed(2), p.soil_types?.name ?? "—", (p.crops ?? []).map((c: any) => `${c.crop_catalog?.name ?? "Cultivo"}(${c.status})`).join("; ")]), [], ["--- BITÁCORA DE LABORES RECIENTES ---"], ["Fecha", "Labor", "Cultivo", "Parcela", "Notas"], ...(activities.data ?? []).map((a: any) => [format(new Date(a.performed_at), "yyyy-MM-dd HH:mm"), kindLabels[a.kind] ?? a.kind, a.crops?.crop_catalog?.name ?? "—", a.crops?.parcels?.name ?? "—", a.notes ?? ""]), [], ["--- REGISTRO DE COSECHAS ---"], ["Cultivo", "Cantidad", "Unidad", "Precio Unitario (COP)", "Ingreso Total (COP)", "Fecha"], ...(financials.data?.harvests ?? []).map((h: any) => [h.crops?.crop_catalog?.name ?? "—", h.harvested_qty, h.unit || "KG", h.sale_price || 0, h.total_revenue || 0, h.performed_at ? format(new Date(h.performed_at), "yyyy-MM-dd") : "—"])];
 
       const csvContent =
         "\uFEFF" +
@@ -509,7 +432,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
                 const s = String(val ?? "").replace(/"/g, '""');
                 return /[",\n]/.test(s) ? `"${s}"` : s;
               })
-              .join(",")
+              .join(","),
           )
           .join("\n");
 
@@ -538,12 +461,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
           <div className="flex-1">
             <h2 className="text-sm font-semibold">No se pudo cargar el reporte completo</h2>
             <p className="mt-1 text-sm text-muted-foreground">No exportamos cifras parciales. Revisa tu conexión e inténtalo de nuevo.</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={() => void Promise.all(reportQueries.map((query) => query.refetch()))}
-            >
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => void Promise.all(reportQueries.map((query) => query.refetch()))}>
               <RefreshCw className="size-3.5 mr-2" /> Reintentar carga
             </Button>
           </div>
@@ -555,16 +473,14 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
   return (
     <div className="space-y-6">
       {/* Encabezado Principal */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-emerald-900/10 via-emerald-600/5 to-transparent border border-emerald-500/20 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-border bg-card p-5">
         <div>
           <div className="flex items-center gap-2">
-            <div className="size-9 rounded-xl bg-emerald-600/15 text-emerald-600 grid place-items-center font-bold">
+            <div className="size-9 rounded-lg bg-primary-soft text-primary grid place-items-center font-bold">
               <Leaf className="size-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                Mi Reporte Agrícola
-              </h1>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Mi Reporte Agrícola</h1>
               <p className="text-xs text-muted-foreground">
                 Agricultor: <span className="font-semibold text-foreground">{profile.data?.fullName}</span> • {format(new Date(), "MMMM yyyy", { locale: es })}
               </p>
@@ -573,34 +489,17 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={requestAiDiagnosis}
-            disabled={aiLoading || loading}
-            className="gap-1.5 text-xs bg-card hover:bg-emerald-50 dark:hover:bg-emerald-950/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
-          >
-            {aiLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-emerald-600" />}
+          <Button variant="outline" size="sm" onClick={requestAiDiagnosis} disabled={aiLoading || loading} className="gap-1.5 text-xs bg-card hover:bg-accent border-primary/30 text-primary">
+            {aiLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-primary" />}
             {aiLoading ? "Analizando finca..." : "Diagnóstico IA Finca"}
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            disabled={loading}
-            className="gap-1.5 text-xs"
-          >
+          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={loading} className="gap-1.5 text-xs">
             <FileSpreadsheet className="size-3.5 text-primary" />
             Exportar CSV
           </Button>
 
-          <Button
-            size="sm"
-            onClick={handleExportPDF}
-            disabled={exporting || loading}
-            className="gap-1.5 text-xs shadow-xs"
-          >
+          <Button size="sm" onClick={handleExportPDF} disabled={exporting || loading} className="gap-1.5 text-xs shadow-xs">
             <Download className="size-3.5" />
             {exporting ? "Generando..." : "Descargar PDF"}
           </Button>
@@ -609,146 +508,87 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
 
       {/* Banner de Diagnóstico IA si se generó */}
       {aiAnalysis && (
-        <Card className="p-5 border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-card to-card space-y-3">
+        <Card className="space-y-3 border-primary/30 bg-card p-5">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+            <h3 className="text-sm font-bold flex items-center gap-2 text-primary">
               <Sparkles className="size-4" /> Diagnóstico Agronómico Personalizado (IA SIGIC)
             </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAiAnalysis(null)}
-              className="h-6 px-2 text-xs text-muted-foreground"
-            >
+            <Button variant="ghost" size="sm" onClick={() => setAiAnalysis(null)} className="h-6 px-2 text-xs text-muted-foreground">
               Ocultar
             </Button>
           </div>
-          <div className="p-4 rounded-xl bg-card border border-emerald-500/20 text-xs leading-relaxed text-foreground whitespace-pre-line">
-            {aiAnalysis}
-          </div>
+          <div className="rounded-lg border border-border bg-muted p-4 text-xs leading-relaxed text-foreground whitespace-pre-line">{aiAnalysis}</div>
         </Card>
       )}
 
       {/* Tarjetas de Métricas KPI */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <Card className="p-4.5 bg-card border-border/70 hover:border-emerald-500/40 transition-all shadow-xs">
+        <Card className="p-4.5 bg-card border-border/70 hover:border-primary/40 transition-colors">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Mis Parcelas</span>
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+            <div className="p-2 rounded-lg bg-success/10 text-success">
               <MapPin className="size-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold mt-2 text-foreground">
-            {loading ? "—" : parcels.data?.length ?? 0}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            {totalAreaHa} hectáreas totales
-          </p>
+          <p className="text-2xl font-bold mt-2 text-foreground">{loading ? "—" : (parcels.data?.length ?? 0)}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{totalAreaHa} hectáreas totales</p>
         </Card>
 
-        <Card className="p-4.5 bg-card border-border/70 hover:border-emerald-500/40 transition-all shadow-xs">
+        <Card className="p-4.5 bg-card border-border/70 hover:border-primary/40 transition-colors">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Cultivos en Campo</span>
-            <div className="p-2 rounded-lg bg-green-500/10 text-green-600">
+            <div className="p-2 rounded-lg bg-success/10 text-success">
               <Sprout className="size-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold mt-2 text-foreground">
-            {loading ? "—" : activeCropsCount}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            En fase de crecimiento/producción
-          </p>
+          <p className="text-2xl font-bold mt-2 text-foreground">{loading ? "—" : activeCropsCount}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">En fase de crecimiento/producción</p>
         </Card>
 
-        <Card className="p-4.5 bg-card border-border/70 hover:border-emerald-500/40 transition-all shadow-xs">
+        <Card className="p-4.5 bg-card border-border/70 hover:border-primary/40 transition-colors">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Labores (60 días)</span>
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600">
+            <div className="p-2 rounded-lg bg-info/10 text-info">
               <Activity className="size-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold mt-2 text-foreground">
-            {loading ? "—" : activities.data?.length ?? 0}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Riegos, fertilizaciones y podas
-          </p>
+          <p className="text-2xl font-bold mt-2 text-foreground">{loading ? "—" : (activities.data?.length ?? 0)}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Riegos, fertilizaciones y podas</p>
         </Card>
 
-        <Card
-          className={`p-4.5 bg-card border transition-all shadow-xs ${
-            (alerts.data?.length ?? 0) > 0
-              ? "border-amber-500/40 bg-amber-500/5"
-              : "border-border/70"
-          }`}
-        >
+        <Card className={`p-4.5 bg-card border transition-all shadow-xs ${(alerts.data?.length ?? 0) > 0 ? "border-warning/40 bg-warning/5" : "border-border/70"}`}>
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Alertas Fitosanitarias</span>
-            <div
-              className={`p-2 rounded-lg ${
-                (alerts.data?.length ?? 0) > 0
-                  ? "bg-amber-500/20 text-amber-600"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
+            <div className={`p-2 rounded-lg ${(alerts.data?.length ?? 0) > 0 ? "bg-warning/20 text-warning-text" : "bg-muted text-muted-foreground"}`}>
               <BellRing className="size-4" />
             </div>
           </div>
-          <p
-            className={`text-2xl font-bold mt-2 ${
-              (alerts.data?.length ?? 0) > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"
-            }`}
-          >
-            {loading ? "—" : alerts.data?.length ?? 0}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            {(alerts.data?.length ?? 0) > 0 ? "Requieren tu atención" : "Sin incidencias graves"}
-          </p>
+          <p className={`text-2xl font-bold mt-2 ${(alerts.data?.length ?? 0) > 0 ? "text-warning-text" : "text-foreground"}`}>{loading ? "—" : (alerts.data?.length ?? 0)}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{(alerts.data?.length ?? 0) > 0 ? "Requieren tu atención" : "Sin incidencias graves"}</p>
         </Card>
       </div>
 
       {/* Resumen Financiero en COP */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="p-4 rounded-xl border border-red-500/20 bg-card shadow-xs">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Costos de Insumos y Labores
-          </p>
-          <p className="mt-1.5 text-2xl font-bold tabular-nums text-red-600">
-            {formatCOP(totalCost)}
-          </p>
+        <div className="p-4 rounded-lg border border-destructive/20 bg-card">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Costos de Insumos y Labores</p>
+          <p className="mt-1.5 text-2xl font-bold tabular-nums text-destructive">{formatCOP(totalCost)}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">Gastos registrados</p>
         </div>
 
-        <div className="p-4 rounded-xl border border-emerald-500/20 bg-card shadow-xs">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Ingresos por Cosechas
-          </p>
-          <p className="mt-1.5 text-2xl font-bold tabular-nums text-emerald-600">
-            {formatCOP(totalRevenue)}
-          </p>
+        <div className="p-4 rounded-lg border border-success/20 bg-card">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingresos por Cosechas</p>
+          <p className="mt-1.5 text-2xl font-bold tabular-nums text-success">{formatCOP(totalRevenue)}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">Ventas registradas</p>
         </div>
 
-        <div
-          className={`p-4 rounded-xl border shadow-xs bg-card ${
-            netMargin >= 0 ? "border-emerald-500/30" : "border-red-500/30"
-          }`}
-        >
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Margen Operativo Neto
-          </p>
-          <p
-            className={`mt-1.5 text-2xl font-bold tabular-nums flex items-center gap-1.5 ${
-              netMargin >= 0 ? "text-emerald-600" : "text-red-600"
-            }`}
-          >
+        <div className={`p-4 rounded-lg border bg-card ${netMargin >= 0 ? "border-success/30" : "border-destructive/30"}`}>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Margen Operativo Neto</p>
+          <p className={`mt-1.5 text-2xl font-bold tabular-nums flex items-center gap-1.5 ${netMargin >= 0 ? "text-success" : "text-destructive"}`}>
             {netMargin >= 0 ? <TrendingUp className="size-5" /> : <TrendingDown className="size-5" />}
             {formatCOP(netMargin)}
           </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            {netMargin >= 0 ? "Balance positivo" : "Déficit en el periodo"}
-          </p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{netMargin >= 0 ? "Balance positivo" : "Déficit en el periodo"}</p>
         </div>
       </div>
 
@@ -794,7 +634,9 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
           <Card className="space-y-4 border-border p-5">
             <div>
               <h3 className="text-sm font-semibold">Comparación financiera de periodos equivalentes</h3>
-              <p className="text-xs text-muted-foreground">Acumulado {financialYearComparison.currentLabel} frente a {financialYearComparison.previousLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                Acumulado {financialYearComparison.currentLabel} frente a {financialYearComparison.previousLabel}
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               {financialComparisonMetrics.map((metric) => {
@@ -803,9 +645,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
                 return (
                   <div key={metric.label} className="min-w-0 border-l-2 border-border pl-3">
                     <p className="text-xs text-muted-foreground">{metric.label}</p>
-                    <p className={`mt-1 truncate font-mono text-base font-semibold ${isChange && typeof metric.value === "number" ? favorable ? "text-emerald-600" : "text-red-600" : "text-foreground"}`}>
-                      {isChange ? metric.value === null ? "Sin base previa" : `${metric.value > 0 ? "+" : ""}${metric.value.toFixed(1)}%` : formatCOP(metric.value ?? 0)}
-                    </p>
+                    <p className={`mt-1 truncate font-mono text-base font-semibold ${isChange && typeof metric.value === "number" ? (favorable ? "text-success" : "text-destructive") : "text-foreground"}`}>{isChange ? (metric.value === null ? "Sin base previa" : `${metric.value > 0 ? "+" : ""}${metric.value.toFixed(1)}%`) : formatCOP(metric.value ?? 0)}</p>
                   </div>
                 );
               })}
@@ -823,21 +663,25 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
             </div>
 
             {!monthlyChartData.some((row) => row.ingresos > 0 || row.costos > 0) ? (
-              <div className="p-8 text-center text-muted-foreground text-xs border border-dashed rounded-lg bg-muted/20">
-                Aún no hay suficientes registros mensuales de cosechas o costos para graficar.
-              </div>
+              <div className="p-8 text-center text-muted-foreground text-xs border border-dashed rounded-lg bg-muted/20">Aún no hay suficientes registros mensuales de cosechas o costos para graficar.</div>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={monthlyChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                   <XAxis
                     dataKey="month"
-                    tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
+                    tick={{
+                      fontSize: 11,
+                      fill: "var(--color-muted-foreground)",
+                    }}
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
+                    tick={{
+                      fontSize: 11,
+                      fill: "var(--color-muted-foreground)",
+                    }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
@@ -852,8 +696,8 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
                     formatter={(v: any) => [formatCOP(Number(v)), ""]}
                   />
                   <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} />
-                  <Bar dataKey="ingresos" name="Ingresos por Cosecha" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="costos" name="Costos Operativos" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="ingresos" name="Ingresos por Cosecha" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="costos" name="Costos Operativos" fill={CHART_COLORS[4]} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -865,9 +709,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {(parcels.data ?? []).map((p: any) => {
               const parcelCrops = p.crops ?? [];
-              const activeCount = parcelCrops.filter((c: any) =>
-                ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO"].includes(c.status)
-              ).length;
+              const activeCount = parcelCrops.filter((c: any) => ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO"].includes(c.status)).length;
 
               return (
                 <Card key={p.id} className="p-5 border-border hover:border-primary/40 transition-all space-y-3">
@@ -887,27 +729,16 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
                   </div>
 
                   <div className="space-y-2 pt-2 border-t border-border/50">
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      Cultivos en esta parcela:
-                    </p>
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Cultivos en esta parcela:</p>
                     {parcelCrops.length === 0 ? (
                       <p className="text-xs text-muted-foreground italic">Sin cultivos registrados actualmente.</p>
                     ) : (
                       <div className="space-y-1.5">
                         {parcelCrops.map((c: any) => (
-                          <div
-                            key={c.id}
-                            className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30 border border-border/40 text-xs"
-                          >
-                            <span className="font-medium text-foreground">
-                              {c.crop_catalog?.name ?? "Cultivo"}
-                            </span>
+                          <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30 border border-border/40 text-xs">
+                            <span className="font-medium text-foreground">{c.crop_catalog?.name ?? "Cultivo"}</span>
                             <div className="flex items-center gap-2">
-                              {c.planting_date && (
-                                <span className="text-[11px] text-muted-foreground">
-                                  Siembra: {format(new Date(c.planting_date), "dd/MM/yy")}
-                                </span>
-                              )}
+                              {c.planting_date && <span className="text-[11px] text-muted-foreground">Siembra: {format(new Date(c.planting_date), "dd/MM/yy")}</span>}
                               <Badge variant="outline" className="text-[10px] capitalize">
                                 {c.status?.toLowerCase() ?? "activo"}
                               </Badge>
@@ -920,11 +751,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
                 </Card>
               );
             })}
-            {(parcels.data ?? []).length === 0 && (
-              <p className="text-sm text-muted-foreground col-span-2 text-center py-8">
-                No tienes parcelas registradas en el sistema.
-              </p>
-            )}
+            {(parcels.data ?? []).length === 0 && <p className="text-sm text-muted-foreground col-span-2 text-center py-8">No tienes parcelas registradas en el sistema.</p>}
           </div>
         </TabsContent>
 
@@ -937,9 +764,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
             </h3>
 
             {(activities.data ?? []).length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">
-                No hay actividades registradas en los últimos 60 días.
-              </p>
+              <p className="text-xs text-muted-foreground text-center py-6">No hay actividades registradas en los últimos 60 días.</p>
             ) : (
               <div className="divide-y divide-border/50">
                 {(activities.data ?? []).map((a: any) => {
@@ -953,26 +778,16 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-xs font-bold text-foreground">
                             {kindLabels[a.kind] ?? a.kind}
-                            {a.crops?.crop_catalog?.name && (
-                              <span className="font-normal text-muted-foreground ml-1.5">
-                                • {a.crops.crop_catalog.name}
-                              </span>
-                            )}
+                            {a.crops?.crop_catalog?.name && <span className="font-normal text-muted-foreground ml-1.5">• {a.crops.crop_catalog.name}</span>}
                           </p>
                           <span className="text-[11px] text-muted-foreground tabular-nums">
-                            {format(new Date(a.performed_at), "dd MMM yyyy", { locale: es })}
+                            {format(new Date(a.performed_at), "dd MMM yyyy", {
+                              locale: es,
+                            })}
                           </span>
                         </div>
-                        {a.crops?.parcels?.name && (
-                          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-                            Parcela: {a.crops.parcels.name}
-                          </p>
-                        )}
-                        {a.notes && (
-                          <p className="text-xs text-muted-foreground mt-1 bg-muted/40 p-2 rounded-md">
-                            {a.notes}
-                          </p>
-                        )}
+                        {a.crops?.parcels?.name && <p className="text-[11px] text-success font-medium">Parcela: {a.crops.parcels.name}</p>}
+                        {a.notes && <p className="text-xs text-muted-foreground mt-1 bg-muted/40 p-2 rounded-md">{a.notes}</p>}
                       </div>
                     </div>
                   );
@@ -991,9 +806,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
             </h3>
 
             {(financials.data?.harvests ?? []).length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">
-                No hay cosechas registradas aún en tus parcelas.
-              </p>
+              <p className="text-xs text-muted-foreground text-center py-6">No hay cosechas registradas aún en tus parcelas.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -1009,21 +822,13 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
                   <tbody className="divide-y divide-border/50">
                     {(financials.data?.harvests ?? []).map((h: any, idx: number) => (
                       <tr key={idx} className="hover:bg-muted/30">
-                        <td className="py-2.5 px-3 text-muted-foreground">
-                          {h.performed_at ? format(new Date(h.performed_at), "dd/MM/yyyy") : "—"}
-                        </td>
-                        <td className="py-2.5 px-3 font-semibold text-foreground">
-                          {h.crops?.crop_catalog?.name ?? "Cultivo"}
-                        </td>
+                        <td className="py-2.5 px-3 text-muted-foreground">{h.performed_at ? format(new Date(h.performed_at), "dd/MM/yyyy") : "—"}</td>
+                        <td className="py-2.5 px-3 font-semibold text-foreground">{h.crops?.crop_catalog?.name ?? "Cultivo"}</td>
                         <td className="py-2.5 px-3 text-right tabular-nums">
                           {Number(h.harvested_qty).toFixed(1)} {h.unit || "KG"}
                         </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">
-                          {formatCOP(Number(h.sale_price || 0))}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-emerald-600 tabular-nums">
-                          {formatCOP(Number(h.total_revenue || 0))}
-                        </td>
+                        <td className="py-2.5 px-3 text-right tabular-nums">{formatCOP(Number(h.sale_price || 0))}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-success tabular-nums">{formatCOP(Number(h.total_revenue || 0))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1056,4 +861,3 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
     </div>
   );
 }
-

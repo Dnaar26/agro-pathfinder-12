@@ -418,7 +418,7 @@ function CalendarPage() {
                     {it.type === "siembra" && <Sprout className="size-4 text-primary shrink-0" />}
                     {it.type === "cosecha" && <Wheat className="size-4 text-earth shrink-0" />}
                     <span className={cn("font-medium", it.done && "text-muted-foreground line-through")}>{it.title}</span>
-                    <span className="rounded-full bg-background/70 px-2 py-0.5 text-xs text-muted-foreground">{it.done ? "Realizado" : KIND_STYLE[it.type]?.label}</span>
+                    <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground">{it.done ? "Realizado" : KIND_STYLE[it.type]?.label}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {it.starts_at && <span className="text-xs text-muted-foreground">{format(new Date(it.starts_at), "HH:mm")}</span>}

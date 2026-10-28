@@ -28,7 +28,7 @@ function apply(theme: Theme) {
     transitionTimer = window.setTimeout(() => root.classList.remove("theme-transition"), 250);
   }
   root.classList.toggle("dark", dark);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#141b16" : "#f5f6f2");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#141b16" : "#f3f6f2");
 }
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -74,4 +74,4 @@ export function ThemeToggle({ className }: { className?: string }) {
 }
 
 /** Script inline que aplica la clase .dark antes del primer pintado (evita el destello blanco). */
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');var d=t==='dark'||((t!=='light')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',d?'#141b16':'#f5f6f2');}catch(e){}})();`;
+export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');var d=t==='dark'||((t!=='light')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',d?'#141b16':'#f3f6f2');}catch(e){}})();`;

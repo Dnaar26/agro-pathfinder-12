@@ -5,10 +5,10 @@ export function renderErrorPage(): string {
     <meta charset="utf-8" />
     <title>No se pudo cargar la página</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f5f6f2" />
+    <meta name="theme-color" content="#f3f6f2" />
     <style>
-      :root { color-scheme: light dark; --background: #f5f6f2; --card: #fff; --foreground: #202a23; --muted: #536056; --border: #d4ddd5; --primary: #285b41; --primary-foreground: #fffdfa; --secondary: #e9eee8; }
-      @media (prefers-color-scheme: dark) { :root { --background: #141b16; --card: #1d261f; --foreground: #ebf0ea; --muted: #bac6ba; --border: #3a493e; --primary: #a8c7ac; --primary-foreground: #17241b; --secondary: #27322a; } }
+      :root { color-scheme: light dark; --background: #f3f6f2; --card: #fff; --foreground: #202a23; --muted: #526156; --border: #d5ded6; --primary: #245c3d; --primary-foreground: #fff; --secondary: #e9eee9; }
+      @media (prefers-color-scheme: dark) { :root { --background: #141b16; --card: #1c261f; --foreground: #ebf1ea; --muted: #b9c5ba; --border: #37453a; --primary: #9fc8a5; --primary-foreground: #142018; --secondary: #26312a; } }
       * { box-sizing: border-box; }
       body { font: 15px/1.55 system-ui, -apple-system, sans-serif; background: var(--background); color: var(--foreground); display: grid; place-items: center; min-height: 100vh; margin: 0; padding: 1.5rem; transition: background-color 220ms ease, color 220ms ease; }
       .card { max-width: 28rem; width: 100%; text-align: center; padding: 2.25rem; background: var(--card); border: 1px solid var(--border); border-radius: 1rem; box-shadow: 0 18px 45px rgb(22 39 29 / 8%); }

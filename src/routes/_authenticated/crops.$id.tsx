@@ -746,7 +746,7 @@ function EvidenceGallery({ paths }: { paths: string[] }) {
       </div>
       <Dialog open={!!preview} onOpenChange={(v) => !v && setPreview(null)}>
         <DialogContent className="max-w-3xl p-2">
-          <button onClick={() => setPreview(null)} className="absolute right-3 top-3 z-10 rounded-full bg-background/80 p-1"><X className="size-4" /></button>
+          <button onClick={() => setPreview(null)} className="absolute right-3 top-3 z-10 rounded-full bg-background p-1"><X className="size-4" /></button>
           {preview && <img src={preview} alt="Evidencia ampliada" className="w-full h-auto rounded" />}
         </DialogContent>
       </Dialog>
@@ -767,7 +767,7 @@ function PhotoGallery({ activities }: { activities: any[] }) {
       </div>
       <Dialog open={!!preview} onOpenChange={(v) => !v && setPreview(null)}>
         <DialogContent className="max-w-3xl p-2">
-          <button onClick={() => setPreview(null)} className="absolute right-3 top-3 z-10 rounded-full bg-background/80 p-1"><X className="size-4" /></button>
+          <button onClick={() => setPreview(null)} className="absolute right-3 top-3 z-10 rounded-full bg-background p-1"><X className="size-4" /></button>
           {preview && <img src={preview} alt="Foto" className="w-full h-auto rounded" />}
         </DialogContent>
       </Dialog>

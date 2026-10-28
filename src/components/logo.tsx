@@ -10,20 +10,20 @@ interface LogoProps {
 }
 
 const sizeMap: Record<LogoSize, { mark: string; text: string }> = {
-  xs: { mark: "size-7 rounded-lg", text: "text-sm" },
-  sm: { mark: "size-8 rounded-lg", text: "text-base" },
-  md: { mark: "size-10 rounded-xl", text: "text-lg" },
-  lg: { mark: "size-14 rounded-2xl", text: "text-2xl" },
-  xl: { mark: "size-16 rounded-2xl", text: "text-3xl" },
+  xs: { mark: "size-9", text: "text-sm" },
+  sm: { mark: "size-9", text: "text-base" },
+  md: { mark: "size-10", text: "text-lg" },
+  lg: { mark: "size-14", text: "text-2xl" },
+  xl: { mark: "size-16", text: "text-3xl" },
 };
 
 function LogoMark({ size, decorative = false }: { size: string; decorative?: boolean }) {
   return (
     <img
-      src="/sigic-mark.svg"
-      alt={decorative ? "" : "Marca SIGIC"}
+      src="/sigic-logo.png"
+      alt={decorative ? "" : "Emblema SIGIC de dron y cultivos"}
       aria-hidden={decorative || undefined}
-      className={cn("shrink-0", size)}
+      className={cn("shrink-0 object-contain", size)}
       draggable={false}
     />
   );

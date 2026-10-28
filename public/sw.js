@@ -1,12 +1,13 @@
-const CACHE = "sigic-v7";
+const CACHE = "sigic-v8";
 const APP_SHELL = [
   "/",
   "/offline",
   "/manifest.webmanifest",
-  "/sigic-mark.svg",
+  "/sigic-logo.png",
   "/apple-touch-icon.png",
   "/icon-192.png",
   "/icon-512.png",
+  "/icon-512-maskable.png",
 ];
 
 self.addEventListener("install", (event) => {

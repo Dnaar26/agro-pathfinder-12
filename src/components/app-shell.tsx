@@ -22,7 +22,7 @@ import { LANGUAGES } from "@/i18n";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ConnectionBadge } from "@/components/ui/connection-badge";
 import { InstallPWA } from "@/components/ui/install-pwa";
-import { Logo } from "@/components/logo";
+import { Logo, LogoIcon } from "@/components/logo";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 type NavItem = { to: string; labelKey: string; icon: LucideIcon };
@@ -289,7 +289,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Barra superior */}
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/90 px-4 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background px-4 md:px-8">
           <div className="flex items-center gap-3 md:hidden">
             <Link to="/dashboard" aria-label="SIGIC — Inicio"><Logo size="xs" showText={false} /></Link>
           </div>
@@ -298,7 +298,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
                   <Link to="/dashboard" className="inline-flex items-center gap-2">
-                    <Leaf className="size-4 text-primary" aria-hidden="true" />
+                    <LogoIcon size="xs" />
                     <span className="font-display font-semibold text-foreground">SIGIC</span>
                   </Link>
                 </BreadcrumbLink>
@@ -339,7 +339,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Barra inferior (teléfono) */}
       <nav
         aria-label={t("nav.main")}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <ul className="grid grid-cols-5">

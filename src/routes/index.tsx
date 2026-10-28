@@ -81,7 +81,7 @@ function Landing() {
 
             {/* Ejemplo de la interfaz real: tarjeta de cultivo */}
             <figure aria-label="Ejemplo de cómo se ve un cultivo en SIGIC" className="relative">
-              <div className="rounded-2xl bg-card p-5 text-card-foreground shadow-2xl ring-1 ring-white/10 md:p-6">
+              <div className="rounded-xl border border-border bg-card p-5 text-card-foreground shadow-sm md:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Parcela El Mamey</p>

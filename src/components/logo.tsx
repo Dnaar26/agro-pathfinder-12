@@ -37,7 +37,7 @@ export function Logo({ size = "md", showText = true, variant = "default", classN
         <div className="min-w-0 leading-none">
           <span className={cn("font-display font-bold tracking-[0.04em]", sizeMap[size].text)}>SIGIC</span>
           {size !== "xs" && size !== "sm" && (
-            <p className="mt-1 text-[10px] leading-tight text-current/65">
+            <p className="mt-1 text-[9px] font-medium uppercase leading-tight tracking-[0.08em] text-current/65">
               Gestión Inteligente de Cultivos
             </p>
           )}

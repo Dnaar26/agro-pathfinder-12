@@ -98,7 +98,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "SIGIC — Gestión Inteligente de Cultivos" },
       { name: "description", content: "Sistema de Gestión Inteligente de Cultivos. Planeación, siembra, mantenimiento, cosecha y alertas." },
-      { name: "theme-color", content: "#244f3a" },
+      { name: "theme-color", content: "#f5f6f2" },
       { name: "color-scheme", content: "light dark" },
       { property: "og:title", content: "SIGIC — Gestión Inteligente de Cultivos" },
       { property: "og:description", content: "Acompaña al agricultor en todo el ciclo productivo." },

@@ -7,6 +7,7 @@ const STORAGE_KEY = "sigic-theme";
 const ORDER: Theme[] = ["system", "light", "dark"];
 const LABEL: Record<Theme, string> = { system: "Tema del sistema", light: "Tema claro", dark: "Tema oscuro" };
 const ICON = { system: Monitor, light: Sun, dark: Moon } as const;
+let transitionTimer: number | undefined;
 
 function readStored(): Theme {
   try {
@@ -18,9 +19,16 @@ function readStored(): Theme {
 }
 
 function apply(theme: Theme) {
+  const root = document.documentElement;
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", dark);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#191c20" : "#f6f7f9");
+  const wasDark = root.classList.contains("dark");
+  if (wasDark !== dark && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    window.clearTimeout(transitionTimer);
+    root.classList.add("theme-transition");
+    transitionTimer = window.setTimeout(() => root.classList.remove("theme-transition"), 250);
+  }
+  root.classList.toggle("dark", dark);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#141b16" : "#f5f6f2");
 }
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -66,4 +74,4 @@ export function ThemeToggle({ className }: { className?: string }) {
 }
 
 /** Script inline que aplica la clase .dark antes del primer pintado (evita el destello blanco). */
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');var d=t==='dark'||((t!=='light')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',d?'#191c20':'#f6f7f9');}catch(e){}})();`;
+export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');var d=t==='dark'||((t!=='light')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',d?'#141b16':'#f5f6f2');}catch(e){}})();`;

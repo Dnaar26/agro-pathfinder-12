@@ -42,7 +42,7 @@ export function ParcelMap({
         const remove = document.createElement("button");
         remove.type = "button";
         remove.textContent = "Eliminar parcela";
-        remove.className = "mt-2 text-xs text-red-600 underline";
+        remove.className = "mt-2 text-xs text-destructive underline";
         remove.onclick = () => onDeleteParcel({ id: parcel.id, name: parcel.name });
         container.append(remove);
       }
@@ -101,7 +101,7 @@ export function ParcelMap({
     parcels.forEach((p) => {
       if (p.geometry?.coordinates) {
         const coords = p.geometry.coordinates[0].map((c) => [c[1], c[0]] as [number, number]);
-        const poly = L.polygon(coords, { color: "#22c55e", fillOpacity: 0.2, weight: 2 });
+        const poly = L.polygon(coords, { color: "var(--map-parcel)", fillColor: "var(--map-parcel)", fillOpacity: 0.18, weight: 2 });
         poly.bindPopup(buildPopup(p));
         drawn.addLayer(poly);
         coords.forEach((c) => bounds.extend(c));
@@ -124,7 +124,7 @@ export function ParcelMap({
     const drawn = new L.FeatureGroup();
     map.addLayer(drawn);
     const coords = editGeometry.coordinates[0].map((c) => [c[1], c[0]] as [number, number]);
-    const poly = L.polygon(coords, { color: "#3b82f6", fillOpacity: 0.3, weight: 2 });
+    const poly = L.polygon(coords, { color: "var(--map-selection)", fillColor: "var(--map-selection)", fillOpacity: 0.24, weight: 2 });
     drawn.addLayer(poly);
     map.fitBounds(poly.getBounds(), { padding: [30, 30] });
     return () => { map.removeLayer(drawn); };

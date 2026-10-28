@@ -228,9 +228,9 @@ export function HarvestProjectionReport() {
         <Card className="p-4 border-border/70 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Alertas Activas</span>
-            <BellRing className="size-4 text-purple-600" />
+            <BellRing className="size-4 text-info" />
           </div>
-          <p className="text-2xl font-bold mt-2 text-purple-600">{alerts.length}</p>
+          <p className="text-2xl font-bold mt-2 text-info">{alerts.length}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">riegos y fertilización</p>
         </Card>
       </div>
@@ -284,7 +284,7 @@ export function HarvestProjectionReport() {
       {alerts.length > 0 && (
         <Card className="p-4 border-border">
           <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <BellRing className="size-4 text-purple-600" />
+            <BellRing className="size-4 text-info" />
             Labores y Alertas Programadas para los Próximos Días
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">

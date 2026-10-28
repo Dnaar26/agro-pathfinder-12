@@ -1,15 +1,72 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="14" fill="#244F3A"/>
-  <circle cx="32" cy="32" r="26" stroke="#DCE9DF" stroke-opacity=".65" stroke-width="1.5"/>
-  <circle cx="32" cy="32" r="23.7" stroke="#C49A35" stroke-opacity=".5" stroke-width=".8"/>
-  <g stroke="#F7FAF7" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">
-    <path d="m25 25-5-3m19 3 5-3" stroke-width="2.2"/>
-    <path d="M13.5 19.5h10m17 0h10"/>
-    <circle cx="18.5" cy="22" r="2.2" fill="#244F3A"/>
-    <circle cx="45.5" cy="22" r="2.2" fill="#244F3A"/>
-    <path d="M25 24.8c2.2-1.1 4.5-1.6 7-1.6s4.8.5 7 1.6l-1.5 4.5c-1.5 1-3.3 1.5-5.5 1.5s-4-.5-5.5-1.5L25 24.8Z" fill="#F7FAF7" stroke-width="1.4"/>
-    <path d="m29.5 30.5-.8 2.4c1 1 2.1 1.5 3.3 1.5s2.3-.5 3.3-1.5l-.8-2.4"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="tile" x1="12" y1="8" x2="112" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#183526"/>
+      <stop offset=".55" stop-color="#285B41"/>
+      <stop offset="1" stop-color="#10251A"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="25" y1="12" x2="102" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EAF0E5"/>
+      <stop offset=".23" stop-color="#9FB5A1"/>
+      <stop offset=".4" stop-color="#D6B66A"/>
+      <stop offset=".68" stop-color="#A6B8A1"/>
+      <stop offset="1" stop-color="#E5EBDD"/>
+    </linearGradient>
+    <linearGradient id="disc" x1="64" y1="15" x2="64" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#315F40"/>
+      <stop offset=".52" stop-color="#214A32"/>
+      <stop offset="1" stop-color="#173624"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="42" y1="42" x2="82" y2="78" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4F6EC"/>
+      <stop offset=".52" stop-color="#C4D2C1"/>
+      <stop offset="1" stop-color="#EDF1E6"/>
+    </linearGradient>
+    <linearGradient id="field" x1="30" y1="89" x2="93" y2="111" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A9C391"/>
+      <stop offset=".54" stop-color="#D3BD78"/>
+      <stop offset="1" stop-color="#779B70"/>
+    </linearGradient>
+    <linearGradient id="brass" x1="60" y1="72" x2="68" y2="84" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F0DFAE"/>
+      <stop offset="1" stop-color="#A98235"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="10" y="10" width="108" height="108" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="1.5"/>
+    </filter>
+    <clipPath id="field-clip">
+      <circle cx="64" cy="64" r="48"/>
+    </clipPath>
+  </defs>
+
+  <rect width="128" height="128" rx="27" fill="url(#tile)"/>
+  <circle cx="64" cy="65" r="57" fill="#0D2016" opacity=".45" filter="url(#soft-shadow)"/>
+  <circle cx="64" cy="63" r="58" fill="url(#rim)"/>
+  <circle cx="64" cy="63" r="54.5" fill="url(#tile)" stroke="#F3F2E8" stroke-opacity=".62" stroke-width="1"/>
+  <circle cx="64" cy="63" r="50" fill="url(#disc)" stroke="#D6B66A" stroke-width="1.7"/>
+  <circle cx="64" cy="63" r="47.2" stroke="#A9BEA8" stroke-opacity=".46" stroke-width=".9"/>
+
+  <g stroke="#183526" stroke-linecap="round" stroke-linejoin="round" stroke-width="4" opacity=".58" transform="translate(0 1.8)">
+    <path d="m47 50-12-5m46 5 12-5"/>
+    <path d="M22 39h21m42 0h21" stroke-width="3.2"/>
+    <path d="M48 48c5-5 10-7 16-7s11 2 16 7l-4 18c-3 3-7 4.5-12 4.5S55 69 52 66l-4-18Z"/>
   </g>
-  <circle cx="32" cy="34" r="1.6" fill="#C49A35"/>
-  <path d="M14 42c5.8-2.6 11.5-3 18-.5 6.5-2.5 12.2-2.1 18 .5M13 46c6.5-2.3 12.3-2 19 1 6.7-3 12.5-3.3 19-1M17 52c5-2 9.8-1.5 15 1 5.2-2.5 10-3 15-1" stroke="#DCE9DF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <g stroke="url(#metal)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m47 48-12-5m46 5 12-5" stroke-width="4.4"/>
+    <path d="M21 37.5h23m40 0h23" stroke-width="3.4"/>
+    <ellipse cx="32.5" cy="44" rx="7.5" ry="6.8" fill="url(#metal)" stroke="#809782" stroke-width="1.2"/>
+    <ellipse cx="95.5" cy="44" rx="7.5" ry="6.8" fill="url(#metal)" stroke="#809782" stroke-width="1.2"/>
+    <path d="M49 46.5c4.5-4.2 9.5-6.2 15-6.2s10.5 2 15 6.2l-3.5 18c-3.4 3.4-7.2 4.8-11.5 4.8s-8.1-1.4-11.5-4.8l-3.5-18Z" fill="url(#metal)" stroke="#78917C" stroke-width="1.2"/>
+    <path d="M59 68v5c1.5 2 3.2 3 5 3s3.5-1 5-3v-5" fill="url(#metal)" stroke="#9EB39D" stroke-width="1.5"/>
+  </g>
+  <circle cx="64" cy="78" r="5.4" fill="url(#brass)" stroke="#F3E5BA" stroke-width="1.2"/>
+  <circle cx="64" cy="78" r="2.4" fill="#244832" stroke="#8E7139" stroke-width=".8"/>
+
+  <g clip-path="url(#field-clip)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 96c15-10 28-12 44-5 16-7 29-5 44 5" stroke="#132B1D" stroke-width="9" opacity=".7"/>
+    <path d="M19 93c15-10 29-12 45-5 16-7 30-5 45 5" stroke="url(#field)" stroke-width="5.4"/>
+    <path d="M27 108c12-9 24-12 37-12s25 3 37 12" stroke="#142D1E" stroke-width="8" opacity=".78"/>
+    <path d="M27 105c12-9 24-12 37-12s25 3 37 12" stroke="url(#metal)" stroke-width="4.5"/>
+    <path d="M43 112c7-5 14-7 21-7s14 2 21 7" stroke="#D6B66A" stroke-width="2" opacity=".9"/>
+  </g>
 </svg>

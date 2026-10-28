@@ -49,7 +49,7 @@ export function NdviViewer({ parcelId, lat, lng }: { parcelId: string; lat?: num
           <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
             <div className="h-full rounded-full transition-all" style={{
               width: `${Math.min(100, data.ndvi * 100)}%`,
-              background: data.ndvi > 0.6 ? "#16a34a" : data.ndvi > 0.3 ? "#ca8a04" : "#dc2626",
+              background: data.ndvi > 0.6 ? "var(--ndvi-good)" : data.ndvi > 0.3 ? "var(--ndvi-mid)" : "var(--ndvi-low)",
             }} />
           </div>
           <p className="text-xs text-muted-foreground">{t("ndvi.last_update", { date: new Date(data.date + "T12:00:00").toLocaleDateString() })}</p>

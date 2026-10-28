@@ -207,7 +207,7 @@ export function InventoryReport() {
           <p className="text-[11px] text-muted-foreground mt-0.5">insumos registrados</p>
         </Card>
 
-        <Card className="p-4 border-border/70 hover:border-emerald-500/40 transition-all shadow-xs">
+        <Card className="p-4 border-border/70 hover:border-success/40 transition-all shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Valor Total</span>
             <div className="p-2 rounded-lg bg-success/10 text-success">

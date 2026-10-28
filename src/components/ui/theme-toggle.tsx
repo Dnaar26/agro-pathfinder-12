@@ -20,22 +20,28 @@ function readStored(): Theme {
 function apply(theme: Theme) {
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark", dark);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#191c20" : "#f6f7f9");
 }
 
 export function ThemeToggle({ className }: { className?: string }) {
   // "system" en el primer render para que SSR e hidratación coincidan
   const [theme, setTheme] = useState<Theme>("system");
-
-  useEffect(() => { setTheme(readStored()); }, []);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    setTheme(readStored());
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
     apply(theme);
     if (theme !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => apply("system");
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
-  }, [theme]);
+  }, [hydrated, theme]);
 
   const Icon = ICON[theme];
   const next = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length];
@@ -60,4 +66,4 @@ export function ThemeToggle({ className }: { className?: string }) {
 }
 
 /** Script inline que aplica la clase .dark antes del primer pintado (evita el destello blanco). */
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');var d=t==='dark'||((t!=='light')&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');var d=t==='dark'||((t!=='light')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',d?'#191c20':'#f6f7f9');}catch(e){}})();`;

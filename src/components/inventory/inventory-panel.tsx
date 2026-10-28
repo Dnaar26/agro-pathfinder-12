@@ -222,16 +222,16 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "critical": return "bg-red-500";
-      case "low": return "bg-yellow-500";
-      default: return "bg-green-500";
+      case "critical": return "bg-destructive";
+      case "low": return "bg-warning";
+      default: return "bg-success";
     }
   };
 
   return (
     <div className="space-y-6">
       {isReadOnly && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-sm">
+        <div className="flex items-center gap-2 rounded-lg border border-info/25 bg-info/10 p-3 text-sm text-info">
           <Shield className="size-4 shrink-0" />
           <span>Modo visualización — Como técnico puedes ver el inventario pero no modificarlo.</span>
         </div>
@@ -344,7 +344,7 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                 <div className="space-y-2 pt-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="size-3 text-amber-500" /> Insumos Frecuentes (Autocompletar en 1 clic)
+                      <Sparkles className="size-3 text-warning-text" /> Insumos Frecuentes (Autocompletar en 1 clic)
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -501,18 +501,18 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                   <div className="p-3.5 rounded-xl border border-border/80 bg-muted/30 space-y-2">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">Valor Total Inicial de este Insumo:</span>
-                      <span className="font-bold text-emerald-600 text-sm">
+                      <span className="text-sm font-bold text-success">
                         {formatCOP((Number(stockQty) || 0) * (Number(unitCost) || 0))}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/50">
                       <span className="text-muted-foreground">Estado inicial de inventario:</span>
                       {(Number(stockQty) || 0) <= (Number(minStock) || 0) ? (
-                        <span className="text-amber-600 font-semibold flex items-center gap-1">
+                        <span className="flex items-center gap-1 font-semibold text-warning-text">
                           <AlertTriangle className="size-3" /> Iniciará con alerta de stock bajo
                         </span>
                       ) : (
-                        <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                        <span className="flex items-center gap-1 font-semibold text-success">
                           <CheckCircle2 className="size-3" /> Nivel de existencias óptimo
                         </span>
                       )}
@@ -579,7 +579,7 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                          {status !== "ok" && <AlertTriangle className={`size-4 ${status === "critical" ? "text-destructive" : "text-yellow-500"}`} />}
+                          {status !== "ok" && <AlertTriangle className={`size-4 ${status === "critical" ? "text-destructive" : "text-warning-text"}`} />}
                           {item.name}
                         </div>
                       </TableCell>
@@ -602,10 +602,10 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                           {!isReadOnly ? (
                             <>
                               <Button variant="ghost" size="icon" onClick={() => { setMovKind("ENTRADA"); setMovOpen(item.id); }}>
-                                <TrendingUp className="size-4 text-green-600" />
+                                <TrendingUp className="size-4 text-success" />
                               </Button>
                               <Button variant="ghost" size="icon" onClick={() => { setMovKind("SALIDA"); setMovOpen(item.id); }}>
-                                <TrendingDown className="size-4 text-red-600" />
+                                <TrendingDown className="size-4 text-destructive" />
                               </Button>
                               <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                                 <Edit3 className="size-4" />
@@ -643,7 +643,7 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                       </div>
                     </div>
                     {status !== "ok" && (
-                      <AlertTriangle className={`size-5 shrink-0 ${status === "critical" ? "text-destructive" : "text-yellow-500"}`} />
+                      <AlertTriangle className={`size-5 shrink-0 ${status === "critical" ? "text-destructive" : "text-warning-text"}`} />
                     )}
                   </div>
                 </CardHeader>
@@ -676,10 +676,10 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                     {!isReadOnly ? (
                       <>
                         <div className="flex gap-1">
-                          <Button variant="outline" size="sm" className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50" onClick={() => { setMovKind("ENTRADA"); setMovOpen(item.id); }}>
+                          <Button variant="outline" size="sm" className="h-8 border-success/30 px-2 text-success hover:bg-success/10" onClick={() => { setMovKind("ENTRADA"); setMovOpen(item.id); }}>
                             <TrendingUp className="size-3 mr-1" /> Ent
                           </Button>
-                          <Button variant="outline" size="sm" className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50" onClick={() => { setMovKind("SALIDA"); setMovOpen(item.id); }}>
+                          <Button variant="outline" size="sm" className="h-8 border-destructive/30 px-2 text-destructive hover:bg-destructive/10" onClick={() => { setMovKind("SALIDA"); setMovOpen(item.id); }}>
                             <TrendingDown className="size-3 mr-1" /> Sal
                           </Button>
                         </div>

@@ -1,4 +1,4 @@
-const CACHE = "sgic-v2";
+const CACHE = "sigic-v3";
 const APP_SHELL = [
   "/",
   "/offline",

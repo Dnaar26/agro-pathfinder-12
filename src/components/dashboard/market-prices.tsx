@@ -75,7 +75,7 @@ export function MarketPrices() {
               <p className="font-semibold text-foreground">
                 {formatCOP(p.price)}/{p.unit}
               </p>
-              <div className={`flex items-center justify-end gap-0.5 text-[10px] ${p.change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+              <div className={`flex items-center justify-end gap-0.5 text-[10px] ${p.change >= 0 ? "text-success" : "text-destructive"}`}>
                 {p.change >= 0 ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
                 <span>{p.change >= 0 ? `+${p.change}%` : `${p.change}%`}</span>
               </div>

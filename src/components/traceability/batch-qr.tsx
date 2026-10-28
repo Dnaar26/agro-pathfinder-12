@@ -87,7 +87,7 @@ export function BatchQR({ cropId, parcelId, canManage = false }: { cropId: strin
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm">{b.batch_code}</span>
-                  {b.globalgap_cert && <Badge className="text-xs bg-green-100 text-green-700">GLOBALG.A.P.</Badge>}
+                  {b.globalgap_cert && <Badge className="border-success/30 bg-success/10 text-xs text-success">GLOBALG.A.P.</Badge>}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {new Date(b.harvest_date + "T12:00:00").toLocaleDateString()} · {Number(b.qty).toFixed(1)} KG

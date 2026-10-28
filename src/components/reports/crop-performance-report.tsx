@@ -224,14 +224,14 @@ export function CropPerformanceReport() {
           </div>
           <p className="text-2xl font-bold mt-2 text-success">{activeCrops}</p>
         </Card>
-        <Card className="p-4 border-red-500/20 shadow-xs">
+        <Card className="border-destructive/20 p-4 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Costos Totales</span>
             <DollarSign className="size-4 text-destructive" />
           </div>
           <p className="text-lg font-bold mt-2 text-destructive">{formatCOP(globalCost)}</p>
         </Card>
-        <Card className={`p-4 shadow-xs border ${globalRevenue - globalCost >= 0 ? "border-emerald-500/30" : "border-red-500/30"}`}>
+        <Card className={`border p-4 shadow-xs ${globalRevenue - globalCost >= 0 ? "border-success/30" : "border-destructive/30"}`}>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Margen Bruto</span>
             <TrendingUp className={`size-4 ${globalRevenue - globalCost >= 0 ? "text-success" : "text-destructive"}`} />

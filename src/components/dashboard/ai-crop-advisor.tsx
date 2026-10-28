@@ -70,10 +70,10 @@ Formatéalo en puntos breves y directos enfocados en optimización de agua, fert
   };
 
   return (
-    <Card className="p-4 bg-gradient-to-br from-emerald-950/20 via-card to-card border-emerald-500/20 shadow-sm space-y-3">
+    <Card className="space-y-3 border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="size-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 grid place-items-center">
+          <div className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
             <Sparkles className="size-4 animate-pulse" />
           </div>
           <div>
@@ -95,7 +95,7 @@ Formatéalo en puntos breves y directos enfocados en optimización de agua, fert
           ) : advice ? (
             <RefreshCw className="size-3.5" />
           ) : (
-            <Bot className="size-3.5 text-emerald-600" />
+            <Bot className="size-3.5 text-primary" />
           )}
           {loading ? "Analizando..." : advice ? "Reevaluar" : "Obtener diagnóstico"}
         </Button>
@@ -109,7 +109,7 @@ Formatéalo en puntos breves y directos enfocados en optimización de agua, fert
       )}
 
       {advice && (
-        <div className="p-3.5 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-xs leading-relaxed text-foreground whitespace-pre-line">
+        <div className="rounded-lg border border-primary/15 bg-primary/5 p-3.5 text-xs leading-relaxed text-foreground whitespace-pre-line">
           {advice}
         </div>
       )}

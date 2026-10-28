@@ -78,13 +78,21 @@ if (inspection.mismatches.length > 0) {
   );
   console.warn("[build-preflight] Reinstalling from package-lock.json with npm ci.");
 
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+  const npmExecPath = process.env.npm_execpath;
+  const npmCommand = npmExecPath
+    ? process.execPath
+    : process.platform === "win32"
+      ? "npm.cmd"
+      : "npm";
   const result = spawnSync(
     npmCommand,
-    ["ci", "--include=dev", "--ignore-scripts"],
+    npmExecPath
+      ? [npmExecPath, "ci", "--include=dev", "--ignore-scripts"]
+      : ["ci", "--include=dev", "--ignore-scripts"],
     {
       env: { ...process.env, npm_config_production: "false" },
       stdio: "inherit",
+      shell: !npmExecPath && process.platform === "win32",
     },
   );
 

@@ -45,12 +45,12 @@ function Landing() {
       <header className="absolute inset-x-0 top-0 z-20">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:px-8">
           <Link to="/" aria-label="SIGIC — Inicio"><Logo size="xs" variant="light" /></Link>
-          <nav aria-label="Acceso" className="flex items-center gap-2">
+          <nav aria-label="Acceso" className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ThemeToggle className="border-white/20 text-white/80 hover:bg-white/10 hover:text-white" />
-            <Link to="/login" className="inline-flex min-h-10 items-center rounded-lg px-4 text-sm font-semibold text-white/90 transition-colors hover:bg-white/10">
+            <Link to="/login" className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/10 sm:px-4 sm:text-sm">
               Iniciar sesión
             </Link>
-            <Link to="/register" className="inline-flex min-h-10 items-center rounded-lg bg-highlight px-4 text-sm font-semibold text-highlight-foreground transition-[filter] hover:brightness-95">
+            <Link to="/register" className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-lg bg-highlight px-2.5 text-xs font-semibold text-highlight-foreground transition-[filter] hover:brightness-95 sm:px-4 sm:text-sm">
               Crear cuenta
             </Link>
           </nav>

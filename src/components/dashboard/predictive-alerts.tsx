@@ -70,29 +70,29 @@ export function PredictiveAlerts() {
   if (totalRisks === 0) return null;
 
   return (
-    <Card className={cn("p-4 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800")}>
+    <Card className={cn("border-warning/30 bg-warning/10 p-4")}>
       <button className="flex items-center gap-2 w-full text-left" onClick={() => setExpanded(!expanded)}>
-        <AlertTriangle className="size-5 text-amber-600 shrink-0" />
+        <AlertTriangle className="size-5 shrink-0 text-warning-text" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+          <p className="text-sm font-semibold text-warning-text">
             {totalRisks} riesgo{totalRisks !== 1 ? "s" : ""} climático{totalRisks !== 1 ? "s" : ""} detectado{totalRisks !== 1 ? "s" : ""}
           </p>
-          <p className="text-xs text-amber-700 dark:text-amber-400">
+          <p className="text-xs text-warning-text/90">
             {risksQuery.data?.map((r) => `${r.parcel} (${r.risks.length})`).join(" · ")}
           </p>
         </div>
       </button>
       {expanded && (
-        <div className="mt-3 space-y-2 border-t border-amber-200 dark:border-amber-800 pt-3">
+        <div className="mt-3 space-y-2 border-t border-warning/30 pt-3">
           {risksQuery.data?.map((r) =>
             r.risks.map((risk: any, i: number) => (
               <div key={`${r.parcel}-${i}`} className="flex items-start gap-2 text-sm">
-                {risk.type === "frost" ? <Thermometer className="size-4 text-blue-500 mt-0.5" /> : <Droplets className="size-4 text-blue-500 mt-0.5" />}
+                {risk.type === "frost" ? <Thermometer className="mt-0.5 size-4 text-info" /> : <Droplets className="mt-0.5 size-4 text-info" />}
                 <div>
                   <p className="font-medium capitalize">{r.parcel}</p>
                   <p className="text-xs text-muted-foreground">
                     {risk.type === "frost" ? `Helada (${risk.temp?.toFixed(1)}°C)` : `Lluvia fuerte (${risk.precip}mm)`} — {risk.day}
-                    <span className={cn("ml-1 text-xs font-medium", risk.severity === "alta" ? "text-red-600" : "text-amber-600")}>
+                    <span className={cn("ml-1 text-xs font-medium", risk.severity === "alta" ? "text-destructive" : "text-warning-text")}>
                       ({risk.severity === "alta" ? "Alta" : "Media"})
                     </span>
                   </p>

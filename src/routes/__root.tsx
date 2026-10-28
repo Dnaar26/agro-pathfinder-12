@@ -98,7 +98,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "SIGIC — Gestión Inteligente de Cultivos" },
       { name: "description", content: "Sistema de Gestión Inteligente de Cultivos. Planeación, siembra, mantenimiento, cosecha y alertas." },
-      { name: "theme-color", content: "#1f6b3a" },
+      { name: "theme-color", content: "#f6f7f9" },
       { name: "color-scheme", content: "light dark" },
       { property: "og:title", content: "SIGIC — Gestión Inteligente de Cultivos" },
       { property: "og:description", content: "Acompaña al agricultor en todo el ciclo productivo." },
@@ -109,7 +109,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
-      { rel: "icon", type: "image/png", href: "/sigic-logo.png" },
+      { rel: "icon", type: "image/svg+xml", href: "/sigic-mark.svg" },
       { rel: "icon", type: "image/png", sizes: "192x192", href: "/icon-192.png" },
       { rel: "icon", type: "image/png", sizes: "512x512", href: "/icon-512.png" },
       { rel: "apple-touch-icon", sizes: "192x192", href: "/apple-touch-icon.png" },

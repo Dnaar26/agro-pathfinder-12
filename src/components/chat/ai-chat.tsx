@@ -127,7 +127,7 @@ export function AiChat() {
       {/* Header */}
       <div className="p-3.5 border-b border-border bg-muted/30 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="size-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center font-bold">
+          <div className="grid size-8 place-items-center rounded-lg bg-primary/10 font-bold text-primary">
             <Bot className="size-4" />
           </div>
           <div>
@@ -135,7 +135,7 @@ export function AiChat() {
               Asistente Agronómico SIGIC
             </h2>
             <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <Leaf className="size-3 text-emerald-600" /> Especializado exclusivamente en agronomía, cultivos y suelos
+              <Leaf className="size-3 text-primary" /> Especializado exclusivamente en agronomía, cultivos y suelos
             </p>
           </div>
         </div>
@@ -146,7 +146,7 @@ export function AiChat() {
         {messages.map((m, i) => (
           <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             {m.role === "assistant" && (
-              <div className="size-8 rounded-full bg-emerald-600/10 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0 mt-0.5">
+              <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                 <Bot className="size-4" />
               </div>
             )}
@@ -171,11 +171,11 @@ export function AiChat() {
 
         {loading && (
           <div className="flex gap-3 items-center">
-            <div className="size-8 rounded-full bg-emerald-600/10 text-emerald-600 grid place-items-center shrink-0">
+            <div className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
               <Bot className="size-4 animate-spin" />
             </div>
             <div className="bg-muted/80 border border-border/50 text-muted-foreground px-4 py-2.5 rounded-2xl rounded-bl-none text-xs flex items-center gap-2">
-              <Sparkles className="size-3.5 text-emerald-600 animate-pulse" />
+              <Sparkles className="size-3.5 animate-pulse text-primary" />
               Analizando tu consulta agronómica...
             </div>
           </div>
@@ -215,7 +215,7 @@ export function AiChat() {
               handleSend(lastUserMessage);
             }}
             disabled={loading}
-            className="w-full text-xs py-1.5 px-3 rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors flex items-center justify-center gap-1.5"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-warning/40 bg-warning/10 px-3 py-1.5 text-xs text-warning-text transition-colors hover:bg-warning/20"
           >
             <AlertCircle className="size-3.5" />
             Reintentar consulta anterior

@@ -34,16 +34,16 @@ function calculateHealth(crop: any, activities: any[], pests: any[], harvests: a
 
 function healthColor(score: number): string {
   if (score < 0) return "text-muted-foreground";
-  if (score >= 80) return "text-green-600";
-  if (score >= 50) return "text-amber-600";
-  return "text-red-600";
+  if (score >= 80) return "text-success";
+  if (score >= 50) return "text-warning-text";
+  return "text-destructive";
 }
 
 function healthBg(score: number): string {
   if (score < 0) return "bg-muted";
-  if (score >= 80) return "bg-green-100 dark:bg-green-950/30";
-  if (score >= 50) return "bg-amber-100 dark:bg-amber-950/30";
-  return "bg-red-100 dark:bg-red-950/30";
+  if (score >= 80) return "bg-success/10";
+  if (score >= 50) return "bg-warning/10";
+  return "bg-destructive/10";
 }
 
 function healthLabel(score: number): string {
@@ -127,10 +127,10 @@ export function CropHealthWidget() {
       {data.map((c: any) => (
         <div key={c.id} className={cn("flex items-center gap-3 p-3 rounded-lg border border-border", healthBg(c.score))}>
           <div className="size-8 rounded-full grid place-items-center bg-background">
-            {c.score >= 80 ? <CheckCircle2 className="size-4 text-green-600" /> :
-             c.score >= 50 ? <Sprout className="size-4 text-amber-600" /> :
+            {c.score >= 80 ? <CheckCircle2 className="size-4 text-success" /> :
+             c.score >= 50 ? <Sprout className="size-4 text-warning-text" /> :
              c.score < 0 ? <Sprout className="size-4 text-muted-foreground" /> :
-             <AlertTriangle className="size-4 text-red-600" />}
+             <AlertTriangle className="size-4 text-destructive" />}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">

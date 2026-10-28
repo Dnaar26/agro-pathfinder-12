@@ -165,7 +165,7 @@ function TracePage() {
         )}
 
         {data.globalgap_cert && (
-          <Badge className="bg-green-100 text-green-700 border-green-300 text-xs">GLOBALG.A.P. Certified</Badge>
+          <Badge className="border-success/30 bg-success/10 text-xs text-success">GLOBALG.A.P. Certified</Badge>
         )}
 
         {data.notes && <p className="text-sm text-muted-foreground border-t border-border pt-3">{data.notes}</p>}

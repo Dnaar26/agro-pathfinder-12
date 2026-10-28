@@ -1130,7 +1130,7 @@ function ReportsPage() {
                 {(schedReports.data ?? []).map((r: any) => (
                   <div key={r.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
                     <div className="flex items-center gap-3">
-                      <div className={cn("size-2 rounded-full", r.enabled ? "bg-green-500" : "bg-muted-foreground")} />
+                      <div className={cn("size-2 rounded-full", r.enabled ? "bg-success" : "bg-muted-foreground")} />
                       <div>
                         <p className="text-sm font-medium capitalize">{r.template}</p>
                         <p className="text-xs text-muted-foreground flex items-center gap-1">

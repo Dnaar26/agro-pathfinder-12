@@ -25,9 +25,9 @@ export function NdviViewer({ parcelId, lat, lng }: { parcelId: string; lat?: num
   });
 
   function getHealth(value: number) {
-    if (value > 0.6) return { label: t("ndvi.healthy"), color: "text-green-600", bg: "bg-green-100" };
-    if (value > 0.3) return { label: t("ndvi.moderate"), color: "text-yellow-600", bg: "bg-yellow-100" };
-    return { label: t("ndvi.stressed"), color: "text-red-600", bg: "bg-red-100" };
+    if (value > 0.6) return { label: t("ndvi.healthy"), color: "text-success", bg: "bg-success/10" };
+    if (value > 0.3) return { label: t("ndvi.moderate"), color: "text-warning-text", bg: "bg-warning/10" };
+    return { label: t("ndvi.stressed"), color: "text-destructive", bg: "bg-destructive/10" };
   }
 
   return (

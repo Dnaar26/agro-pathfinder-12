@@ -270,7 +270,7 @@ export function HarvestProjectionReport() {
                       </td>
                       <td className="py-2.5 px-3 text-muted-foreground">{c.planting_date ? format(new Date(c.planting_date), "dd/MM/yyyy") : "—"}</td>
                       <td className="py-2.5 px-3 font-medium">{c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "dd/MM/yyyy") : "—"}</td>
-                      <td className="py-2.5 px-3 text-right font-bold tabular-nums">{diff !== null ? diff < 0 ? <span className="text-amber-600">Vencida hace {Math.abs(diff)}d</span> : diff <= 15 ? <span className="text-emerald-600 font-bold">{diff} días (Próxima)</span> : <span className="text-foreground">{diff} días</span> : <span className="text-muted-foreground">—</span>}</td>
+                      <td className="py-2.5 px-3 text-right font-bold tabular-nums">{diff !== null ? diff < 0 ? <span className="text-warning-text">Vencida hace {Math.abs(diff)}d</span> : diff <= 15 ? <span className="font-bold text-success">{diff} días (Próxima)</span> : <span className="text-foreground">{diff} días</span> : <span className="text-muted-foreground">—</span>}</td>
                     </tr>
                   );
                 })}

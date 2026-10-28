@@ -180,9 +180,9 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
     if (/[0-9]/.test(pass)) score++;
     if (/[\W_]/.test(pass)) score++;
 
-    if (score <= 1) return { score: 25, label: "Débil", color: "bg-red-500" };
-    if (score === 2 || score === 3) return { score: 65, label: "Aceptable", color: "bg-amber-500" };
-    return { score: 100, label: "Fuerte", color: "bg-emerald-500" };
+    if (score <= 1) return { score: 25, label: "Débil", color: "bg-destructive" };
+    if (score === 2 || score === 3) return { score: 65, label: "Aceptable", color: "bg-warning" };
+    return { score: 100, label: "Fuerte", color: "bg-success" };
   };
 
   const pwdStrength = getPasswordStrength(signupPassword);

@@ -119,7 +119,7 @@ function MapaPage() {
             <p className="text-xs text-muted-foreground mt-1">
               {(Number(p.polygon_area_m2 || p.area_m2) / 10000).toFixed(2)} ha · {Number(p.area_m2).toFixed(0)} m²
             </p>
-            {p.geometry && <span className="text-xs text-green-600">✓ Polígono</span>}
+            {p.geometry && <span className="text-xs text-success">✓ Polígono</span>}
           </div>
         ))}
       </div>

@@ -385,10 +385,10 @@ function Dashboard() {
                   <Link key={p.id} to="/parcels/$id" params={{ id: p.id }} className="group relative block h-36 overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary">
                     {p.image_url ? (
                       <div className="absolute inset-0 bg-cover bg-center " style={{ backgroundImage: `url(${p.image_url})` }}>
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-colors" />
+                        <div className="absolute inset-0 bg-black/45 transition-colors" />
                       </div>
                     ) : (
-                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center">
+                      <div className="absolute inset-0 flex items-center justify-center bg-primary/5">
                         <MapPin className="size-12 text-primary/20" />
                       </div>
                     )}
@@ -399,7 +399,7 @@ function Dashboard() {
                           <p className={cn("text-xs mt-1 font-medium", p.image_url ? "text-white/90 drop-shadow-md" : "text-muted-foreground")}>{p.area_m2} m² · {(p as any).soil_types?.name ?? "—"}</p>
                         </div>
                       </div>
-                      {isStaff && (p as any).profiles?.full_name && <p className={cn("text-xs font-semibold", p.image_url ? "text-green-300 drop-shadow-md" : "text-primary")}><User className="mr-1 inline size-3" aria-hidden="true" />{(p as any).profiles.full_name}</p>}
+                      {isStaff && (p as any).profiles?.full_name && <p className={cn("text-xs font-semibold", p.image_url ? "text-white/95 drop-shadow-md" : "text-primary")}><User className="mr-1 inline size-3" aria-hidden="true" />{(p as any).profiles.full_name}</p>}
                     </div>
                   </Link>
                 ))}

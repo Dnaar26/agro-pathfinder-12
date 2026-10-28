@@ -22,6 +22,7 @@ import { NdviViewer } from "@/components/ndvi/ndvi-viewer";
 import { WeatherForecast } from "@/components/weather/weather-forecast";
 import { BatchQR } from "@/components/traceability/batch-qr";
 import { exportCostsToExcel } from "@/lib/services/excel-export";
+import { severityClass } from "@/lib/status-styles";
 
 export const Route = createFileRoute("/_authenticated/crops/$id")({
   head: () => ({ meta: [{ title: "Cultivo — SIGIC" }] }),
@@ -467,15 +468,15 @@ function CropDetail() {
       <div className="grid grid-cols-3 gap-3">
         <div className="p-4 rounded-xl border border-border bg-card">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Costo total</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-red-600">$ {totalCost.toFixed(2)}</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">$ {totalCost.toFixed(2)}</p>
         </div>
         <div className="p-4 rounded-xl border border-border bg-card">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Ingreso total</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-green-600">$ {totalRevenue.toFixed(2)}</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-success">$ {totalRevenue.toFixed(2)}</p>
         </div>
         <div className="p-4 rounded-xl border border-border bg-card">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Margen</p>
-          <p className={`mt-1 text-2xl font-bold tabular-nums ${margin >= 0 ? "text-green-600" : "text-red-600"}`}>
+          <p className={`mt-1 text-2xl font-bold tabular-nums ${margin >= 0 ? "text-success" : "text-destructive"}`}>
             {margin >= 0 ? "+" : ""}$ {margin.toFixed(2)}
           </p>
         </div>
@@ -607,7 +608,7 @@ function CropDetail() {
                 <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase"><th className="text-left p-2">Fecha</th><th className="text-right p-2">Cantidad</th><th className="text-right p-2">Precio venta</th><th className="text-right p-2">Ingreso</th><th className="text-left p-2">Notas</th><th className="p-2"></th></tr></thead>
                 <tbody>
                   {harvests.data?.map((h) => (
-                    <tr key={h.id} className="border-b border-border"><td className="p-2">{format(new Date(h.performed_at), "dd MMM yyyy")}</td><td className="p-2 text-right">{Number(h.harvested_qty).toFixed(1)} {h.unit}</td><td className="p-2 text-right">{h.sale_price ? `$ ${Number(h.sale_price).toFixed(2)}` : "—"}</td><td className="p-2 text-right font-medium text-green-600">$ {Number(h.total_revenue || 0).toFixed(2)}</td><td className="p-2 text-muted-foreground">{h.notes || "—"}</td><td className="p-2 whitespace-nowrap">{canManageCrop && <><button onClick={() => { setEditingHarvest(h); setHarvestOpen(true); }} className="text-primary hover:text-primary/80 text-xs mr-2">Editar</button><button onClick={() => setDeleteConfirm({ kind: "harvest", id: h.id })} className="text-destructive hover:text-destructive/80 text-xs">×</button></>}</td></tr>
+                    <tr key={h.id} className="border-b border-border"><td className="p-2">{format(new Date(h.performed_at), "dd MMM yyyy")}</td><td className="p-2 text-right">{Number(h.harvested_qty).toFixed(1)} {h.unit}</td><td className="p-2 text-right">{h.sale_price ? `$ ${Number(h.sale_price).toFixed(2)}` : "—"}</td><td className="p-2 text-right font-medium text-success">$ {Number(h.total_revenue || 0).toFixed(2)}</td><td className="p-2 text-muted-foreground">{h.notes || "—"}</td><td className="p-2 whitespace-nowrap">{canManageCrop && <><button onClick={() => { setEditingHarvest(h); setHarvestOpen(true); }} className="text-primary hover:text-primary/80 text-xs mr-2">Editar</button><button onClick={() => setDeleteConfirm({ kind: "harvest", id: h.id })} className="text-destructive hover:text-destructive/80 text-xs">×</button></>}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -651,7 +652,7 @@ function CropDetail() {
                     <div className="flex items-center gap-2">
                       <ShieldAlert className="size-4 text-destructive" />
                       <span className="font-medium">{p.pest_name}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${p.severity === "CRITICA" ? "bg-red-100 text-red-700" : p.severity === "ALTA" ? "bg-orange-100 text-orange-700" : p.severity === "MEDIA" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>{p.severity}</span>
+                      <span className={`rounded-md border px-1.5 py-0.5 text-xs font-medium ${severityClass(p.severity)}`}>{p.severity}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{format(new Date(p.date + "T12:00:00"), "dd MMM yyyy")}</span>

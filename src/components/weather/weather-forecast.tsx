@@ -79,7 +79,7 @@ export function WeatherForecast({ lat, lng, parcelName }: { lat: number; lng: nu
                   {isToday ? "HOY" : new Date(d.date + "T12:00:00").toLocaleDateString("es", { weekday: "short" })}
                 </p>
 
-                <WeatherIcon className="size-6 my-1.5 text-amber-400" />
+                <WeatherIcon className="my-1.5 size-6 text-warning" />
 
                 <p className="text-base font-bold tabular-nums leading-tight">
                   {Math.round(d.tempMax)}°<span className="text-[11px] font-normal text-muted-foreground">/{Math.round(d.tempMin)}°</span>
@@ -87,7 +87,7 @@ export function WeatherForecast({ lat, lng, parcelName }: { lat: number; lng: nu
 
                 <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
                   <span className="flex items-center gap-0.5">
-                    <Droplets className="size-3 text-blue-400" />{d.precip}
+                    <Droplets className="size-3 text-info" />{d.precip}
                   </span>
                   <span className="text-border/30">·</span>
                   <span className="flex items-center gap-0.5">

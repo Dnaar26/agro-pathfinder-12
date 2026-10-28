@@ -221,13 +221,13 @@ function CultivosPage() {
 
       {/* Status bar chart */}
       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-        <StatusCount label="Total" value={counts.total} color="bg-gray-500" />
-        <StatusCount label="Planeado" value={counts.planeado} color="bg-gray-400" />
-        <StatusCount label="Sembrado" value={counts.sembrado} color="bg-green-500" />
-        <StatusCount label="Crecimiento" value={counts.crecimiento} color="bg-blue-500" />
-        <StatusCount label="Mantenimiento" value={counts.mantenimiento} color="bg-amber-500" />
-        <StatusCount label="Cosecha" value={counts.cosecha} color="bg-orange-500" />
-        <StatusCount label="Finalizado" value={counts.finalizado} color="bg-red-500" />
+        <StatusCount label="Total" value={counts.total} color="bg-chart-7" />
+        <StatusCount label="Planeado" value={counts.planeado} color="bg-muted-foreground" />
+        <StatusCount label="Sembrado" value={counts.sembrado} color="bg-chart-1" />
+        <StatusCount label="Crecimiento" value={counts.crecimiento} color="bg-chart-2" />
+        <StatusCount label="Mantenimiento" value={counts.mantenimiento} color="bg-chart-3" />
+        <StatusCount label="Cosecha" value={counts.cosecha} color="bg-chart-4" />
+        <StatusCount label="Finalizado" value={counts.finalizado} color="bg-chart-5" />
       </div>
 
       {/* Filters */}

@@ -70,7 +70,7 @@ Formatéalo en puntos breves y directos enfocados en optimización de agua, fert
   };
 
   return (
-    <Card className="space-y-3 border-border bg-card p-4">
+    <Card className="space-y-3 border p-4 glass">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">

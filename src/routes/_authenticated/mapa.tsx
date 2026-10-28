@@ -111,7 +111,7 @@ function MapaPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {paginatedCards.map((p) => (
-          <div key={p.id} className="p-3 rounded-lg border border-border bg-card">
+          <div key={p.id} className="p-3 rounded-lg border glass">
             <div className="flex items-center gap-2 text-sm font-medium">
               <MapPin className="size-4 text-primary shrink-0" />
               <span className="truncate">{p.name}</span>

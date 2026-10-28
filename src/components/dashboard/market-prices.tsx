@@ -64,7 +64,7 @@ export function MarketPrices() {
         />
       </div>
 
-      <div className="divide-y divide-border rounded-lg border border-border text-xs bg-card">
+      <div className="divide-y divide-border rounded-lg border text-xs glass">
         {filteredPrices.map((p) => (
           <div key={p.product} className="flex items-center justify-between px-3 py-2 hover:bg-muted/40 transition-colors">
             <div>

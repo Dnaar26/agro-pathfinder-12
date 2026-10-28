@@ -154,7 +154,7 @@ function ParcelDetail() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {crops.map((c: any) => (
-                <Link key={c.id} to="/crops/$id" params={{ id: c.id }} className="p-4 rounded-xl border border-border bg-card hover:border-primary transition-colors">
+                <Link key={c.id} to="/crops/$id" params={{ id: c.id }} className="p-4 rounded-xl border hover:border-primary transition-colors glass">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-semibold">{c.crop_catalog?.name}</h3>

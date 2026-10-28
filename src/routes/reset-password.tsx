@@ -67,9 +67,10 @@ function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background relative">
+    <div className="min-h-screen grid lg:grid-cols-2 relative">
       {/* Left panel */}
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-primary text-primary-foreground">
+      <div className="relative isolate hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-white lg:flex">
+        <div aria-hidden="true" className="surcos-on-dark absolute inset-0 -z-10" />
         <Link to="/">
           <Logo size="lg" variant="light" />
         </Link>
@@ -77,16 +78,16 @@ function ResetPasswordPage() {
           <h2 className="font-display text-4xl font-bold leading-tight">
             Tu campo, organizado.
           </h2>
-          <p className="mt-4 text-primary-foreground/85">
+          <p className="mt-4 text-white/80">
             Registra parcelas, cultivos y actividades. Recibe alertas oportunas y trabaja incluso sin conexión.
           </p>
         </div>
-        <div className="text-xs text-primary-foreground/60">© SIGIC</div>
+        <div className="text-xs text-white/55">© SIGIC</div>
       </div>
 
       {/* Right panel */}
       <div className="flex items-center justify-center p-6">
-        <div className="w-full max-w-md">
+        <div className="glass-strong w-full max-w-md rounded-3xl border p-6 sm:p-8">
           <Link to="/" className="lg:hidden inline-flex mb-8">
             <Logo size="sm" />
           </Link>

@@ -179,7 +179,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const closeSearch = () => { setSearchOpen(false); setSearchQuery(""); };
 
   const sidebarBody = (
-    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+    <div className="sidebar-surface flex h-full flex-col text-sidebar-foreground">
       <div className="px-4 pt-5 pb-4">
         <Link to="/dashboard" aria-label="SIGIC — Inicio">
           <Logo size="sm" variant="light" />
@@ -189,10 +189,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <button
         type="button"
         onClick={() => setEditProfileOpen(true)}
-        className="mx-3 mb-3 flex items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-sidebar-accent"
+        className="mx-3 mb-3 flex items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-white/[0.07]"
         aria-label={t("shell.edit_profile")}
       >
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-sidebar-primary font-display text-sm font-bold text-sidebar-primary-foreground">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-sidebar-primary glass-gold font-display text-sm font-bold text-sidebar-primary-foreground">
           {initial}
         </span>
         <span className="min-w-0 flex-1">
@@ -204,7 +204,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <button
         type="button"
         onClick={() => { setMenuOpen(false); setSearchOpen(true); }}
-        className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-sidebar-border px-3 py-2 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-sidebar-border bg-white/[0.04] px-3 py-2 text-sm text-sidebar-foreground/70 shadow-[inset_0_1px_0_0_oklch(1_0_0/0.08)] transition-colors hover:bg-white/[0.08] hover:text-sidebar-foreground"
       >
         <Search className="size-4" aria-hidden="true" />
         <span className="flex-1 text-left">{t("shell.search_button")}</span>
@@ -226,8 +226,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                       className={cn(
                         "relative flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
                         active
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground before:absolute before:inset-y-2 before:-left-3 before:w-1 before:rounded-r-full before:bg-sidebar-primary"
-                          : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                          ? "bg-white/10 text-sidebar-accent-foreground shadow-[inset_0_1px_0_0_oklch(1_0_0/0.16),0_0_0_1px_oklch(1_0_0/0.07)] before:absolute before:inset-y-2 before:-left-3 before:w-1 before:rounded-r-full before:bg-sidebar-primary"
+                          : "text-sidebar-foreground/80 hover:bg-white/[0.06] hover:text-sidebar-foreground",
                       )}
                     >
                       <Icon className="size-[18px] shrink-0" aria-hidden="true" />
@@ -246,7 +246,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <Select value={i18n.language} onValueChange={(v) => i18n.changeLanguage(v)}>
-              <SelectTrigger className="h-9 border-sidebar-border bg-transparent text-xs text-sidebar-foreground" aria-label={t("shell.language")}>
+              <SelectTrigger className="h-9 border-sidebar-border bg-transparent text-xs text-sidebar-foreground shadow-none focus:ring-2 focus:ring-sidebar-ring/70" aria-label={t("shell.language")}>
                 <Globe className="mr-1 size-3.5" aria-hidden="true" />
                 <SelectValue />
               </SelectTrigger>
@@ -272,7 +272,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-dvh bg-background">
+    <div className="flex min-h-dvh">
       {/* Barra lateral (escritorio) */}
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r border-sidebar-border md:block">
         {sidebarBody}
@@ -289,7 +289,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Barra superior */}
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/90 px-4 backdrop-blur md:px-8">
+        <header className="glass-bar sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b px-4 md:px-8">
           <div className="flex items-center gap-3 md:hidden">
             <Link to="/dashboard" aria-label="SIGIC — Inicio"><Logo size="xs" showText={false} /></Link>
           </div>
@@ -313,14 +313,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               type="button"
               onClick={() => setSearchOpen(true)}
               aria-label={t("shell.search_button")}
-              className="grid size-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground md:hidden"
+              className="grid size-9 place-items-center rounded-lg glass-subtle border text-muted-foreground transition-colors hover:bg-accent/70 hover:text-accent-foreground md:hidden"
             >
               <Search className="size-4" aria-hidden="true" />
             </button>
             <Link
               to="/alerts"
               aria-label={`${t("shell.notifications")}${alertCount > 0 ? ` (${alertCount})` : ""}`}
-              className="relative grid size-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              className="relative grid size-9 place-items-center rounded-lg glass-subtle border text-muted-foreground transition-colors hover:bg-accent/70 hover:text-accent-foreground"
             >
               <Bell className="size-4" aria-hidden="true" />
               {alertCount > 0 && (
@@ -339,7 +339,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Barra inferior (teléfono) */}
       <nav
         aria-label={t("nav.main")}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur md:hidden"
+        className="glass-bar fixed inset-x-0 bottom-0 z-40 border-t md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <ul className="grid grid-cols-5">

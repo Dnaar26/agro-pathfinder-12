@@ -317,7 +317,7 @@ function CultivosPage() {
 
 function StatusCount({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3 text-center">
+    <div className="rounded-lg border p-3 text-center glass">
       <p className="text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
       <p className={`mt-1 text-lg font-bold tabular-nums ${value > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>{value}</p>
     </div>

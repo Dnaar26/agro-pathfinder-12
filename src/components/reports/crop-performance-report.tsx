@@ -184,7 +184,7 @@ export function CropPerformanceReport() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-border bg-card p-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border p-5 glass">
         <div className="flex items-center gap-2">
           <div className="size-9 rounded-lg bg-success/15 text-success grid place-items-center">
             <Sprout className="size-5" />

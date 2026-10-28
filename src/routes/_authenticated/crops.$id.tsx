@@ -466,15 +466,15 @@ function CropDetail() {
 
       {/* Profitability summary */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="p-4 rounded-xl border border-border bg-card">
+        <div className="p-4 rounded-xl border glass">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Costo total</p>
           <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">$ {totalCost.toFixed(2)}</p>
         </div>
-        <div className="p-4 rounded-xl border border-border bg-card">
+        <div className="p-4 rounded-xl border glass">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Ingreso total</p>
           <p className="mt-1 text-2xl font-bold tabular-nums text-success">$ {totalRevenue.toFixed(2)}</p>
         </div>
-        <div className="p-4 rounded-xl border border-border bg-card">
+        <div className="p-4 rounded-xl border glass">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Margen</p>
           <p className={`mt-1 text-2xl font-bold tabular-nums ${margin >= 0 ? "text-success" : "text-destructive"}`}>
             {margin >= 0 ? "+" : ""}$ {margin.toFixed(2)}
@@ -509,7 +509,7 @@ function CropDetail() {
                     <span className="absolute -left-3 size-6 rounded-full bg-primary text-primary-foreground grid place-items-center">
                       <Icon className="size-3" />
                     </span>
-                    <div className="p-4 rounded-lg border border-border bg-card">
+                    <div className="p-4 rounded-lg border glass">
                       <div className="flex items-center justify-between">
                             <span className="font-medium">{def?.label}</span>
                             <div className="flex items-center gap-2">
@@ -647,7 +647,7 @@ function CropDetail() {
           ) : (
             <div className="space-y-2">
               {pests.data?.map((p: any) => (
-                <div key={p.id} className="p-4 rounded-lg border border-border bg-card">
+                <div key={p.id} className="p-4 rounded-lg border glass">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <ShieldAlert className="size-4 text-destructive" />

@@ -395,7 +395,7 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
+    <div className="min-h-screen grid lg:grid-cols-2">
       {/* Panel de marca */}
       <aside className="relative isolate hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-sidebar-foreground lg:flex">
         <div aria-hidden="true" className="surcos-on-dark absolute inset-0 -z-10" />
@@ -425,8 +425,8 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
       </aside>
 
       {/* Formulario Derecho */}
-      <main id="contenido" tabIndex={-1} className="flex items-center justify-center bg-card p-6 outline-none md:p-12">
-        <div className="w-full max-w-md space-y-6">
+      <main id="contenido" tabIndex={-1} className="flex items-center justify-center p-6 outline-none md:p-12">
+        <div className="glass-strong w-full max-w-md space-y-6 rounded-3xl border p-6 sm:p-8">
           <div className="lg:hidden flex justify-center mb-4">
             <Link to="/">
               <Logo size="sm" />

@@ -108,14 +108,14 @@ export function CropHealthWidget() {
 
   if (isLoading) {
     return (
-      <div className="p-4 text-center text-xs text-muted-foreground bg-card rounded-lg border border-border/50">
+      <div className="p-4 text-center text-xs text-muted-foreground rounded-lg border border-border/50 glass">
         Cargando estado de salud de cultivos...
       </div>
     );
   }
   if (!data || data.length === 0) {
     return (
-      <div className="p-4 text-center text-xs text-muted-foreground bg-card rounded-lg border border-border/50">
+      <div className="p-4 text-center text-xs text-muted-foreground rounded-lg border border-border/50 glass">
         No hay cultivos activos registrados para evaluar salud.
       </div>
     );

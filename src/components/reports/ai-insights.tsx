@@ -67,7 +67,7 @@ Resumen de datos del sistema SIGIC:
   };
 
   return (
-    <section className="p-5 rounded-xl border border-border bg-card space-y-3">
+    <section className="p-5 rounded-xl border space-y-3 glass">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold flex items-center gap-2">
           <Bot className="size-4 text-primary" /> Insights IA

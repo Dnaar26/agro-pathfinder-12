@@ -145,7 +145,7 @@ function AlertsPage() {
         </Dialog>}
       </header>
 
-      {alerts.isLoading && <div className="rounded-xl border border-border bg-card p-8 text-sm text-muted-foreground" role="status">Cargando avisos…</div>}
+      {alerts.isLoading && <div className="rounded-xl border p-8 text-sm text-muted-foreground glass" role="status">Cargando avisos…</div>}
       {alerts.isError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-sm text-destructive" role="alert">No se pudieron cargar las notificaciones. Intenta recargar la sección.</div>}
       {!alerts.isLoading && !alerts.isError && (
         <>
@@ -162,7 +162,7 @@ function AlertsPage() {
               <h2 className="text-lg font-semibold mb-3 text-muted-foreground">Historial de avisos ({handled.length})</h2>
               <ul className="space-y-2">
                 {paginatedHandled.map((a) => (
-                  <li key={a.id} className="p-3 rounded-lg border border-border bg-card text-sm flex items-center justify-between">
+                  <li key={a.id} className="p-3 rounded-lg border text-sm flex items-center justify-between glass">
                     <span><span className="text-muted-foreground">[{a.status}]</span> {a.title}</span>
                     <span className="text-xs text-muted-foreground">{format(new Date(a.scheduled_at), "dd MMM yyyy", { locale: es })}</span>
                   </li>

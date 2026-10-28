@@ -10,8 +10,8 @@ export const Route = createFileRoute("/offline")({
 
 function OfflinePage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-background">
-      <div className="size-16 rounded-2xl bg-muted grid place-items-center mb-6">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+      <div className="glass size-16 rounded-2xl border grid place-items-center mb-6">
         <WifiOff className="size-8 text-muted-foreground" />
       </div>
       <h1 className="text-2xl font-bold">Sin conexión a internet</h1>

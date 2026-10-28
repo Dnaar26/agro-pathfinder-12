@@ -473,7 +473,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
   return (
     <div className="space-y-6">
       {/* Encabezado Principal */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-border bg-card p-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border p-5 glass">
         <div>
           <div className="flex items-center gap-2">
             <div className="size-9 rounded-lg bg-primary-soft text-primary grid place-items-center font-bold">
@@ -570,13 +570,13 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
 
       {/* Resumen Financiero en COP */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="p-4 rounded-lg border border-destructive/20 bg-card">
+        <div className="p-4 rounded-lg border border-destructive/20 glass">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Costos de Insumos y Labores</p>
           <p className="mt-1.5 text-2xl font-bold tabular-nums text-destructive">{formatCOP(totalCost)}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">Gastos registrados</p>
         </div>
 
-        <div className="p-4 rounded-lg border border-success/20 bg-card">
+        <div className="p-4 rounded-lg border border-success/20 glass">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingresos por Cosechas</p>
           <p className="mt-1.5 text-2xl font-bold tabular-nums text-success">{formatCOP(totalRevenue)}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">Ventas registradas</p>

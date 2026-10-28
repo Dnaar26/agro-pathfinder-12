@@ -41,16 +41,16 @@ const capabilities = [
 
 function Landing() {
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="min-h-dvh">
       <header className="absolute inset-x-0 top-0 z-20">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:px-8">
           <Link to="/" aria-label="SIGIC — Inicio"><Logo size="xs" variant="light" /></Link>
           <nav aria-label="Acceso" className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <ThemeToggle className="border-white/20 text-white/80 hover:bg-white/10 hover:text-white" />
+            <ThemeToggle className="border-white/20 bg-white/10 text-white/80 shadow-none hover:bg-white/20 hover:text-white" />
             <Link to="/login" className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/10 sm:px-4 sm:text-sm">
               Iniciar sesión
             </Link>
-            <Link to="/register" className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-lg bg-highlight px-2.5 text-xs font-semibold text-highlight-foreground transition-[filter] hover:brightness-95 sm:px-4 sm:text-sm">
+            <Link to="/register" className="glass-gold inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-xl bg-highlight px-2.5 text-xs font-semibold text-highlight-foreground sm:px-4 sm:text-sm">
               Crear cuenta
             </Link>
           </nav>
@@ -70,10 +70,10 @@ function Landing() {
                 SIGIC es el cuaderno de campo del pequeño agricultor. Registra siembras, riegos y fertilizaciones, te avisa cuándo toca la siguiente labor y deja el historial listo para tu técnico.
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
-                <Link to="/register" className="inline-flex min-h-12 items-center rounded-lg bg-highlight px-6 text-base font-semibold text-highlight-foreground transition-[filter] hover:brightness-95">
+                <Link to="/register" className="glass-gold inline-flex min-h-12 items-center rounded-xl bg-highlight px-6 text-base font-semibold text-highlight-foreground">
                   Crear cuenta gratis
                 </Link>
-                <Link to="/login" className="inline-flex min-h-12 items-center rounded-lg border border-white/30 px-6 text-base font-semibold text-white transition-colors hover:bg-white/10">
+                <Link to="/login" className="inline-flex min-h-12 items-center rounded-xl border border-white/25 bg-white/10 px-6 text-base font-semibold text-white shadow-[inset_0_1px_0_0_oklch(1_0_0/0.25)] backdrop-blur-md transition-colors hover:bg-white/20">
                   Ya tengo cuenta
                 </Link>
               </div>
@@ -81,7 +81,7 @@ function Landing() {
 
             {/* Ejemplo de la interfaz real: tarjeta de cultivo */}
             <figure aria-label="Ejemplo de cómo se ve un cultivo en SIGIC" className="relative">
-              <div className="rounded-2xl bg-card p-5 text-card-foreground shadow-2xl ring-1 ring-white/10 md:p-6">
+              <div className="glass-strong rounded-3xl border p-5 text-card-foreground md:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Parcela El Mamey</p>
@@ -120,9 +120,9 @@ function Landing() {
         {/* Roles */}
         <section className="mx-auto max-w-6xl px-5 py-20 md:px-8 md:py-24">
           <h2 className="max-w-2xl text-3xl font-bold md:text-4xl">Pensado para quien siembra y para quien acompaña</h2>
-          <div className="mt-10 grid gap-px overflow-hidden rounded-xl border border-border bg-border md:grid-cols-3">
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
             {roles.map((r) => (
-              <article key={r.title} className="bg-card p-6 md:p-8">
+              <article key={r.title} className="glass rounded-2xl border p-6 md:p-8">
                 <h3 className="text-xl font-bold">{r.title}</h3>
                 <p className="mt-3 text-muted-foreground">{r.body}</p>
               </article>
@@ -131,13 +131,13 @@ function Landing() {
         </section>
 
         {/* Capacidades */}
-        <section className="border-y border-border bg-secondary/60">
+        <section className="border-y bg-secondary/40">
           <div className="mx-auto max-w-6xl px-5 py-20 md:px-8 md:py-24">
             <h2 className="max-w-2xl text-3xl font-bold md:text-4xl">Lo que puedes hacer desde el primer día</h2>
             <ul className="mt-10 grid gap-x-12 gap-y-8 md:grid-cols-2 lg:grid-cols-3">
               {capabilities.map(({ icon: Icon, title, body }) => (
                 <li key={title} className="flex gap-4">
-                  <span className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
+                  <span className="glass-primary mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
                     <Icon className="size-5" aria-hidden="true" />
                   </span>
                   <div>
@@ -154,7 +154,7 @@ function Landing() {
         <section className="mx-auto max-w-6xl px-5 py-20 text-center md:px-8 md:py-24">
           <h2 className="mx-auto max-w-xl text-3xl font-bold md:text-4xl">Empieza registrando tu primera parcela</h2>
           <p className="mx-auto mt-4 max-w-md text-muted-foreground">Crear la cuenta toma un minuto.</p>
-          <Link to="/register" className="mt-8 inline-flex min-h-12 items-center rounded-lg bg-primary px-7 text-base font-semibold text-primary-foreground transition-[filter] hover:brightness-110">
+          <Link to="/register" className="glass-primary mt-8 inline-flex min-h-12 items-center rounded-xl bg-primary px-7 text-base font-semibold text-primary-foreground">
             Crear cuenta gratis
           </Link>
         </section>

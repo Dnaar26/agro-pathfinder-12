@@ -98,7 +98,7 @@ const kindColors = KIND_COLORS;
 
 function SkeletonCard() {
   return (
-    <div className="p-5 rounded-xl border border-border bg-card animate-pulse">
+    <div className="p-5 rounded-xl border animate-pulse glass">
       <div className="h-3 w-24 bg-muted rounded mb-3" />
       <div className="h-8 w-16 bg-muted rounded" />
     </div>
@@ -706,7 +706,7 @@ function ReportsPage() {
             <p className="text-sm text-muted-foreground">Plantillas configurables con logo, encabezado y pie de página.</p>
           </header>
 
-          <section className="p-5 rounded-xl border border-border bg-card space-y-4">
+          <section className="p-5 rounded-xl border space-y-4 glass">
             <h2 className="text-sm font-semibold flex items-center gap-2">
               <Filter className="size-4 text-primary" /> Configuración del reporte
             </h2>
@@ -838,22 +838,22 @@ function ReportsPage() {
           </section>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="p-5 rounded-xl border border-border bg-card">
+            <div className="p-5 rounded-xl border glass">
               <p className="text-sm text-muted-foreground">Parcelas incluidas</p>
               <p className="mt-2 text-3xl font-bold">{filteredParcels.length}</p>
             </div>
-            <div className="p-5 rounded-xl border border-border bg-card">
+            <div className="p-5 rounded-xl border glass">
               <p className="text-sm text-muted-foreground">Actividades filtradas</p>
               <p className="mt-2 text-3xl font-bold">{totalAct}</p>
             </div>
-            <div className="p-5 rounded-xl border border-border bg-card">
+            <div className="p-5 rounded-xl border glass">
               <p className="text-sm text-muted-foreground">Alertas pendientes</p>
               <p className="mt-2 text-3xl font-bold flex items-center gap-2">
                 {pendingAlerts}
                 {pendingAlerts > 0 && <AlertTriangle className="size-5 text-warning-text" />}
               </p>
             </div>
-            <div className="p-5 rounded-xl border border-border bg-card">
+            <div className="p-5 rounded-xl border glass">
               <p className="text-sm text-muted-foreground">Margen bruto</p>
               <p className={cn("mt-2 text-3xl font-bold flex items-center gap-2", totalRevenue - totalCost < 0 ? "text-destructive" : "text-success")}>
                 {totalRevenue - totalCost < 0 ? <TrendingDown className="size-5" /> : <TrendingUp className="size-5" />}
@@ -863,7 +863,7 @@ function ReportsPage() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <section className="p-5 rounded-xl border border-border bg-card">
+            <section className="p-5 rounded-xl border glass">
               <div className="mb-3">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   <TrendingUp className="size-4 text-primary" /> Ingresos mensuales
@@ -886,7 +886,7 @@ function ReportsPage() {
                 <p className="py-10 text-center text-sm text-muted-foreground">Sin ingresos registrados en estos periodos.</p>
               )}
             </section>
-            <section className="p-5 rounded-xl border border-border bg-card">
+            <section className="p-5 rounded-xl border glass">
               <div className="mb-3">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   <DollarSign className="size-4 text-primary" /> Costos mensuales
@@ -912,7 +912,7 @@ function ReportsPage() {
           </div>
 
           {activityTrend.length > 1 && (
-            <section className="p-5 rounded-xl border border-border bg-card">
+            <section className="p-5 rounded-xl border glass">
               <h2 className="text-sm font-semibold flex items-center gap-2 mb-4">
                 <BarChart3 className="size-4 text-primary" /> Actividades por mes
               </h2>
@@ -929,7 +929,7 @@ function ReportsPage() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <section className="p-5 rounded-xl border border-border bg-card">
+            <section className="p-5 rounded-xl border glass">
               <h2 className="text-sm font-semibold flex items-center gap-2 mb-4">
                 <FileBarChart className="size-4 text-primary" /> Actividades por tipo
               </h2>
@@ -962,7 +962,7 @@ function ReportsPage() {
             </section>
 
             {Object.keys(costsByKind).length > 0 && (
-              <section className="p-5 rounded-xl border border-border bg-card">
+              <section className="p-5 rounded-xl border glass">
                 <h2 className="text-sm font-semibold flex items-center gap-2 mb-4">
                   <DollarSign className="size-4 text-primary" /> Costos por tipo
                 </h2>
@@ -988,7 +988,7 @@ function ReportsPage() {
             )}
           </div>
 
-          <section className="p-5 rounded-xl border border-border bg-card">
+          <section className="p-5 rounded-xl border glass">
             <h2 className="text-sm font-semibold flex items-center gap-2 mb-3">
               <DollarSign className="size-4 text-primary" /> Rentabilidad
             </h2>
@@ -1018,7 +1018,7 @@ function ReportsPage() {
           <AiReportInsights activities={filtered} parcels={parcels.data ?? []} totalCost={totalCost} totalRevenue={totalRevenue} pendingAlerts={pendingAlerts} costsByKind={costsByKind} byKind={byKind} />
 
           {costsQuery.data && harvestsQuery.data && (
-            <section className="p-5 rounded-xl border border-border bg-card">
+            <section className="p-5 rounded-xl border glass">
               <h2 className="text-sm font-semibold flex items-center gap-2 mb-3">
                 <BarChart3 className="size-4 text-primary" /> Comparación financiera: {financialComparison.comparisonLabel}
               </h2>
@@ -1057,7 +1057,7 @@ function ReportsPage() {
             </section>
           )}
 
-          <section className="p-5 rounded-xl border border-border bg-card space-y-4">
+          <section className="p-5 rounded-xl border space-y-4 glass">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold flex items-center gap-2">
                 <CalendarClock className="size-4 text-primary" /> Programaciones de reportes

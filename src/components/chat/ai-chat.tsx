@@ -123,7 +123,7 @@ export function AiChat() {
   };
 
   return (
-    <div className="flex flex-col h-[600px] border border-border rounded-xl bg-card shadow-sm overflow-hidden">
+    <div className="flex flex-col h-[600px] border rounded-xl shadow-sm overflow-hidden glass">
       {/* Header */}
       <div className="p-3.5 border-b border-border bg-muted/30 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -195,7 +195,7 @@ export function AiChat() {
                 key={idx}
                 onClick={() => handleSend(q)}
                 disabled={loading}
-                className="text-[11px] px-2.5 py-1 rounded-full bg-card hover:bg-primary/10 hover:text-primary border border-border hover:border-primary/40 transition-colors text-left text-muted-foreground"
+                className="text-[11px] px-2.5 py-1 rounded-full hover:bg-primary/10 hover:text-primary border hover:border-primary/40 transition-colors text-left text-muted-foreground glass"
               >
                 {q}
               </button>
@@ -205,7 +205,7 @@ export function AiChat() {
       )}
 
       {/* Input */}
-      <div className="p-3 border-t border-border bg-card space-y-2">
+      <div className="p-3 border-t border space-y-2 glass">
         {/* Botón de reintento visible cuando hay error y hay mensaje para reintentar */}
         {messages[messages.length - 1]?.isError && lastUserMessage && (
           <button

@@ -134,7 +134,7 @@ function ParcelsPage() {
 
   if (showInitialError) {
     return (
-      <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-card p-8 text-center" role="alert">
+      <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 p-8 text-center glass" role="alert">
         <p className="font-semibold">No se pudieron cargar las parcelas</p>
         <p className="max-w-md text-sm text-muted-foreground">Comprueba tu conexión e inténtalo de nuevo.</p>
         <Button variant="outline" onClick={() => parcels.refetch()}>Reintentar</Button>
@@ -303,7 +303,7 @@ function ParcelSummary({ data }: { data: any[] }) {
 
 function SummaryStat({ icon: Icon, label, value, sub }: { icon: any; label: string; value: number | string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border p-4 glass">
       <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
         <Icon className="size-4 text-primary" /> {label}
       </div>
@@ -366,7 +366,7 @@ function ParcelGrid({ data, loading, onEdit, onDelete }: { data: any[]; loading:
             ).length;
             const hasGPS = p.latitude && p.longitude;
             return (
-              <div key={p.id} className="group relative p-5 rounded-xl border border-border bg-card hover:border-primary hover:shadow-md transition-all">
+              <div key={p.id} className="group relative p-5 rounded-xl border hover:border-primary hover:shadow-md transition-all glass">
                 <Link to="/parcels/$id" params={{ id: p.id }} className="block">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{p.name}</h3>

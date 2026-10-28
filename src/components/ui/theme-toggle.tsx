@@ -20,7 +20,7 @@ function readStored(): Theme {
 function apply(theme: Theme) {
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark", dark);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#191c20" : "#f6f7f9");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#05130d" : "#ecf6f1");
 }
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -56,7 +56,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       title={`${LABEL[theme]} — clic para cambiar a ${LABEL[next].toLowerCase()}`}
       aria-label={`${LABEL[theme]}. Cambiar a ${LABEL[next].toLowerCase()}`}
       className={cn(
-        "grid size-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
+        "grid size-9 place-items-center glass-subtle rounded-lg border text-muted-foreground transition-colors hover:bg-accent/70 hover:text-accent-foreground",
         className,
       )}
     >
@@ -66,4 +66,4 @@ export function ThemeToggle({ className }: { className?: string }) {
 }
 
 /** Script inline que aplica la clase .dark antes del primer pintado (evita el destello blanco). */
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');var d=t==='dark'||((t!=='light')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',d?'#191c20':'#f6f7f9');}catch(e){}})();`;
+export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');var d=t==='dark'||((t!=='light')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',d?'#05130d':'#ecf6f1');}catch(e){}})();`;

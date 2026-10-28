@@ -30,7 +30,7 @@ export interface PdfReportOptions {
   orientation?: "portrait" | "landscape";
 }
 
-const BRAND: [number, number, number] = [34, 113, 56];
+const BRAND: [number, number, number] = [0, 93, 57];
 const MUTED: [number, number, number] = [110, 110, 110];
 
 let cachedLogo: string | null = null;

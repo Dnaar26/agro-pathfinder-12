@@ -210,7 +210,7 @@ function Dashboard() {
       </header>
 
       <RoleGate roles={["tecnico", "admin"]}>
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border p-3 glass">
           <User className="size-4 text-muted-foreground" aria-hidden="true" />
           <Combobox
             value={farmerFilter}
@@ -321,15 +321,15 @@ function Dashboard() {
 
       <CollapsibleSection title="Resumen Financiero" icon={DollarSign} storageKey="dashboard-pnl-collapsed">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="rounded-xl border p-5 glass">
             <p className="text-sm text-muted-foreground mb-1">Costos totales</p>
             <p className="text-2xl font-bold tabular-nums text-destructive">{pnl.isError ? "Error" : formatCOP(pnl.data?.totalCost ?? 0)}</p>
           </div>
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="rounded-xl border p-5 glass">
             <p className="text-sm text-muted-foreground mb-1">Ingresos totales</p>
             <p className="text-2xl font-bold tabular-nums text-success">{pnl.isError ? "Error" : formatCOP(pnl.data?.totalRevenue ?? 0)}</p>
           </div>
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="rounded-xl border p-5 glass">
             <p className="text-sm text-muted-foreground mb-1">Margen</p>
             <p className={`text-2xl font-bold tabular-nums flex items-center gap-1 ${pnl.isError ? "" : (pnl.data?.totalRevenue ?? 0) - (pnl.data?.totalCost ?? 0) >= 0 ? "text-success" : "text-destructive"}`}>
               {!pnl.isError && ((pnl.data?.totalRevenue ?? 0) - (pnl.data?.totalCost ?? 0) >= 0 ? <TrendingUp className="size-5" /> : <TrendingDown className="size-5" />)}
@@ -382,7 +382,7 @@ function Dashboard() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {filteredParcels.slice(0, 4).map((p: any) => (
-                  <Link key={p.id} to="/parcels/$id" params={{ id: p.id }} className="group relative block h-36 overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary">
+                  <Link key={p.id} to="/parcels/$id" params={{ id: p.id }} className="group relative block h-36 overflow-hidden rounded-xl border transition-colors hover:border-primary glass">
                     {p.image_url ? (
                       <div className="absolute inset-0 bg-cover bg-center " style={{ backgroundImage: `url(${p.image_url})` }}>
                         <div className="absolute inset-0 bg-black/45 transition-colors" />

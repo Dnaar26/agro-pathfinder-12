@@ -553,7 +553,7 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
 
       {/* Content */}
       {viewMode === "list" ? (
-        <div className="rounded-md border bg-card">
+        <div className="rounded-md border glass">
           <Table>
             <TableHeader>
               <TableRow>

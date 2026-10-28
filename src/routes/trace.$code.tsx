@@ -100,7 +100,7 @@ function TracePage() {
   const farmer = parcel?.profiles;
 
   return (
-    <div className="min-h-screen bg-muted/30 p-4 flex items-center justify-center relative">
+    <div className="min-h-screen p-4 flex items-center justify-center relative">
       {/* QR Scanner */}
       {scanning && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">

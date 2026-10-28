@@ -169,7 +169,7 @@ export function InventoryReport() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-border bg-card p-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border p-5 glass">
         <div className="flex items-center gap-2">
           <div className="grid size-9 place-items-center rounded-lg bg-info/10 text-info">
             <Package className="size-5" />

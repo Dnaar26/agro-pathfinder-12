@@ -187,7 +187,7 @@ function AdminPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Farmers */}
-        <section className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden">
+        <section className="lg:col-span-2 rounded-xl border overflow-hidden glass">
           <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Users className="size-4 text-primary" />
@@ -234,7 +234,7 @@ function AdminPage() {
 
         {/* Quick actions sidebar */}
         <aside className="space-y-4">
-          <div className="rounded-xl border border-border bg-card">
+          <div className="rounded-xl border glass">
             <div className="px-5 py-4 border-b border-border flex items-center gap-2">
               <BellRing className="size-4 text-primary" />
               <h2 className="font-semibold">Alertas pendientes ({m?.pendingAlerts ?? 0})</h2>
@@ -256,7 +256,7 @@ function AdminPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-5 space-y-2">
+          <div className="rounded-xl border p-5 space-y-2 glass">
             <h2 className="font-semibold flex items-center gap-2"><Activity className="size-4 text-primary" /> Atajos</h2>
             <Button asChild variant="outline" size="sm" className="w-full justify-start"><Link to="/parcels"><MapPin className="size-4 mr-1" /> Parcelas</Link></Button>
             <Button asChild variant="outline" size="sm" className="w-full justify-start"><Link to="/calendar"><ClipboardList className="size-4 mr-1" /> Calendario</Link></Button>
@@ -265,7 +265,7 @@ function AdminPage() {
         </aside>
       </div>
 
-      <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+      <section className="rounded-xl border p-5 space-y-4 glass">
         <div>
           <h2 className="font-semibold">Configuración automática de alertas</h2>
           <p className="text-sm text-muted-foreground">Los cambios se aplican al regenerar alertas o en la siguiente ejecución programada.</p>
@@ -294,7 +294,7 @@ function AdminPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-border bg-card p-5 space-y-3">
+      <section className="rounded-xl border p-5 space-y-3 glass">
         <div><h2 className="font-semibold">Asignación técnico–agricultor</h2><p className="text-sm text-muted-foreground">Los técnicos sólo podrán consultar los agricultores asignados aquí.</p></div>
         <div className="flex flex-wrap gap-2 items-center">
           <Select value={assignmentTechnician} onValueChange={setAssignmentTechnician}><SelectTrigger className="w-56"><SelectValue placeholder="Seleccionar técnico" /></SelectTrigger><SelectContent>{(userDirectory.data ?? []).filter(u => u.roles.includes("tecnico")).map(u => <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>)}</SelectContent></Select>
@@ -305,7 +305,7 @@ function AdminPage() {
       </section>
 
       {/* Roles management */}
-      <section className="rounded-xl border border-border bg-card overflow-hidden">
+      <section className="rounded-xl border overflow-hidden glass">
         <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <UserCog className="size-4 text-primary" />
@@ -350,7 +350,7 @@ function AdminPage() {
 
 function MetricCard({ icon: Icon, label, value, sub }: { icon: any; label: string; value: number | string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border p-4 glass">
       <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
         <Icon className="size-4 text-primary" /> {label}
       </div>

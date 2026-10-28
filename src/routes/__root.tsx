@@ -41,7 +41,7 @@ async function syncSessionCookie(session: BrowserSession | null) {
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center px-4">
       <div className="mb-8">
         <Logo />
       </div>
@@ -66,7 +66,7 @@ function ErrorComponent({ error, reset }: { error: unknown; reset: () => void })
   const errorMessage = error instanceof Error ? error.message : typeof error === "string" ? error : "Error inesperado";
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center px-4">
       <div className="mb-8">
         <Logo />
       </div>
@@ -98,7 +98,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "SIGIC — Gestión Inteligente de Cultivos" },
       { name: "description", content: "Sistema de Gestión Inteligente de Cultivos. Planeación, siembra, mantenimiento, cosecha y alertas." },
-      { name: "theme-color", content: "#f6f7f9" },
+      { name: "theme-color", content: "#ecf6f1" },
       { name: "color-scheme", content: "light dark" },
       { property: "og:title", content: "SIGIC — Gestión Inteligente de Cultivos" },
       { property: "og:description", content: "Acompaña al agricultor en todo el ciclo productivo." },

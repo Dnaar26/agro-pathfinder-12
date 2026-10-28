@@ -428,7 +428,7 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
   return (
     <div className="space-y-6">
       {/* Encabezado Staff */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-border bg-card p-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border p-5 glass">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Layers className="size-5 text-primary" />

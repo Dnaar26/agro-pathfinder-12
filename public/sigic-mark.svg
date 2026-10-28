@@ -1,12 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
-  <g stroke="#4d8653" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2">
-    <path d="M14 13h5l5 4 5-4h5"/>
-    <path d="m16 14-4 3m20-3 4 3m-12-1v5"/>
-    <path d="M7.5 12.5c1.8-2.1 5.8-2.1 7.6 0-1.8 2.1-5.8 2.1-7.6 0Z"/>
-    <path d="M32.9 12.5c1.8-2.1 5.8-2.1 7.6 0-1.8 2.1-5.8 2.1-7.6 0Z"/>
-    <path d="M6.5 31c7-2 12.7 1.1 17.5 8.2M41.5 31c-7-2-12.7 1.1-17.5 8.2"/>
-    <path d="M11 38c4.7-1 8.7.1 13 4.5M37 38c-4.7-1-8.7.1-13 4.5"/>
-    <path d="M17 44c2.3-.6 4.6-.6 7 0m7 0c-2.3-.6-4.6-.6-7 0"/>
-  </g>
-  <circle cx="24" cy="22" r="2.6" fill="#c49a35" stroke="#c49a35" stroke-width="1.5"/>
+  <title>SIGIC</title>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="2" x2="40" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2aa37a"/>
+      <stop offset=".55" stop-color="#0f6b4c"/>
+      <stop offset="1" stop-color="#083d2c"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="24" y1="22" x2="24" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#c9ecdb"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="21" y1="9" x2="27" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff1bd"/>
+      <stop offset="1" stop-color="#d4a03c"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="8" y1="2" x2="40" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity=".7"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#fff" stop-opacity=".25"/>
+    </linearGradient>
+    <radialGradient id="gloss" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(24 2) scale(30 22)">
+      <stop offset="0" stop-color="#fff" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="clip"><rect x="2" y="2" width="44" height="44" rx="13"/></clipPath>
+  </defs>
+  <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#bg)"/>
+  <g clip-path="url(#clip)"><ellipse cx="24" cy="2" rx="30" ry="22" fill="url(#gloss)"/></g>
+  <rect x="2.5" y="2.5" width="43" height="43" rx="12.5" stroke="url(#rim)"/>
+  <path d="M24 38C15 37.5 10.5 31 11 22.5 19 22.5 24 28 24 38Z" fill="url(#leaf)"/>
+  <path d="M24 38C33 37.5 37.5 31 37 22.5 29 22.5 24 28 24 38Z" fill="url(#leaf)"/>
+  <path d="M24 35.5C21 31 17.5 27.5 14.5 25.5M24 35.5C27 31 30.5 27.5 33.5 25.5" stroke="#0f6b4c" stroke-opacity=".38" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M16 41.5Q24 44 32 41.5" stroke="#fff" stroke-opacity=".4" stroke-width="1.6" stroke-linecap="round"/>
+  <circle cx="24" cy="12.5" r="6.4" stroke="#fff" stroke-opacity=".45" stroke-width="1.2"/>
+  <circle cx="24" cy="12.5" r="3.3" fill="url(#gold)"/>
 </svg>

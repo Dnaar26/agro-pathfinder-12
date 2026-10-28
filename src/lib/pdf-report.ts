@@ -30,7 +30,7 @@ export interface PdfReportOptions {
   orientation?: "portrait" | "landscape";
 }
 
-const BRAND: [number, number, number] = [34, 113, 56];
+const BRAND: [number, number, number] = [36, 79, 58];
 const MUTED: [number, number, number] = [110, 110, 110];
 
 let cachedLogo: string | null = null;
@@ -75,7 +75,7 @@ function drawHeader(doc: jsPDF, opts: PdfReportOptions, logoDataUrl: string | nu
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.text("SIGIC — Sistema de Gestión Integral de Cultivos", 26, 10);
+  doc.text("SIGIC — Gestión Inteligente de Cultivos", 26, 10);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(templateLabel(opts.template), 26, 16);

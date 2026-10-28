@@ -1,8 +1,10 @@
-const CACHE = "sigic-v3";
+const CACHE = "sigic-v4";
 const APP_SHELL = [
   "/",
   "/offline",
   "/manifest.webmanifest",
+  "/sigic-mark.svg",
+  "/apple-touch-icon.png",
   "/icon-192.png",
   "/icon-512.png",
 ];
@@ -75,7 +77,7 @@ self.addEventListener("push", (event) => {
   try {
     const data = event.data.json();
     event.waitUntil(
-      self.registration.showNotification(data.title || "SGIC", {
+      self.registration.showNotification(data.title || "SIGIC", {
         body: data.body || "Nueva alerta",
         icon: "/icon-192.png",
         badge: "/icon-192.png",
@@ -86,7 +88,7 @@ self.addEventListener("push", (event) => {
       })
     );
   } catch {
-    self.registration.showNotification("SGIC", { body: event.data.text(), icon: "/icon-192.png" });
+    self.registration.showNotification("SIGIC", { body: event.data.text(), icon: "/icon-192.png" });
   }
 });
 

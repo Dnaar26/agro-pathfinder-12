@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bot, Sparkles, Loader2, RefreshCw, AlertCircle } from "lucide-react";
 import { chatWithGroq } from "@/lib/api/groq-chat.server";
+import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { supabase } from "@/integrations/supabase/client";
 
 function getAdviceErrorMessage(error: unknown) {
@@ -176,8 +177,8 @@ Incluye acciones pertinentes para agua, fertilización y prevención de plagas s
       )}
 
       {advice && (
-        <div className="rounded-lg border border-primary/15 bg-primary/5 p-3.5 text-xs leading-relaxed text-foreground whitespace-pre-line">
-          {advice}
+        <div className="rounded-lg border border-primary/15 bg-primary/5 p-3.5 text-xs leading-relaxed text-foreground">
+          <MarkdownMessage content={advice} compact />
         </div>
       )}
 

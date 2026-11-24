@@ -14,7 +14,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { signOutHttpOnlyCookie, syncHttpOnlySession } from "@/lib/api/auth.server";
 import { Toaster } from "@/components/ui/sonner";
-import { registerOnlineSync } from "@/lib/services/offline-sync";
+import { clearAllOfflineData, registerOnlineSync } from "@/lib/services/offline-sync";
+import { initClarityAnalytics } from "@/lib/analytics/clarity";
 import { Logo } from "@/components/logo";
 import { THEME_INIT_SCRIPT } from "@/components/ui/theme-toggle";
 
@@ -148,6 +149,10 @@ function RootComponent() {
       }
       if (event === "SIGNED_OUT") {
         void signOutHttpOnlyCookie().catch(() => undefined);
+        void clearAllOfflineData().catch(() => undefined);
+        if (typeof window !== "undefined" && "caches" in window) {
+          void caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).catch(() => undefined);
+        }
       }
       if (event !== "INITIAL_SESSION" && event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "TOKEN_REFRESHED" && event !== "USER_UPDATED") return;
       router.invalidate();
@@ -156,7 +161,10 @@ function RootComponent() {
     return () => subscription.unsubscribe();
   }, [queryClient, router]);
 
-  useEffect(() => registerOnlineSync(), []);
+  useEffect(() => {
+    initClarityAnalytics();
+    return registerOnlineSync();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

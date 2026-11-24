@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState, useEffect } from "react";
+import { lazy, Suspense, useMemo, useState, useEffect } from "react";
 import { listAllActivitiesForReport, listParcels, listCatalog, listAlerts, getMyRoles, listScheduledReports, createScheduledReport, toggleScheduledReport, deleteScheduledReport } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,18 +10,17 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Download, FileBarChart, FileText, Filter, FileSpreadsheet, TrendingUp, TrendingDown, AlertTriangle, DollarSign, BarChart3, CalendarClock, Plus, Trash2, Clock, Mail, CheckCircle2, XCircle, Layers, Save } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { generatePdfReport, type PdfReportTemplate } from "@/lib/pdf-report";
+import type { PdfReportTemplate } from "@/lib/pdf-report";
 import { supabase } from "@/integrations/supabase/client";
 import { createYearComparison, isWithinPeriod } from "@/lib/financial-periods.js";
-import { exportParcelsToExcel } from "@/lib/services/excel-export";
 import { useTranslation } from "react-i18next";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar, Legend } from "recharts";
 import { Card } from "@/components/ui/card";
-import { AiReportInsights } from "@/components/reports/ai-insights";
+const AiReportInsights = lazy(() => import("@/components/reports/ai-insights").then((m) => ({ default: m.AiReportInsights })));
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { FarmerReport } from "@/components/reports/farmer-report";
-import { StaffReportsPanel } from "@/components/reports/staff-reports-panel";
+const FarmerReport = lazy(() => import("@/components/reports/farmer-report").then((m) => ({ default: m.FarmerReport })));
+const StaffReportsPanel = lazy(() => import("@/components/reports/staff-reports-panel").then((m) => ({ default: m.StaffReportsPanel })));
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { formatCurrencyInt } from "@/lib/currency";
@@ -442,6 +441,7 @@ function ReportsPage() {
       "Año de indicadores": chartYear,
     };
 
+    const { generatePdfReport } = await import("@/lib/pdf-report");
     let doc;
     if (template === "actividades") {
       doc = await generatePdfReport({
@@ -624,7 +624,7 @@ function ReportsPage() {
   if (isAgricultor) {
     return (
       <div className="space-y-6">
-        <FarmerReport />
+        <Suspense fallback={<SkeletonCard />}><FarmerReport /></Suspense>
       </div>
     );
   }
@@ -697,7 +697,7 @@ function ReportsPage() {
         </div>
 
         <TabsContent value="specialized" className="space-y-6">
-          <StaffReportsPanel userRole={userRole} />
+          <Suspense fallback={<SkeletonCard />}><StaffReportsPanel userRole={userRole} /></Suspense>
         </TabsContent>
 
         <TabsContent value="builder" className="space-y-6">
@@ -818,7 +818,7 @@ function ReportsPage() {
               <Button variant="outline" onClick={exportCSV} disabled={template !== "actividades"}>
                 <Download className="size-4 mr-1" /> Exportar CSV
               </Button>
-              <Button variant="outline" onClick={() => exportParcelsToExcel(parcels.data ?? [])} disabled={template !== "parcelas"}>
+              <Button variant="outline" onClick={async () => { const { exportParcelsToExcel } = await import("@/lib/services/excel-export"); exportParcelsToExcel(parcels.data ?? []); }} disabled={template !== "parcelas"}>
                 <FileSpreadsheet className="size-4 mr-1" /> Exportar Excel
               </Button>
               <Button
@@ -1015,7 +1015,7 @@ function ReportsPage() {
             </div>
           </section>
 
-          <AiReportInsights activities={filtered} parcels={parcels.data ?? []} totalCost={totalCost} totalRevenue={totalRevenue} pendingAlerts={pendingAlerts} costsByKind={costsByKind} byKind={byKind} />
+          <Suspense fallback={<SkeletonCard />}><AiReportInsights activities={filtered} parcels={parcels.data ?? []} totalCost={totalCost} totalRevenue={totalRevenue} pendingAlerts={pendingAlerts} costsByKind={costsByKind} byKind={byKind} /></Suspense>
 
           {costsQuery.data && harvestsQuery.data && (
             <section className="p-5 rounded-xl border border-border bg-card">

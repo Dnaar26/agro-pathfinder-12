@@ -105,7 +105,7 @@ export default async function globalSetup(config: FullConfig) {
   await page.goto(`${baseURL}/auth?mode=login`, { waitUntil: "domcontentloaded" });
   await page.fill("#email", email);
   await page.fill("#password", password);
-  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByRole("button", { name: /Entrar|Iniciar Sesi[oó]n/i }).click();
   await page.waitForURL(/\/dashboard(?:\?.*)?$/, { timeout: 30_000 });
   await context.storageState({ path: ".auth/user.json" });
   await browser.close();

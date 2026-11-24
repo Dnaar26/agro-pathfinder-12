@@ -209,12 +209,28 @@ function CalendarPage() {
       const { error } = await supabase.rpc("set_calendar_event_done", { p_event_id: id });
       if (error) throw error;
     },
+    onMutate: async (id: string) => {
+      await qc.cancelQueries({ queryKey: ["events"] });
+      const previousEvents = qc.getQueryData<any[]>(["events"]);
+      if (previousEvents) {
+        qc.setQueryData(
+          ["events"],
+          previousEvents.map((ev) => (ev.id === id ? { ...ev, done: true } : ev)),
+        );
+      }
+      return { previousEvents };
+    },
     onSuccess: () => {
       toast.success("Evento marcado como realizado");
+    },
+    onError: (e: Error, _id, ctx) => {
+      if (ctx?.previousEvents) qc.setQueryData(["events"], ctx.previousEvents);
+      toast.error(e.message);
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["events"] });
       qc.invalidateQueries({ queryKey: ["upcoming"] });
     },
-    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteEvent = useMutation({
@@ -222,12 +238,29 @@ function CalendarPage() {
       const { error } = await supabase.rpc("delete_calendar_event_with_inventory", { p_event_id: id });
       if (error) throw error;
     },
+    onMutate: async (id: string) => {
+      await qc.cancelQueries({ queryKey: ["events"] });
+      const previousEvents = qc.getQueryData<any[]>(["events"]);
+      if (previousEvents) {
+        qc.setQueryData(
+          ["events"],
+          previousEvents.filter((ev) => ev.id !== id),
+        );
+      }
+      return { previousEvents };
+    },
     onSuccess: () => {
       toast.success("Evento eliminado");
+    },
+    onError: (e: Error, _id, ctx) => {
+      if (ctx?.previousEvents) qc.setQueryData(["events"], ctx.previousEvents);
+      toast.error(e.message);
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["events"] });
       qc.invalidateQueries({ queryKey: ["upcoming"] });
+      qc.invalidateQueries({ queryKey: ["inventory"] });
     },
-    onError: (e: Error) => toast.error(e.message),
   });
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

@@ -16,8 +16,6 @@ import { RoleGate } from "@/components/auth/role-gate";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { PredictiveAlerts } from "@/components/dashboard/predictive-alerts";
 import { CropHealthWidget } from "@/components/dashboard/crop-health";
-import { exportParcelsToExcel } from "@/lib/services/excel-export";
-import { generatePdfReport } from "@/lib/pdf-report";
 import { cn } from "@/lib/utils";
 import { coordsOrDefault } from "@/lib/geo";
 
@@ -172,6 +170,7 @@ function Dashboard() {
     const revenues = pnl.data?.totalRevenue ?? 0;
     const margin = revenues - costs;
     const author = profile.data?.full_name ?? undefined;
+    const { generatePdfReport } = await import("@/lib/pdf-report");
     const doc = await generatePdfReport({
       template: "resumen",
       title: selectedFarmer ? `Reporte - ${selectedFarmer.full_name}` : "Reporte General",
@@ -231,7 +230,7 @@ function Dashboard() {
               <Button variant="outline" size="sm" onClick={exportPDF}>
                 <FileSpreadsheet className="size-3.5 mr-1" /> Exportar PDF
               </Button>
-              <Button variant="outline" size="sm" onClick={() => exportParcelsToExcel(filteredParcels)}>
+              <Button variant="outline" size="sm" onClick={async () => { const { exportParcelsToExcel } = await import("@/lib/services/excel-export"); exportParcelsToExcel(filteredParcels); }}>
                 <Download className="size-3.5 mr-1" /> CSV
               </Button>
             </>

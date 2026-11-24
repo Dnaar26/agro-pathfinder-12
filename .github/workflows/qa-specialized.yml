@@ -1,0 +1,44 @@
+name: Specialized QA - Pantalla /chat
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/components/chat/**"
+      - "src/routes/_authenticated/chat.tsx"
+      - "src/lib/api/groq-chat.server.ts"
+      - "src/lib/ai/**"
+      - "e2e/chat-ai.spec.ts"
+      - "qa/**"
+
+jobs:
+  typecheck-and-robot-syntax:
+    name: Typecheck + Robot Framework Validation (/chat)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install -r qa/robot/requirements.txt
+          robot --dryrun --outputdir qa/robot/results qa/robot/chat_ai.robot
+
+  owasp-zap-baseline:
+    name: OWASP ZAP Security Scan (/chat)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run ZAP Baseline against Staging Chat URL
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: "${{ secrets.STAGING_BASE_URL }}/chat"
+          cmd_options: "-a -j"

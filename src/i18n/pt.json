@@ -1,20 +1,21 @@
 {
   "common": {
     "app_name": "SIGIC",
+    "loading": "Carregando…",
     "save": "Salvar",
     "cancel": "Cancelar",
     "delete": "Excluir",
     "edit": "Editar",
     "create": "Criar",
     "search": "Pesquisar…",
-    "loading": "Carregando…",
-    "no_data": "Sem dados",
+    "no_data": "Sem dados disponíveis",
     "back": "Voltar",
+    "next": "Próximo",
     "close": "Fechar"
   },
   "nav": {
     "dashboard": "Início",
-    "parcels": "Fazendas",
+    "parcels": "Parcelas",
     "calendar": "Calendário",
     "alerts": "Alertas",
     "reports": "Relatórios",
@@ -33,38 +34,116 @@
     "main": "Navegação principal"
   },
   "parcels": {
-    "title": "Fazendas",
-    "new": "Nova fazenda",
+    "title": "Parcelas",
+    "new": "Nova parcela",
     "name": "Nome",
     "area_m2": "Área (m²)",
     "soil_type": "Tipo de solo",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
     "notes": "Observações",
-    "map_view": "Vista mapa"
+    "use_gps": "Usar minha localização",
+    "draw_polygon": "Desenhar polígono",
+    "polygon_area": "Área calculada: {{area}} ha",
+    "total_area": "Área total",
+    "crops": "Cultivos",
+    "active_crops": "Cultivos ativos",
+    "no_parcels": "Nenhuma parcela cadastrada",
+    "created": "Parcela criada",
+    "map_view": "Vista do mapa"
   },
   "weather": {
     "title": "Clima",
     "forecast": "Previsão",
     "temperature": "Temperatura",
     "precipitation": "Precipitação",
+    "humidity": "Umidade",
+    "wind": "Vento",
     "frost_alert": "❄️ Alerta de geada para {{date}}",
-    "rain_alert": "🌧️ Alerta de chuva forte para {{date}}",
+    "rain_alert": "🌧️ Alerta de chuva intensa para {{date}}",
+    "no_forecast": "Sem previsão disponível",
     "update_failed": "Não foi possível atualizar a previsão. Verifique a conexão e tente novamente.",
     "retry": "Tentar previsão novamente"
   },
+  "ndvi": {
+    "title": "NDVI — Saúde da lavoura",
+    "healthy": "Saudável",
+    "moderate": "Moderado",
+    "stressed": "Estressado",
+    "no_data": "Sem dados NDVI disponíveis. Tente mais tarde.",
+    "last_update": "Última atualização: {{date}}"
+  },
+  "costs": {
+    "title": "Custos e Rentabilidade",
+    "cost_per_ha": "Custo/ha",
+    "total_cost": "Custo total",
+    "total_revenue": "Receita total",
+    "margin": "Margem",
+    "costs": "Custos",
+    "harvests": "Colheitas",
+    "kind": "Tipo",
+    "description": "Descrição",
+    "qty": "Quantidade",
+    "unit_cost": "Custo unit.",
+    "total": "Total",
+    "add_cost": "Adicionar custo",
+    "add_harvest": "Adicionar colheita"
+  },
   "inventory": {
     "title": "Estoque",
-    "low_stock_alert": "⚠️ Estoque baixo: {{name}} ({{stock}} {{unit}})"
+    "item_name": "Nome do insumo",
+    "stock": "Estoque",
+    "min_stock": "Estoque mín.",
+    "unit": "Unidade",
+    "unit_cost": "Custo/un.",
+    "add_item": "Adicionar insumo",
+    "movement": "Movimentação",
+    "entry": "Entrada",
+    "exit": "Saída",
+    "adjust": "Ajuste",
+    "low_stock_alert": "⚠️ Estoque baixo: {{name}} ({{stock}} {{unit}})",
+    "restock_alert": "Reposição necessária para {{name}}"
+  },
+  "traceability": {
+    "title": "Rastreabilidade",
+    "batch_code": "Código do lote",
+    "qr": "Código QR",
+    "harvest_date": "Data da colheita",
+    "qty": "Quantidade",
+    "globalgap": "Certificado GLOBALG.A.P.",
+    "create_batch": "Criar lote",
+    "print_qr": "Imprimir QR",
+    "scan_qr": "Escaneie o QR para rastrear"
   },
   "chat": {
-    "title": "Assistente IA",
+    "title": "Assistente Agronômico IA",
     "placeholder": "Pergunte sobre pragas, doenças, adubação…",
+    "upload_photo": "Envie uma foto da folha para diagnóstico",
     "analyzing": "Analisando…",
-    "error": "Não foi possível processar."
+    "error": "Desculpe, não foi possível processar essa solicitação."
+  },
+  "reports": {
+    "title": "Relatórios",
+    "export_excel": "Exportar Excel",
+    "schedule_email": "Agendar relatório por e-mail",
+    "daily": "Diário",
+    "weekly": "Semanal",
+    "monthly": "Mensal",
+    "recipients": "Destinatários",
+    "template": "Modelo"
+  },
+  "audit": {
+    "title": "Auditoria",
+    "action": "Ação",
+    "table": "Tabela",
+    "user": "Usuário",
+    "date": "Data",
+    "details": "Detalhes"
   },
   "alerts": {
-    "frost": "Geada",
-    "rain": "Chuva",
-    "stock": "Estoque"
+    "frost": "Alerta de geada",
+    "rain": "Alerta de chuva",
+    "stock": "Alerta de estoque"
   },
   "shell": {
     "search_placeholder": "Buscar parcelas, cultivos ou atividades…",

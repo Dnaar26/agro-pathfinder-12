@@ -3,6 +3,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { handleDirectChatHttpRequest } from "./lib/api/groq-chat.server";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -19,8 +20,6 @@ async function getServerEntry(): Promise<ServerEntry> {
   return serverEntryPromise;
 }
 
-// h3 swallows in-handler throws into a normal 500 Response with body
-// {"unhandled":true,"message":"HTTPError"} — try/catch alone never fires for those.
 async function normalizeCatastrophicSsrResponse(response: Response): Promise<Response> {
   if (response.status < 500) return response;
   const contentType = response.headers.get("content-type") ?? "";
@@ -43,6 +42,8 @@ function buildContentSecurityPolicy() {
     "'self'",
     "https://*.supabase.co",
     "https://api.open-meteo.com",
+    "https://*.clarity.ms",
+    "https://c.bing.com",
   ];
   if (process.env.NODE_ENV !== "production") {
     connectSrc.push("ws://localhost:*", "ws://127.0.0.1:*", "http://localhost:*", "http://127.0.0.1:*");
@@ -62,7 +63,7 @@ function buildContentSecurityPolicy() {
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' https://www.clarity.ms https://*.clarity.ms",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",
@@ -111,7 +112,7 @@ function getReadinessResponse() {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const allowedOrigins = process.env.APP_ALLOWED_ORIGINS;
+  const allowedOrigins = process.env.APP_ALLOWED_ORIGINS ?? process.env.RENDER_EXTERNAL_URL ?? process.env.VERCEL_URL;
   const isProduction = process.env.NODE_ENV === "production";
   const checks = {
     supabase_url: Boolean(supabaseUrl),
@@ -151,6 +152,10 @@ export default {
       }
       if (url.pathname === "/readyz") {
         return withRequestId(withSecurityHeaders(getReadinessResponse()), requestId);
+      }
+      if ((url.pathname === "/api/chat" || url.pathname === "/api/chat/stream") && request.method === "POST") {
+        const chatResponse = await handleDirectChatHttpRequest(request, url.pathname.endsWith("/stream"));
+        return withRequestId(withSecurityHeaders(chatResponse), requestId);
       }
 
       const handler = await getServerEntry();

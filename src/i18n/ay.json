@@ -24,7 +24,14 @@
     "map": "Mapa",
     "crops": "Cultivos",
     "chat": "Yanapa IA",
-    "sign_out": "Mistuña"
+    "sign_out": "Mistuña",
+    "group_field": "Yapu",
+    "group_manage": "Apnaqawi",
+    "group_insights": "Uñakipawi",
+    "group_admin": "Jach'a kamachi",
+    "audit": "Qillqa uñjaña",
+    "more": "Juk'ampi",
+    "main": "Nayriri thakhi"
   },
   "parcels": {
     "title": "Yapuchakuna",
@@ -54,7 +61,9 @@
     "wind": "Thaya",
     "frost_alert": "❄️ Thaya ch'iji: {{date}}",
     "rain_alert": "🌧️ Jallu: {{date}}",
-    "no_forecast": "Jan yatxatawi utjki"
+    "no_forecast": "Jan yatxatawi utjki",
+    "update_failed": "Janiw pacha yatxatawi machaqachañjamäkiti. Tinkisiwi uñakipasa wasitata luram.",
+    "retry": "Wasitata yant'aña"
   },
   "ndvi": {
     "title": "NDVI — Yapu qhana",
@@ -92,7 +101,8 @@
     "exit": "Mista",
     "adjust": "Mayjt'ayaña",
     "low_stock_alert": "⚠️ Jak'atki: {{name}} ({{stock}} {{unit}})",
-    "restock_alert": "{{name}} apthapiña"
+    "restock_alert": "{{name}} apthapiña",
+    "movement": "Sarawi"
   },
   "traceability": {
     "title": "Uñjaña",
@@ -134,5 +144,25 @@
     "frost": "Thaya ch'iji",
     "rain": "Jallu",
     "stock": "Imilla willa"
+  },
+  "shell": {
+    "search_placeholder": "Yapuchakuna, yapuchawinaka jan ukax lurawinaka thaqhaña…",
+    "search_button": "Thaqhaña",
+    "no_results": "Janiw jikxataskiti",
+    "searching": "Thaqhaskiwa…",
+    "search_error": "Janiw thaqhawi phuqhañjamäkiti.",
+    "retry": "Wasitata thaqhaña",
+    "crops": "Yapuchawinaka",
+    "parcels": "Yapuchakuna",
+    "calendar": "Lurawinaka",
+    "edit_profile": "Jaqi uñnaqa mayjt'ayaña",
+    "open_menu": "Menu jist'araña",
+    "role_admin": "Apnaqiri",
+    "role_tecnico": "Yatxatata yanapiri",
+    "role_agricultor": "Yapuchiri",
+    "notifications": "Willtanaka",
+    "online": "Tinkisita",
+    "offline": "Jan tinkisita",
+    "language": "Aru"
   }
 }

@@ -16,7 +16,7 @@ test.describe("TDD: disponibilidad y autenticacion", () => {
     await page.goto("/auth");
     await page.fill("#email", "invalido@dominio.test");
     await page.fill("#password", "ClaveInvalida123!");
-    await page.getByRole("button", { name: "Entrar" }).click();
+    await page.getByRole("button", { name: /Entrar|Iniciar Sesi[oó]n/i }).click();
 
     await expect(page.getByText(/Correo o contraseña incorrectos|Correo inválido/i)).toBeVisible({ timeout: 5_000 });
     await expect(page).not.toHaveURL(/\/dashboard/);

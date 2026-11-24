@@ -101,7 +101,8 @@
     "exit": "Salida",
     "adjust": "Ajuste",
     "low_stock_alert": "⚠️ Stock bajo: {{name}} ({{stock}} {{unit}})",
-    "restock_alert": "Reposición necesaria para {{name}}"
+    "restock_alert": "Reposición necesaria para {{name}}",
+    "movement": "Movimiento"
   },
   "traceability": {
     "title": "Trazabilidad",

@@ -24,7 +24,14 @@
     "map": "Mapa",
     "crops": "Cultivos",
     "chat": "Yanapaq IA",
-    "sign_out": "Lluqsiy"
+    "sign_out": "Lluqsiy",
+    "group_field": "Chakra",
+    "group_manage": "Kamachiy",
+    "group_insights": "Qhawaykuna",
+    "group_admin": "Hatun kamachiy",
+    "audit": "Yupay qhaway",
+    "more": "Aswan",
+    "main": "Qhapaq ñan"
   },
   "parcels": {
     "title": "Chakrakuna",
@@ -54,7 +61,9 @@
     "wind": "Wayra",
     "frost_alert": "❄️ Qasachikuq: {{date}}",
     "rain_alert": "🌧️ Sinchi para: {{date}}",
-    "no_forecast": "Manam watunakuy kanchu"
+    "no_forecast": "Manam watunakuy kanchu",
+    "update_failed": "Manam watunakuy musuqyachiyta atikurqanchu. Tinkiyta qhawarispa kutimanta ruray.",
+    "retry": "Kutimanta watunakuy"
   },
   "ndvi": {
     "title": "NDVI — Tarpuy qhaway",
@@ -92,7 +101,8 @@
     "exit": "Lluqsiy",
     "adjust": "Allichay",
     "low_stock_alert": "⚠️ Pisiyachkan: {{name}} ({{stock}} {{unit}})",
-    "restock_alert": "{{name}} hunt'achiy"
+    "restock_alert": "{{name}} hunt'achiy",
+    "movement": "Kuyuy"
   },
   "traceability": {
     "title": "Qhaway",
@@ -134,5 +144,25 @@
     "frost": "Qasachikuq",
     "rain": "Para",
     "stock": "Qhapaq willakuy"
+  },
+  "shell": {
+    "search_placeholder": "Chakrakunata, tarpuykunata icha ruraykunata maskhay…",
+    "search_button": "Maskhay",
+    "no_results": "Manam tarisqachu",
+    "searching": "Maskhachkan…",
+    "search_error": "Manam maskhayta tukuyta atikurqanchu.",
+    "retry": "Kutimanta maskhay",
+    "crops": "Tarpuykuna",
+    "parcels": "Chakrakuna",
+    "calendar": "Ruraykuna",
+    "edit_profile": "Kikinta allichay",
+    "open_menu": "Menuta kichay",
+    "role_admin": "Kamachiq",
+    "role_tecnico": "Yachaq yanapaq",
+    "role_agricultor": "Chakraruna",
+    "notifications": "Willakuykuna",
+    "online": "Tinkisqa",
+    "offline": "Mana tinkisqa",
+    "language": "Simi"
   }
 }

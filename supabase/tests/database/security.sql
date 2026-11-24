@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 
 BEGIN;
 
-SELECT plan(44);
+SELECT plan(52);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.profiles'::regclass),
@@ -285,6 +285,53 @@ SELECT ok(
   EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pest_incidents'
     AND policyname = 'pest incidents assigned technician insert' AND cmd = 'INSERT' AND with_check LIKE '%can_access_crop%'),
   'assigned technicians can report pests on accessible crops'
+);
+
+
+SELECT ok(
+  NOT has_function_privilege('anon', 'public.check_email_exists(text)', 'execute'),
+  'anon cannot enumerate registered emails via check_email_exists'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.ai_chat_rate_limits'::regclass),
+  'ai_chat_rate_limits has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.ai_conversations'::regclass),
+  'ai_conversations has RLS enabled'
+);
+SELECT ok(
+  NOT has_function_privilege('anon', 'public.consume_ai_chat_quota(integer,integer)', 'execute')
+  AND has_function_privilege('authenticated', 'public.consume_ai_chat_quota(integer,integer)', 'execute'),
+  'AI chat quota RPC is restricted to authenticated users'
+);
+
+
+SELECT ok(
+  has_function_privilege('anon', 'public.get_public_trace_batch(text)', 'execute')
+  AND has_function_privilege('authenticated', 'public.get_public_trace_batch(text)', 'execute'),
+  'public traceability RPC is executable by anon and authenticated users'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE oid = 'public.get_public_trace_batch(text)'::regprocedure
+      AND proconfig @> ARRAY['search_path=public, pg_temp']
+  ),
+  'get_public_trace_batch has a hardened search_path'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.client_error_logs'::regclass),
+  'client_error_logs has RLS enabled'
+);
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'client_error_logs'
+      AND roles::text[] && ARRAY['anon']
+  ),
+  'anon users cannot read or write client_error_logs'
 );
 
 SELECT * FROM finish();

@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { captureAppError } from "@/lib/services/error-monitoring";
 
 interface Props {
   children: ReactNode;
@@ -35,7 +36,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     // Registrar en consola para depuración; en producción podrías enviar a Sentry.
-    console.error("[ErrorBoundary]", error, info.componentStack);
+    captureAppError(error, { boundary: "ErrorBoundary", componentStack: info.componentStack?.slice(0, 1000) });
     this.props.onError?.(error, info);
   }
 
@@ -91,7 +92,7 @@ export class RouteErrorBoundary extends Component<Omit<Props, "fullPage">, State
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("[RouteErrorBoundary]", error, info.componentStack);
+    captureAppError(error, { boundary: "RouteErrorBoundary", componentStack: info.componentStack?.slice(0, 1000) });
     this.props.onError?.(error, info);
   }
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Bot, Lightbulb, Loader2, AlertCircle } from "lucide-react";
 import { chatWithGroq } from "@/lib/api/groq-chat.server";
+import { MarkdownMessage } from "@/components/chat/markdown-message";
 
 interface AiInsightsProps {
   activities: any[];
@@ -86,8 +87,8 @@ Resumen de datos del sistema SIGIC:
       )}
 
       {insight && (
-        <div className="p-4 rounded-lg bg-primary/5 border border-primary/10 text-sm leading-relaxed whitespace-pre-line">
-          {insight}
+        <div className="p-4 rounded-lg bg-primary/5 border border-primary/10 text-sm leading-relaxed">
+          <MarkdownMessage content={insight} compact />
         </div>
       )}
 

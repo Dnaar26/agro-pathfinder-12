@@ -1,0 +1,39 @@
+env:
+  contexts:
+    - name: "SIGIC-Chat-Screen"
+      urls:
+        - "http://host.docker.internal:8080"
+      includePaths:
+        - "http://host.docker.internal:8080/chat.*"
+        - "http://host.docker.internal:8080/api/chat.*"
+        - "http://host.docker.internal:8080/_server.*"
+      excludePaths:
+        - "http://host.docker.internal:8080/auth.*"
+  parameters:
+    failOnError: true
+    progressToStdout: true
+
+jobs:
+  - type: passiveScan-config
+    parameters:
+      maxAlertsPerRule: 10
+      scanOnlyInScope: true
+  - type: spider
+    parameters:
+      context: "SIGIC-Chat-Screen"
+      url: "http://host.docker.internal:8080/chat"
+      maxDuration: 2
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 3
+  - type: activeScan
+    parameters:
+      context: "SIGIC-Chat-Screen"
+      maxRuleDurationInMins: 2
+      maxScanDurationInMins: 6
+  - type: report
+    parameters:
+      template: "traditional-html-plus"
+      reportDir: "/zap/wrk/reports"
+      reportFile: "zap-sigic-chat-report"
+      reportTitle: "Auditoria DAST OWASP ZAP - SIGIC Pantalla /chat (Puerto 8080)"

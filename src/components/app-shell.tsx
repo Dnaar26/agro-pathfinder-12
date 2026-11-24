@@ -274,7 +274,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh bg-background">
       {/* Barra lateral (escritorio) */}
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r border-sidebar-border md:block">
+      <aside className="sticky top-0 hidden h-dvh md:w-56 lg:w-64 shrink-0 border-r border-sidebar-border md:block">
         {sidebarBody}
       </aside>
 

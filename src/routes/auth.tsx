@@ -193,31 +193,17 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
     setLoading(true);
     const cleanEmail = parsed.data.trim().toLowerCase();
     try {
-      // 1. Validar existencia del usuario en la base de datos (RPC)
-      let exists = false;
-      try {
-        const { data: hasAccount, error } = await (supabase as any).rpc("check_email_exists", {
-          p_email: cleanEmail,
-        });
-        if (!error && hasAccount === true) {
-          exists = true;
-        }
-      } catch (err) {
-        console.warn("RPC check_email_exists:", err);
-      }
-
-      // 2. Solo despacha si el correo realmente existe
-      if (exists) {
-        await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      await requestPasswordReset({
+        data: {
+          email: cleanEmail,
           redirectTo: `${window.location.origin}/reset-password`,
-        });
-      }
+        },
+      });
     } catch (e) {
       console.warn("Error en recuperación de contraseña:", e);
     } finally {
       setLoading(false);
-      // Responder SIEMPRE con mensaje neutral uniforme
-      toast.success("Si el correo está registrado, recibirás un código de recuperación.");
+      toast.success("Si el correo está registrado, recibirás un enlace de recuperación.");
       setResetEmail("");
     }
   }
@@ -312,19 +298,7 @@ export function AuthPage({ initialTab }: { initialTab?: "login" | "signup" } = {
         console.warn("Aviso en validación MX:", mxErr);
       }
 
-      // 1. Pre-verificación RPC para comprobar si el correo ya existe
-      try {
-        const { data: exists } = await (supabase as any).rpc("check_email_exists", {
-          p_email: cleanEmail,
-        });
-        if (exists === true) {
-          setSignupErrors((prev) => ({ ...prev, email: "Este correo ya está en uso" }));
-          toast.error("Este correo ya está en uso");
-          return;
-        }
-      } catch {
-        // En caso de que la función SQL no esté creada aún en la base de datos, continúa con la verificación de Supabase Auth
-      }
+      // La existencia previa del correo la resuelve directamente Supabase Auth sin exponer enumeración RPC a usuarios anónimos
 
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,

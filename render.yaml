@@ -2,7 +2,7 @@ services:
   - type: web
     name: sigic
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: npm ci --include=dev --ignore-scripts && npm run build
     startCommand: npm run start
     healthCheckPath: /healthz
@@ -41,4 +41,8 @@ services:
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_SECRET
+        sync: false
+      - key: VITE_CLARITY_PROJECT_ID
+        sync: false
+      - key: VITE_ERROR_WEBHOOK_URL
         sync: false

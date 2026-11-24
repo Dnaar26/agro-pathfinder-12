@@ -41,11 +41,25 @@ function AlertsPage() {
       const { error } = await supabase.from("alerts").update({ status: status as any }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onMutate: async ({ id, status }) => {
+      await qc.cancelQueries({ queryKey: ["alerts"] });
+      const previousAlerts = qc.getQueryData<any[]>(["alerts"]);
+      if (previousAlerts) {
+        qc.setQueryData(
+          ["alerts"],
+          previousAlerts.map((a) => (a.id === id ? { ...a, status } : a)),
+        );
+      }
+      return { previousAlerts };
+    },
+    onError: (e: Error, _vars, ctx) => {
+      if (ctx?.previousAlerts) qc.setQueryData(["alerts"], ctx.previousAlerts);
+      toast.error(e.message);
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["alerts"] });
       qc.invalidateQueries({ queryKey: ["pending-alerts-count"] });
     },
-    onError: (e: Error) => toast.error(e.message),
   });
 
   const [historyPage, setHistoryPage] = useState(1);

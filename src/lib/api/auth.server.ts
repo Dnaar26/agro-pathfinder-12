@@ -249,28 +249,13 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
     const client = authClient();
     const cleanEmail = data.email.trim().toLowerCase();
 
-    // Validar existencia del usuario en la base de datos
-    let exists = false;
+    // Supabase Auth gestiona internamente si el correo existe sin exponer enumeración pública a anon
     try {
-      const { data: hasAccount, error } = await client.rpc("check_email_exists", {
-        p_email: cleanEmail,
+      await client.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: data.redirectTo,
       });
-      if (!error && hasAccount === true) {
-        exists = true;
-      }
     } catch (e) {
-      console.warn("[requestPasswordReset] Error verificando existencia de correo:", e);
-    }
-
-    // Solo despacha el restablecimiento de contraseña si el correo existe en la BD
-    if (exists) {
-      try {
-        await client.auth.resetPasswordForEmail(cleanEmail, {
-          redirectTo: data.redirectTo,
-        });
-      } catch (e) {
-        console.warn("[requestPasswordReset] Error enviando correo de restablecimiento:", e);
-      }
+      console.warn("[requestPasswordReset] Aviso procesando solicitud de restablecimiento:", e);
     }
 
     // Responder siempre con mensaje neutral para evitar enumeración de cuentas

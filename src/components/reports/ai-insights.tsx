@@ -52,7 +52,8 @@ Resumen de datos del sistema SIGIC:
             },
             { role: "user", content: dataSummary },
           ],
-                    max_tokens: 600,
+                    max_tokens: 550,
+          mode: "fast",
         },
       });
       setInsight(reply);

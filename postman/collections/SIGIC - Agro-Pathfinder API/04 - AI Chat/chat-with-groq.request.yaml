@@ -3,7 +3,7 @@ name: Chat with Groq
 order: 1000
 method: POST
 url: '{{base_url}}/_server/fn/chatWithGroq'
-description: 'Send a chat message to the Groq LLM (llama-3.3-70b-versatile). Requires Bearer token auth and same-origin request.'
+description: 'Send a chat message to the Groq LLM (openai/gpt-oss-120b). Requires Bearer token auth and same-origin request.'
 headers:
   - key: Authorization
     value: 'Bearer {{access_token}}'
@@ -23,7 +23,7 @@ body:
           "content": "¿Cuáles son las mejores prácticas para el cultivo de papa?"
         }
       ],
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "max_tokens": 1024
     }
 scripts:

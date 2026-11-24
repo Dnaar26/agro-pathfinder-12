@@ -1,4 +1,4 @@
-const CACHE = "sigic-v8";
+const CACHE = "sigic-v9";
 const APP_SHELL = [
   "/",
   "/offline",
@@ -28,6 +28,15 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // Nunca interceptar streaming SSE ni mutaciones POST/PUT/DELETE para evitar retención de chunks en Chromium
+  if (
+    request.method !== "GET" ||
+    url.pathname.startsWith("/api/chat/") ||
+    request.headers.get("accept")?.includes("text/event-stream")
+  ) {
+    return;
+  }
   const acceptsJson = request.headers.get("accept")?.includes("application/json");
   const isRpcOrApi = url.pathname.startsWith("/api/") || url.pathname.startsWith("/_server") || acceptsJson;
 

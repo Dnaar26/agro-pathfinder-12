@@ -93,6 +93,12 @@ export function WeatherForecast({ lat, lng, parcelName }: { lat: number; lng: nu
                   <span className="flex items-center gap-0.5">
                     <Wind className="size-3 text-sky-500" />{Math.round(d.wind)}
                   </span>
+                  {d.humidity > 0 && (
+                    <>
+                      <span className="text-border/30">·</span>
+                      <span>{d.humidity}%</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

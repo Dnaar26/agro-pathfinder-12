@@ -1,6 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
+  "headers": [
+    {
+      "source": "/api/chat/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-transform" },
+        { "key": "X-Accel-Buffering", "value": "no" }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/_server/(.*)", "destination": "/_server/$1" },
     { "source": "/api/(.*)", "destination": "/api/$1" },

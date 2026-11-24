@@ -2,7 +2,7 @@ name: Staging
 
 on:
   push:
-    branches: [develop]
+    branches: [main, develop]
   workflow_dispatch:
 
 permissions:
@@ -13,6 +13,7 @@ env:
 
 jobs:
   migrate-and-test:
+    if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' }}
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 30

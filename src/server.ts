@@ -3,7 +3,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-import { handleDirectChatHttpRequest } from "./lib/api/groq-chat.server";
+import { handleDirectChatHttpRequest, handleVoiceTranscribeHttpRequest } from "./lib/api/groq-chat.server";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -81,7 +81,7 @@ function withSecurityHeaders(response: Response): Response {
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "DENY");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  headers.set("Permissions-Policy", "camera=(self), geolocation=(self), microphone=(), payment=(), usb=()");
+  headers.set("Permissions-Policy", "camera=(self), geolocation=(self), microphone=(self), payment=(), usb=()");
   headers.set("Content-Security-Policy", buildContentSecurityPolicy());
   if (process.env.NODE_ENV === "production") {
     headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
@@ -156,6 +156,10 @@ export default {
       if ((url.pathname === "/api/chat" || url.pathname === "/api/chat/stream") && request.method === "POST") {
         const chatResponse = await handleDirectChatHttpRequest(request, url.pathname.endsWith("/stream"));
         return withRequestId(withSecurityHeaders(chatResponse), requestId);
+      }
+      if (url.pathname === "/api/chat/transcribe" && request.method === "POST") {
+        const voiceResponse = await handleVoiceTranscribeHttpRequest(request);
+        return withRequestId(withSecurityHeaders(voiceResponse), requestId);
       }
 
       const handler = await getServerEntry();

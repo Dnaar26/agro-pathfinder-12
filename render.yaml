@@ -2,7 +2,7 @@ services:
   - type: web
     name: sigic
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm ci --include=dev --ignore-scripts && npm run build
     startCommand: npm run start
     healthCheckPath: /healthz
@@ -45,4 +45,8 @@ services:
       - key: VITE_CLARITY_PROJECT_ID
         sync: false
       - key: VITE_ERROR_WEBHOOK_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
         sync: false

@@ -32,6 +32,7 @@ const dailySchema = z.object({
   precipitation_sum: z.array(z.number().nullable()).optional(),
   precipitation_probability_max: z.array(z.number().nullable()).optional(),
   wind_speed_10m_max: z.array(z.number().nullable()).optional(),
+  relative_humidity_2m_mean: z.array(z.number().nullable()).optional(),
 });
 
 const weatherResponseSchema = z.object({ daily: dailySchema });
@@ -41,9 +42,10 @@ export async function fetchWeatherForecast(lat: number, lng: number): Promise<We
 
   try {
     const params = new URLSearchParams({
-      latitude: String(lat),
-      longitude: String(lng),
-      daily: "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max",
+      latitude: String(Number(lat.toFixed(3))),
+      longitude: String(Number(lng.toFixed(3))),
+      daily:
+        "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,relative_humidity_2m_mean",
       timezone: "auto",
       forecast_days: "7",
     });
@@ -60,15 +62,17 @@ export async function fetchWeatherForecast(lat: number, lng: number): Promise<We
       const tempMax = readDailyValue(parsed.data.daily.temperature_2m_max, index);
       const tempMin = readDailyValue(parsed.data.daily.temperature_2m_min, index);
       if (tempMax === null || tempMin === null) return [];
-      return [{
-        date,
-        tempMax,
-        tempMin,
-        precip: readDailyValue(parsed.data.daily.precipitation_sum, index) ?? 0,
-        precipProb: readDailyValue(parsed.data.daily.precipitation_probability_max, index) ?? 0,
-        wind: readDailyValue(parsed.data.daily.wind_speed_10m_max, index) ?? 0,
-        humidity: 0,
-      }];
+      return [
+        {
+          date,
+          tempMax,
+          tempMin,
+          precip: readDailyValue(parsed.data.daily.precipitation_sum, index) ?? 0,
+          precipProb: readDailyValue(parsed.data.daily.precipitation_probability_max, index) ?? 0,
+          wind: readDailyValue(parsed.data.daily.wind_speed_10m_max, index) ?? 0,
+          humidity: Math.round(readDailyValue(parsed.data.daily.relative_humidity_2m_mean, index) ?? 0),
+        },
+      ];
     });
 
     if (daily.length === 0) throw new Error("Weather response has no usable forecast days");

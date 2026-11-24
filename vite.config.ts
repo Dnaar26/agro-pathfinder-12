@@ -45,7 +45,7 @@ export default defineConfig({
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
         "Referrer-Policy": "strict-origin-when-cross-origin",
-        "Permissions-Policy": "camera=(), microphone=(), geolocation=(self)",
+        "Permissions-Policy": "camera=(self), microphone=(self), geolocation=(self)",
       },
     },
   },

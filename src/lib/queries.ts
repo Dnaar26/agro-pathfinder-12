@@ -27,17 +27,24 @@ async function fetchAllReportPages(buildQuery: (from: number, to: number) => any
   }
 }
 
+async function getFastSessionUser() {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (sessionData.session?.user) return sessionData.session.user;
+  const { data: userData } = await supabase.auth.getUser();
+  return userData.user ?? null;
+}
+
 export async function getMyProfile() {
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) return null;
-  const { data } = await supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle();
+  const user = await getFastSessionUser();
+  if (!user) return null;
+  const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
   return data;
 }
 
 export async function getMyRoles(): Promise<string[]> {
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) return [];
-  const { data } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
+  const user = await getFastSessionUser();
+  if (!user) return [];
+  const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
   return (data ?? []).map((r) => r.role as string);
 }
 
@@ -522,8 +529,8 @@ export function inferCategory(name: string): string {
 // ── Farmer Inventory Report ────────────────────────────────────────────────
 
 export async function getMyInventoryReport() {
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) return { items: [], movements: [], lowStock: [] };
+  const user = await getFastSessionUser();
+  if (!user) return { items: [], movements: [], lowStock: [] };
 
   const sb = supabase as any;
   try {
@@ -578,8 +585,8 @@ export async function getMyInventoryReport() {
 // ── Farmer Crop Performance Report ────────────────────────────────────────
 
 export async function getMyCropPerformanceReport() {
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) return [];
+  const user = await getFastSessionUser();
+  if (!user) return [];
 
   const { data: parcels } = await supabase
     .from("parcels")
@@ -608,8 +615,8 @@ export async function getMyCropPerformanceReport() {
 // ── Farmer Pest Incidents Summary ─────────────────────────────────────────
 
 export async function getMyPestIncidentsSummary() {
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) return [];
+  const user = await getFastSessionUser();
+  if (!user) return [];
 
   const { data: parcels } = await supabase
     .from("parcels")
@@ -640,8 +647,8 @@ export async function getMyPestIncidentsSummary() {
 // ── Farmer Projections and Upcoming Tasks ────────────────────────────────
 
 export async function getMyUpcomingHarvestsAndTasks() {
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) return { crops: [], alerts: [], upcomingActivities: [] };
+  const user = await getFastSessionUser();
+  if (!user) return { crops: [], alerts: [], upcomingActivities: [] };
 
   const { data: parcels } = await supabase
     .from("parcels")

@@ -1,0 +1,17 @@
+name: Keep Free Server Warm (Optional)
+
+on:
+  schedule:
+    - cron: "*/14 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    if: ${{ vars.PRODUCTION_HEALTH_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /healthz to prevent free-tier cold start
+        run: curl --fail --silent --max-time 10 "${{ vars.PRODUCTION_HEALTH_URL }}" > /dev/null

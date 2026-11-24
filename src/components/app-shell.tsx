@@ -113,11 +113,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const userProfile = useQuery({
     queryKey: ["user-header"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
-      const { data: p } = await supabase.from("profiles").select("full_name, avatar_url").eq("id", u.user.id).maybeSingle();
-      return { email: u.user.email, fullName: p?.full_name || u.user.user_metadata?.full_name, avatarUrl: p?.avatar_url };
+      const { data: s } = await supabase.auth.getSession();
+      const user = s.session?.user ?? (await supabase.auth.getUser()).data.user;
+      if (!user) return null;
+      const { data: p } = await supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).maybeSingle();
+      return { email: user.email, fullName: p?.full_name || user.user_metadata?.full_name, avatarUrl: p?.avatar_url };
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   useEffect(() => {

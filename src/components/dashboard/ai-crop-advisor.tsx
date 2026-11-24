@@ -108,6 +108,7 @@ Incluye acciones pertinentes para agua, fertilización y prevención de plagas s
             { role: "user", content: prompt },
           ],
           max_tokens: 350,
+          mode: "fast",
         },
       });
       setAdvice(reply);

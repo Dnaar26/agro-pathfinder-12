@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as VitrinaRouteImport } from './routes/vitrina'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
@@ -67,6 +68,11 @@ const RegisterRoute = RegisterRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VitrinaRoute = VitrinaRouteImport.update({
+  id: '/vitrina',
+  path: '/vitrina',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -167,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/offline': typeof OfflineRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/vitrina': typeof VitrinaRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/audit': typeof AuthenticatedAuditRoute
@@ -193,6 +200,7 @@ export interface FileRoutesByTo {
   '/offline': typeof OfflineRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/vitrina': typeof VitrinaRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/audit': typeof AuthenticatedAuditRoute
@@ -221,6 +229,7 @@ export interface FileRoutesById {
   '/offline': typeof OfflineRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/vitrina': typeof VitrinaRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
@@ -249,6 +258,7 @@ export interface FileRouteTypes {
     | '/offline'
     | '/register'
     | '/reset-password'
+    | '/vitrina'
     | '/admin'
     | '/alerts'
     | '/audit'
@@ -275,6 +285,7 @@ export interface FileRouteTypes {
     | '/offline'
     | '/register'
     | '/reset-password'
+    | '/vitrina'
     | '/admin'
     | '/alerts'
     | '/audit'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/offline'
     | '/register'
     | '/reset-password'
+    | '/vitrina'
     | '/_authenticated/admin'
     | '/_authenticated/alerts'
     | '/_authenticated/audit'
@@ -330,6 +342,7 @@ export interface RootRouteChildren {
   OfflineRoute: typeof OfflineRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  VitrinaRoute: typeof VitrinaRoute
   TraceCodeRoute: typeof TraceCodeRoute
 }
 
@@ -382,6 +395,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vitrina': {
+      id: '/vitrina'
+      path: '/vitrina'
+      fullPath: '/vitrina'
+      preLoaderRoute: typeof VitrinaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -573,6 +593,7 @@ const rootRouteChildren: RootRouteChildren = {
   OfflineRoute: OfflineRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  VitrinaRoute: VitrinaRoute,
   TraceCodeRoute: TraceCodeRoute,
 }
 export const routeTree = rootRouteImport

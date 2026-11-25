@@ -1,6 +1,6 @@
 param(
   [string]$BranchName = "main",
-  [string]$CommitMessage = "feat(v5): add 4 commercial modules (soil lab, BPA certification, field labor payroll, crop marketplace) + smart chat-calendar-inventory flow"
+  [string]$CommitMessage = "feat(v6): redesign executive PDF engine, add farmer/tech field workspaces and open public crop showcase (/vitrina)"
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,4 +37,4 @@ if (Test-Path ".env.production") { git reset -- .env.production }
 git commit -m $CommitMessage
 git push -u origin $BranchName
 
-Write-Host "Version v5 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green
+Write-Host "Version v6 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green

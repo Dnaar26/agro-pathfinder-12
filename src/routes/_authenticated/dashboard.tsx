@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { lazy, Suspense, useMemo, useState, useEffect } from "react";
 import { listParcels, listAlerts, getMyProfile, getMyRoles, getMonthlyYield, getTotalPandL, getUpcomingActivities, getTotalInventoryValue } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
-import { MapPin, BellRing, Sprout, ArrowRight, TrendingUp, DollarSign, CalendarDays, Warehouse, Sun, User, FileSpreadsheet, Plus, Download, Droplet, Package, Bug, Scissors, Wheat, Eye, ChevronUp, ChevronDown, Activity, TrendingDown, Zap, Map as MapIcon, BarChart, type LucideIcon } from "lucide-react";
+import { MapPin, BellRing, Sprout, ArrowRight, TrendingUp, DollarSign, CalendarDays, Warehouse, Sun, User, FileSpreadsheet, Plus, Download, Droplet, Package, Bug, Scissors, Wheat, Eye, ChevronUp, ChevronDown, Activity, TrendingDown, Zap, Map as MapIcon, BarChart, Check, MessageCircle, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { coordsOrDefault } from "@/lib/geo";
 
 import { AiCropAdvisor } from "@/components/dashboard/ai-crop-advisor";
+import { RoleFieldWorkspace } from "@/components/dashboard/role-field-workspace";
 import { MarketPrices } from "@/components/dashboard/market-prices";
 
 
@@ -66,6 +68,7 @@ function CollapsibleSection({ title, icon: Icon, children, storageKey, defaultCo
 const formatCOP = (n: number) => '$ ' + n.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 function Dashboard() {
+  const qc = useQueryClient();
   const profile = useQuery({ queryKey: ["profile"], queryFn: getMyProfile });
   const roles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
   const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
@@ -81,6 +84,19 @@ function Dashboard() {
   const pnl = useQuery({ queryKey: ["pnl", farmerFilter], queryFn: () => getTotalPandL(farmerParam) });
   const upcoming = useQuery({ queryKey: ["upcoming", farmerFilter], queryFn: () => getUpcomingActivities(7, farmerParam) });
   const invValue = useQuery({ queryKey: ["inv-value", farmerFilter], queryFn: () => getTotalInventoryValue(farmerParam) });
+
+  const completeUpcomingTask = useMutation({
+    mutationFn: async (eventId: string) => {
+      const { error } = await supabase.rpc("set_calendar_event_done", { p_event_id: eventId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Labor marcada como realizada");
+      qc.invalidateQueries({ queryKey: ["upcoming"] });
+      qc.invalidateQueries({ queryKey: ["events"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const farmersWithStats = useQuery({
     queryKey: ["farmers-stats"],
@@ -267,6 +283,12 @@ function Dashboard() {
         <Button asChild variant="outline" size="sm"><Link to="/chat"><Zap className="size-4 mr-1.5" /> Asistente IA</Link></Button>
         <Button asChild variant="outline" size="sm"><Link to="/reports"><BarChart className="size-4 mr-1.5" /> Ver reportes</Link></Button>
       </div>
+
+      <RoleFieldWorkspace
+        isStaff={isStaff}
+        parcels={filteredParcels}
+        onSelectFarmer={(id) => setFarmerFilter(id)}
+      />
 
       {/* Guía interactiva de primeros pasos para cuentas nuevas o en configuración */}
       {!isStaff && !parcels.isLoading && (filteredParcels.length === 0 || totalCrops === 0 || (invValue.data ?? 0) === 0) && (
@@ -508,6 +530,20 @@ function Dashboard() {
                             )}
                           </div>
                         </div>
+                        {!isStaff && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={completeUpcomingTask.isPending}
+                            onClick={() => completeUpcomingTask.mutate(a.id)}
+                            title="Marcar labor como realizada"
+                            className="h-8 px-2.5 text-xs gap-1 shrink-0"
+                          >
+                            <Check className="size-3.5 text-success" />
+                            Hecho
+                          </Button>
+                        )}
                       </li>
                     );
                   })}
@@ -580,9 +616,22 @@ function FarmerDetail({ farmerId }: { farmerId: string }) {
   return (
     <div className="space-y-5 mt-2">
       <div className="grid grid-cols-2 gap-3">
-        <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
-          <p className="text-sm text-muted-foreground mb-1">Teléfono</p>
-          <p className="font-bold">{d.profile?.phone ?? "—"}</p>
+        <div className="p-4 rounded-xl bg-muted/30 border border-border/50 flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm text-muted-foreground mb-1">Teléfono</p>
+            <p className="font-bold">{d.profile?.phone ?? "—"}</p>
+          </div>
+          {d.profile?.phone && (
+            <Button asChild size="icon" variant="outline" className="size-9 shrink-0" title="Contactar por WhatsApp">
+              <a
+                href={`https://wa.me/${d.profile.phone.replace(/\D/g, "").length === 10 ? "57" + d.profile.phone.replace(/\D/g, "") : d.profile.phone.replace(/\D/g, "")}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <MessageCircle className="size-4 text-primary" />
+              </a>
+            </Button>
+          )}
         </div>
         <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
           <p className="text-sm text-muted-foreground mb-1">Área total</p>

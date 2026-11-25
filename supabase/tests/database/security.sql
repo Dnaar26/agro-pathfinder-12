@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 
 BEGIN;
 
-SELECT plan(56);
+SELECT plan(58);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.profiles'::regclass),
@@ -350,6 +350,21 @@ SELECT ok(
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.harvest_listings'::regclass),
   'harvest_listings has RLS enabled'
+);
+
+
+SELECT ok(
+  has_function_privilege('anon', 'public.get_public_marketplace_listings(uuid)', 'execute')
+  AND has_function_privilege('authenticated', 'public.get_public_marketplace_listings(uuid)', 'execute'),
+  'public marketplace RPC is executable by anon and authenticated buyers'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE oid = 'public.get_public_marketplace_listings(uuid)'::regprocedure
+      AND proconfig @> ARRAY['search_path=public, pg_temp']
+  ),
+  'get_public_marketplace_listings has a hardened search_path'
 );
 
 SELECT * FROM finish();

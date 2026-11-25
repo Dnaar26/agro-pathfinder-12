@@ -23,6 +23,9 @@ import {
   MapPin,
   AlertTriangle,
   Trash2,
+  Share2,
+  ExternalLink,
+  Globe,
 } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrencyInt } from "@/lib/currency";
@@ -227,12 +230,34 @@ function CropMarketplacePage() {
           </p>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-1.5">
-              <Plus className="size-4" /> Publicar cosecha
-            </Button>
-          </DialogTrigger>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={async () => {
+              const uid = sessionUserQuery.data;
+              const url = `${window.location.origin}/vitrina${uid ? `?productor=${uid}` : ""}`;
+              await navigator.clipboard.writeText(url);
+              toast.success("Enlace público copiado. Compártelo por WhatsApp o redes con compradores sin cuenta.");
+            }}
+          >
+            <Share2 className="size-3.5 text-primary" /> Compartir mi catálogo público
+          </Button>
+
+          <Button asChild variant="outline" size="sm" className="gap-1.5 text-xs">
+            <Link to="/vitrina" search={{}} target="_blank">
+              <ExternalLink className="size-3.5" /> Ver vitrina pública
+            </Link>
+          </Button>
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1.5">
+                <Plus className="size-4" /> Publicar cosecha
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Publicar Oferta o Preventa Agrícola</DialogTitle>
@@ -345,8 +370,18 @@ function CropMarketplacePage() {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </header>
+
+      <Card className="p-3.5 border-primary/25 bg-primary/5 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          <Globe className="size-4 text-primary shrink-0" />
+          <span>
+            <strong>Visibilidad dual activa:</strong> Tus ofertas en estado <strong>DISPONIBLE</strong> o <strong>PREVENTA</strong> son visibles tanto aquí dentro de SIGIC como en la ruta pública abierta <strong>/vitrina</strong> para compradores externos sin necesidad de cuenta.
+          </span>
+        </div>
+      </Card>
 
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">

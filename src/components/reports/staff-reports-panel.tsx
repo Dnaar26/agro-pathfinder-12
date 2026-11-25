@@ -1,15 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useMemo, useState } from "react";
-import { listAllPestIncidentsGlobal, getGlobalProductivityRanking, getGlobalInventoryConsolidated, listTechnicalAssistance } from "@/lib/queries";
+import { listAllPestIncidentsGlobal, getGlobalProductivityRanking, getGlobalInventoryConsolidated, listTechnicalAssistance, listAllCrops } from "@/lib/queries";
 import { generatePdfReport } from "@/lib/pdf-report";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
-import { Bug, Trophy, Package, Wrench, Download, FileSpreadsheet, Layers, DollarSign, TrendingUp, MapPin, AlertTriangle, User, Activity, Loader2, Wheat } from "lucide-react";
+import { Bug, Trophy, Package, Wrench, Download, FileSpreadsheet, Layers, DollarSign, TrendingUp, MapPin, AlertTriangle, User, Activity, Loader2, Wheat, Plus } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrencyInt } from "@/lib/currency";
 import { CHART_COLORS } from "@/lib/chart-colors";
@@ -46,8 +52,44 @@ function SummaryBarChart({ title, data, loading, formatValue = (value) => value.
 }
 
 export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" }) {
+  const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState(userRole === "tecnico" ? "plagas-zonales" : "ranking");
   const [exporting, setExporting] = useState(false);
+  const [visitOpen, setVisitOpen] = useState(false);
+  const [visitCropId, setVisitCropId] = useState("");
+  const [visitKind, setVisitKind] = useState("MONITOREO");
+  const [visitNotes, setVisitNotes] = useState("");
+
+  const accessibleCropsQuery = useQuery({
+    queryKey: ["staff-accessible-crops"],
+    queryFn: listAllCrops,
+  });
+
+  const registerVisitMutation = useMutation({
+    mutationFn: async () => {
+      if (!visitCropId) throw new Error("Selecciona el cultivo visitado");
+      const { data: s } = await supabase.auth.getSession();
+      const uid = s.session?.user?.id ?? (await supabase.auth.getUser()).data.user?.id;
+      if (!uid) throw new Error("Sesión expirada");
+
+      const { error } = await supabase.from("activities").insert({
+        crop_id: visitCropId,
+        responsible_id: uid,
+        kind: visitKind as any,
+        performed_at: new Date().toISOString(),
+        notes: visitNotes.trim() ? `[VISITA TÉCNICA] ${visitNotes.trim()}` : "[VISITA TÉCNICA] Seguimiento en campo",
+        photo_urls: [],
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Visita técnica registrada en la bitácora oficial");
+      qc.invalidateQueries({ queryKey: ["technical-visits"] });
+      setVisitOpen(false);
+      setVisitNotes("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const [pestSearch, setPestSearch] = useState("");
   const [pestSeverityFilter, setPestSeverityFilter] = useState("ALL");
 
@@ -437,6 +479,72 @@ export function StaffReportsPanel({ userRole }: { userRole: "tecnico" | "admin" 
           <p className="text-xs text-muted-foreground mt-0.5">Módulos analíticos para supervisión agronómica, sanidad zonal y productividad.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Dialog open={visitOpen} onOpenChange={setVisitOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10">
+                <Plus className="size-3.5" /> Registrar visita técnica
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Registrar Asistencia / Visita en Campo</DialogTitle>
+              </DialogHeader>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  registerVisitMutation.mutate();
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Cultivo y productor atendido *</Label>
+                  <Select value={visitCropId} onValueChange={setVisitCropId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar lote asignado…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(accessibleCropsQuery.data ?? []).map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.crop_catalog?.name ?? "Cultivo"} — {c.parcels?.name ?? "Parcela"} ({c.parcels?.profiles?.full_name ?? "Productor"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tipo de intervención</Label>
+                  <Select value={visitKind} onValueChange={setVisitKind}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MONITOREO">Monitoreo agronómico / fenológico</SelectItem>
+                      <SelectItem value="CONTROL_PLAGAS">Inspección y manejo fitosanitario</SelectItem>
+                      <SelectItem value="FERTILIZACION">Recomendación nutricional</SelectItem>
+                      <SelectItem value="RIEGO">Evaluación de riego y drenaje</SelectItem>
+                      <SelectItem value="PODA">Manejo cultural / Poda</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Hallazgos y recomendaciones dejadas en finca *</Label>
+                  <Textarea
+                    rows={3}
+                    placeholder="Describe estado del cultivo, incidencia observada y dosis recomendada…"
+                    value={visitNotes}
+                    onChange={(e) => setVisitNotes(e.target.value)}
+                    required
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={registerVisitMutation.isPending}>
+                    Guardar visita
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
           <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-1.5 text-xs">
             <FileSpreadsheet className="size-3.5 text-primary" />
             Exportar CSV

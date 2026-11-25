@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, Droplets, Leaf, MapPin, PackageCheck, QrCode, Smartphone, Sprout } from "lucide-react";
+import { CalendarClock, Droplets, Leaf, MapPin, PackageCheck, QrCode, Smartphone, Sprout, Store } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -47,6 +47,9 @@ function Landing() {
           <Link to="/" aria-label="SIGIC — Inicio"><Logo size="xs" variant="light" /></Link>
           <nav aria-label="Acceso" className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ThemeToggle className="border-white/20 text-white/80 hover:bg-white/10 hover:text-white" />
+            <Link to="/vitrina" search={{}} className="inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/10 sm:px-3.5 sm:text-sm">
+              <Store className="size-3.5" /> Vitrina de cosechas
+            </Link>
             <Link to="/login" className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/10 sm:px-4 sm:text-sm">
               Iniciar sesión
             </Link>
@@ -75,6 +78,9 @@ function Landing() {
                 </Link>
                 <Link to="/login" className="inline-flex min-h-12 items-center rounded-lg border border-white/30 px-6 text-base font-semibold text-white transition-colors hover:bg-white/10">
                   Ya tengo cuenta
+                </Link>
+                <Link to="/vitrina" search={{}} className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-5 text-base font-semibold text-white transition-colors hover:bg-white/20">
+                  <Store className="size-4" /> Comprar cosechas
                 </Link>
               </div>
             </div>

@@ -45,55 +45,84 @@ const kindIcons: Record<string, any> = {
   MONITOREO: Eye,
 };
 
-export function FarmerReport() {
+export function FarmerReport({ farmerId }: { farmerId?: string } = {}) {
   const [exporting, setExporting] = useState(false);
   const [activeTab, setActiveTab] = useState("resumen");
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
-  // Perfil del agricultor
-  const profile = useQuery({
-    queryKey: ["farmer-report-profile"],
+  const scopeKey = farmerId ?? "self";
+
+  // Resolver ID efectivo (el agricultor autenticado o la finca consultada por Admin/Técnico)
+  const resolvedOwner = useQuery({
+    queryKey: ["farmer-report-owner-id", scopeKey],
     queryFn: async () => {
-      const { data: u, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!u.user) return null;
-      const { data, error } = await supabase.from("profiles").select("full_name, phone").eq("id", u.user.id).maybeSingle();
+      if (farmerId) return farmerId;
+      const { data: s } = await supabase.auth.getSession();
+      if (s.session?.user?.id) return s.session.user.id;
+      const { data: u, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      return u.user?.id ?? null;
+    },
+  });
+
+  const ownerId = resolvedOwner.data ?? null;
+
+  // Perfil del titular de la finca
+  const profile = useQuery({
+    queryKey: ["farmer-report-profile", ownerId],
+    queryFn: async () => {
+      if (!ownerId) return null;
+      const { data, error } = await supabase.from("profiles").select("full_name, phone").eq("id", ownerId).maybeSingle();
       if (error) throw error;
       return {
-        fullName: data?.full_name || u.user.user_metadata?.full_name || "Agricultor",
-        phone: data?.phone || u.user.user_metadata?.phone || "—",
-        email: u.user.email,
+        fullName: data?.full_name || "Productor",
+        phone: data?.phone || "—",
       };
     },
+    enabled: Boolean(ownerId),
   });
 
-  // Parcelas y cultivos
+  // Parcelas y cultivos exclusivos de esta finca
   const parcels = useQuery({
-    queryKey: ["farmer-report-parcels"],
+    queryKey: ["farmer-report-parcels", ownerId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("parcels").select("id, name, area_m2, soil_types(name), crops(id, status, planting_date, estimated_harvest_date, crop_catalog(name, cycle_days))").order("name");
+      if (!ownerId) return [];
+      const { data, error } = await supabase
+        .from("parcels")
+        .select("id, name, area_m2, soil_types(name), crops(id, status, planting_date, estimated_harvest_date, crop_catalog(name, cycle_days))")
+        .eq("owner_id", ownerId)
+        .order("name");
       if (error) throw error;
       return data ?? [];
     },
+    enabled: Boolean(ownerId),
   });
 
-  // Actividades últimos 60 días
+  // Actividades últimos 60 días de esta finca
   const activities = useQuery({
-    queryKey: ["farmer-report-activities"],
+    queryKey: ["farmer-report-activities", ownerId],
     queryFn: async () => {
+      if (!ownerId) return [];
       const since = new Date();
       since.setDate(since.getDate() - 60);
-      const { data, error } = await supabase.from("activities").select("id, kind, performed_at, notes, crops(id, crop_catalog(name), parcels(name))").gte("performed_at", since.toISOString()).order("performed_at", { ascending: false });
+      const { data, error } = await (supabase as any)
+        .from("activities")
+        .select("id, kind, performed_at, notes, crops!inner(id, crop_catalog(name), parcels!inner(name, owner_id))")
+        .eq("crops.parcels.owner_id", ownerId)
+        .gte("performed_at", since.toISOString())
+        .order("performed_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
+    enabled: Boolean(ownerId),
   });
 
-  // Costos y Cosechas
+  // Costos y Cosechas exclusivos de esta finca
   const financials = useQuery({
-    queryKey: ["farmer-report-financials"],
+    queryKey: ["farmer-report-financials", ownerId],
     queryFn: async () => {
+      if (!ownerId) return { costs: [], harvests: [] };
       const sb = supabase as any;
       const loadAll = async (buildQuery: () => any) => {
         const rows: any[] = [];
@@ -105,38 +134,69 @@ export function FarmerReport() {
           if (page.length < 1000) return rows;
         }
       };
-      const [costs, harvests] = await Promise.all([loadAll(() => sb.from("crop_costs").select("id, total, kind, description, created_at, crops(crop_catalog(name))").order("created_at", { ascending: false }).order("id", { ascending: true })), loadAll(() => sb.from("crop_harvests").select("id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops(crop_catalog(name))").order("performed_at", { ascending: false }).order("id", { ascending: true }))]);
+      const [costs, harvests] = await Promise.all([
+        loadAll(() =>
+          sb
+            .from("crop_costs")
+            .select("id, total, kind, description, created_at, crops!inner(crop_catalog(name), parcels!inner(owner_id))")
+            .eq("crops.parcels.owner_id", ownerId)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        ),
+        loadAll(() =>
+          sb
+            .from("crop_harvests")
+            .select("id, harvested_qty, unit, sale_price, total_revenue, performed_at, crops!inner(crop_catalog(name), parcels!inner(owner_id))")
+            .eq("crops.parcels.owner_id", ownerId)
+            .order("performed_at", { ascending: false })
+            .order("id", { ascending: true })
+        ),
+      ]);
       return { costs, harvests };
     },
+    enabled: Boolean(ownerId),
   });
 
-  // Alertas
+  // Alertas pendientes de esta finca
   const alerts = useQuery({
-    queryKey: ["farmer-report-alerts"],
+    queryKey: ["farmer-report-alerts", ownerId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("alerts").select("id, title, body, status, kind, created_at").eq("status", "PENDIENTE").order("created_at", { ascending: false });
+      if (!ownerId) return [];
+      const { data, error } = await supabase
+        .from("alerts")
+        .select("id, title, body, status, kind, created_at")
+        .eq("user_id", ownerId)
+        .eq("status", "PENDIENTE")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
+    enabled: Boolean(ownerId),
   });
 
-  // Inventario (para incluir resumen en PDF principal)
+  // Inventario exclusivo de esta finca
   const inventory = useQuery({
-    queryKey: ["farmer-inventory-overview"],
+    queryKey: ["farmer-inventory-overview", ownerId],
     queryFn: async () => {
-      const { data: u, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!u.user) return { items: [], lowStock: [] };
-      const { data, error } = await (supabase as any).from("inventory_items").select("*").eq("owner_id", u.user.id).order("name");
+      if (!ownerId) return { items: [], lowStock: [] };
+      const { data, error } = await (supabase as any)
+        .from("inventory_items")
+        .select("*")
+        .eq("owner_id", ownerId)
+        .order("name");
       if (error) throw error;
       const rawItems = (data ?? []) as any[];
-      const items = rawItems.map((i) => ({
-        ...i,
-        category: i.category || inferCategory(i.name),
-      }));
+      const items = rawItems.map((i) => {
+        const rawCat = i.category || inferCategory(i.name);
+        return {
+          ...i,
+          category: rawCat === "Pesticida" ? "Plaguicida" : rawCat,
+        };
+      });
       const lowStock = items.filter((i) => Number(i.stock_qty) <= Number(i.min_stock));
       return { items, lowStock };
     },
+    enabled: Boolean(ownerId),
   });
 
   // Cálculos estadísticos
@@ -451,7 +511,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
     }
   };
 
-  const reportQueries = [profile, parcels, activities, financials, alerts, inventory];
+  const reportQueries = [resolvedOwner, profile, parcels, activities, financials, alerts, inventory];
   const loading = reportQueries.some((query) => query.isLoading);
   const reportError = reportQueries.some((query) => query.isError);
 
@@ -482,7 +542,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
               <Leaf className="size-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Mi Reporte Agrícola</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">{farmerId ? `Expediente Integral — ${profile.data?.fullName ?? "Finca"}` : "Mi Reporte Agrícola"}</h1>
               <p className="text-xs text-muted-foreground">
                 Agricultor: <span className="font-semibold text-foreground">{profile.data?.fullName}</span> • {format(new Date(), "MMMM yyyy", { locale: es })}
               </p>
@@ -596,7 +656,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
 
       {/* Pestañas detalladas */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted/60 p-1 w-full sm:w-auto grid grid-cols-3 sm:inline-flex h-auto gap-1">
+        <TabsList className="bg-muted/60 p-1.5 w-full flex flex-wrap justify-start h-auto gap-1">
           <TabsTrigger value="resumen" className="text-xs gap-1.5 py-1.5">
             <DollarSign className="size-3.5" />
             Finanzas y Gráficos
@@ -633,6 +693,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
 
         {/* Tab 1: Finanzas y Gráficos */}
         <TabsContent value="resumen" className="space-y-4">
+          <ProfitabilitySimulator defaultAreaHa={Math.max(0.5, Number(totalAreaHa) || 2)} />
           <Card className="space-y-4 border-border p-5">
             <div>
               <h3 className="text-sm font-semibold">Comparación financiera de periodos equivalentes</h3>
@@ -740,7 +801,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
                           <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30 border border-border/40 text-xs">
                             <span className="font-medium text-foreground">{c.crop_catalog?.name ?? "Cultivo"}</span>
                             <div className="flex items-center gap-2">
-                              {c.planting_date && <span className="text-[11px] text-muted-foreground">Siembra: {format(new Date(c.planting_date), "dd/MM/yy")}</span>}
+                              {c.planting_date && <span className="text-[11px] text-muted-foreground">Siembra: {format(new Date(`${c.planting_date}T12:00:00`), "dd/MM/yy")}</span>}
                               <Badge variant="outline" className="text-[10px] capitalize">
                                 {c.status?.toLowerCase() ?? "activo"}
                               </Badge>
@@ -842,22 +903,22 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
 
         {/* Tab 5: Rendimiento de Cultivos */}
         <TabsContent value="cultivos" className="space-y-4">
-          <CropPerformanceReport />
+          <CropPerformanceReport farmerId={ownerId ?? undefined} farmerNameProp={profile.data?.fullName} />
         </TabsContent>
 
         {/* Tab 6: Inventario de Insumos */}
         <TabsContent value="inventario" className="space-y-4">
-          <InventoryReport />
+          <InventoryReport farmerId={ownerId ?? undefined} farmerNameProp={profile.data?.fullName} />
         </TabsContent>
 
         {/* Tab 7: Sanidad Fitosanitaria y Plagas */}
         <TabsContent value="sanidad" className="space-y-4">
-          <PestReport />
+          <PestReport farmerId={ownerId ?? undefined} farmerNameProp={profile.data?.fullName} />
         </TabsContent>
 
         {/* Tab 8: Proyección de Cosechas y Labores */}
         <TabsContent value="proyeccion" className="space-y-4">
-          <HarvestProjectionReport />
+          <HarvestProjectionReport farmerId={ownerId ?? undefined} farmerNameProp={profile.data?.fullName} />
         </TabsContent>
       </Tabs>
     </div>

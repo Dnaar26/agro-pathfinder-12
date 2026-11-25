@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRoles, listAllCrops } from "@/lib/queries";
+import { ProducerScopeBar, FarmGroupSection, useProducerScope } from "@/components/admin/producer-scope-bar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,7 @@ function FieldLaborPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"ALL" | "PENDING" | "PAID">("ALL");
+  const { isStaff, producerId, setProducerId, groupByFarm, setGroupByFarm, producers } = useProducerScope();
 
   const [cropId, setCropId] = useState("");
   const [workerName, setWorkerName] = useState("");
@@ -84,7 +86,7 @@ function FieldLaborPage() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("field_labor_logs")
-        .select("*, crops(id, crop_catalog(name), parcels(name))")
+        .select("*, crops(id, crop_catalog(name), parcels(name, owner_id, profiles!owner_id(full_name)))")
         .order("work_date", { ascending: false });
       if (error) {
         if (String(error.code) === "42P01" || String(error.code) === "PGRST205") {
@@ -182,12 +184,31 @@ function FieldLaborPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const rows = laborQuery.data?.rows ?? [];
+  const rows = useMemo(() => {
+    const base = laborQuery.data?.rows ?? [];
+    if (!isStaff || !producerId) return base;
+    return base.filter((r: any) => (r.owner_id === producerId) || (r.crops?.parcels?.owner_id === producerId));
+  }, [laborQuery.data?.rows, isStaff, producerId]);
+
   const filteredRows = useMemo(() => {
     if (statusFilter === "PENDING") return rows.filter((r: any) => !r.paid);
     if (statusFilter === "PAID") return rows.filter((r: any) => r.paid);
     return rows;
   }, [rows, statusFilter]);
+
+  const groupedLaborFarms = useMemo(() => {
+    if (!isStaff || producerId || !groupByFarm) return [];
+    const map = new Map<string, { ownerId: string; ownerName: string; items: any[]; totalCop: number }>();
+    for (const r of filteredRows) {
+      const oid = r.crops?.parcels?.owner_id || r.owner_id || "unknown";
+      const oName = r.crops?.parcels?.profiles?.full_name || "Productor sin nombre";
+      if (!map.has(oid)) map.set(oid, { ownerId: oid, ownerName: oName, items: [], totalCop: 0 });
+      const g = map.get(oid)!;
+      g.items.push(r);
+      g.totalCop += Number(r.total_cop || 0);
+    }
+    return Array.from(map.values()).sort((a, b) => a.ownerName.localeCompare(b.ownerName));
+  }, [filteredRows, isStaff, producerId, groupByFarm]);
 
   const totals = useMemo(() => {
     const totalCop = rows.reduce((s: number, r: any) => s + Number(r.total_cop || 0), 0);
@@ -364,6 +385,17 @@ function FieldLaborPage() {
         </div>
       </header>
 
+      <ProducerScopeBar
+        isStaff={isStaff}
+        producerId={producerId}
+        onProducerChange={setProducerId}
+        groupByFarm={groupByFarm}
+        onGroupByFarmChange={setGroupByFarm}
+        producers={producers}
+        totalRecordsCount={filteredRows.length}
+        recordLabel="jornales"
+      />
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="p-4">
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -428,6 +460,31 @@ function FieldLaborPage() {
             Registra días trabajados o kilos recolectados para controlar la nómina rural y el costo real por cultivo.
           </p>
         </Card>
+      ) : isStaff && !producerId && groupByFarm ? (
+        <div className="space-y-5">
+          {groupedLaborFarms.map((group) => (
+            <FarmGroupSection
+              key={group.ownerId}
+              ownerId={group.ownerId}
+              ownerName={group.ownerName}
+              badgeText={`${group.items.length} registro${group.items.length !== 1 ? "s" : ""}`}
+              subtitle={`Nómina acumulada: ${formatCurrencyInt(group.totalCop)}`}
+              onFocusProducer={setProducerId}
+            >
+              <div className="space-y-2">
+                {group.items.map((r: any) => (
+                  <div key={r.id} className="rounded-lg border border-border bg-background p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div>
+                      <span className="font-bold text-foreground">{r.worker_name}</span> · {r.task_kind.replace(/_/g, " ")} ·{" "}
+                      <span className="text-muted-foreground">{r.crops?.crop_catalog?.name ?? "Cultivo"} ({r.work_date})</span>
+                    </div>
+                    <span className="font-mono font-bold text-sm">{formatCurrencyInt(Number(r.total_cop))}</span>
+                  </div>
+                ))}
+              </div>
+            </FarmGroupSection>
+          ))}
+        </div>
       ) : (
         <div className="space-y-2.5">
           {filteredRows.map((r: any) => (

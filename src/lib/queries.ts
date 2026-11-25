@@ -271,33 +271,83 @@ export async function getAdminMetrics(): Promise<AdminMetrics> {
   };
 }
 
+export type FarmerParcelBrief = {
+  id: string;
+  name: string;
+  area_m2: number;
+  soil_name: string | null;
+  total_crops: number;
+  active_crops: number;
+};
+
 export type FarmerSummary = {
   id: string;
   full_name: string;
+  phone?: string | null;
   parcels: number;
   area_m2: number;
   crops: number;
+  active_crops: number;
+  parcel_details: FarmerParcelBrief[];
 };
 
 export async function listFarmerSummaries(): Promise<FarmerSummary[]> {
-  const { data: profiles } = await supabase.from("profiles").select("id, full_name").order("full_name");
-  const { data: parcels } = await supabase.from("parcels").select("id, owner_id, area_m2");
-  const { data: crops } = await supabase.from("crops").select("parcel_id");
-  const parcelByOwner = new Map<string, { count: number; area: number; ids: string[] }>();
-  for (const p of parcels ?? []) {
-    const cur = parcelByOwner.get(p.owner_id) ?? { count: 0, area: 0, ids: [] };
-    cur.count++;
-    cur.area += Number(p.area_m2 || 0);
-    cur.ids.push(p.id);
-    parcelByOwner.set(p.owner_id, cur);
+  const [profilesRes, rolesRes, parcelsRes, cropsRes] = await Promise.all([
+    supabase.from("profiles").select("id, full_name, phone").order("full_name"),
+    supabase.from("user_roles").select("user_id, role"),
+    supabase.from("parcels").select("id, name, owner_id, area_m2, soil_types(name)").order("name"),
+    supabase.from("crops").select("parcel_id, status"),
+  ]);
+
+  const farmerRoleIds = new Set(
+    (rolesRes.data ?? [])
+      .filter((r: any) => r.role === "agricultor")
+      .map((r: any) => r.user_id as string)
+  );
+
+  const cropsByParcel = new Map<string, { total: number; active: number }>();
+  for (const c of cropsRes.data ?? []) {
+    const cur = cropsByParcel.get(c.parcel_id) ?? { total: 0, active: 0 };
+    cur.total++;
+    if (["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO", "COSECHA"].includes(c.status)) {
+      cur.active++;
+    }
+    cropsByParcel.set(c.parcel_id, cur);
   }
-  const cropsByParcel = new Map<string, number>();
-  for (const c of crops ?? []) cropsByParcel.set(c.parcel_id, (cropsByParcel.get(c.parcel_id) ?? 0) + 1);
-  return (profiles ?? []).map((p) => {
-    const info = parcelByOwner.get(p.id);
-    const cropCount = (info?.ids ?? []).reduce((s, id) => s + (cropsByParcel.get(id) ?? 0), 0);
-    return { id: p.id, full_name: p.full_name, parcels: info?.count ?? 0, area_m2: info?.area ?? 0, crops: cropCount };
-  });
+
+  const parcelsByOwner = new Map<string, FarmerParcelBrief[]>();
+  for (const p of (parcelsRes.data ?? []) as any[]) {
+    const cStats = cropsByParcel.get(p.id) ?? { total: 0, active: 0 };
+    const list = parcelsByOwner.get(p.owner_id) ?? [];
+    list.push({
+      id: p.id,
+      name: p.name,
+      area_m2: Number(p.area_m2 || 0),
+      soil_name: p.soil_types?.name ?? null,
+      total_crops: cStats.total,
+      active_crops: cStats.active,
+    });
+    parcelsByOwner.set(p.owner_id, list);
+  }
+
+  return (profilesRes.data ?? [])
+    .filter((prof: any) => farmerRoleIds.has(prof.id) || parcelsByOwner.has(prof.id))
+    .map((prof: any) => {
+      const pList = parcelsByOwner.get(prof.id) ?? [];
+      const areaM2 = pList.reduce((sum, item) => sum + item.area_m2, 0);
+      const totalCrops = pList.reduce((sum, item) => sum + item.total_crops, 0);
+      const activeCrops = pList.reduce((sum, item) => sum + item.active_crops, 0);
+      return {
+        id: prof.id,
+        full_name: prof.full_name || "Productor sin nombre",
+        phone: prof.phone ?? null,
+        parcels: pList.length,
+        area_m2: areaM2,
+        crops: totalCrops,
+        active_crops: activeCrops,
+        parcel_details: pList,
+      };
+    });
 }
 
 export async function runGenerateAlerts() {
@@ -529,73 +579,66 @@ export function inferCategory(name: string): string {
   return "Otro";
 }
 
-// ── Farmer Inventory Report ────────────────────────────────────────────────
+// ── Farmer Inventory Report (soporta Agricultor actual o Finca específica para Admin/Técnico) ──
 
-export async function getMyInventoryReport() {
+export async function getMyInventoryReport(ownerId?: string) {
   const user = await getFastSessionUser();
-  if (!user) return { items: [], movements: [], lowStock: [] };
+  const targetUserId = ownerId || user?.id;
+  if (!targetUserId) return { items: [], movements: [], lowStock: [] };
 
   const sb = supabase as any;
-  try {
-    const { data: rawItems, error: itemsErr } = await sb
-      .from("inventory_items")
-      .select("*")
-      .eq("owner_id", u.user.id)
-      .order("name");
+  const { data: rawItems, error: itemsErr } = await sb
+    .from("inventory_items")
+    .select("*")
+    .eq("owner_id", targetUserId)
+    .order("name");
 
-    if (itemsErr) {
-      console.warn("Error fetching inventory items for report:", itemsErr);
-    }
+  if (itemsErr) throw itemsErr;
 
-    const items = ((rawItems ?? []) as any[]).map((i) => ({
+  const items = ((rawItems ?? []) as any[]).map((i) => {
+    const rawCat = i.category || inferCategory(i.name);
+    return {
       ...i,
-      category: i.category || inferCategory(i.name),
-    }));
+      category: rawCat === "Pesticida" ? "Plaguicida" : rawCat,
+    };
+  });
 
-    const itemIds = items.map((i: any) => i.id);
-    let movements: any[] = [];
-    if (itemIds.length > 0) {
-      try {
-        const { data: mData, error: mErr } = await sb
-          .from("inventory_movements")
-          .select("id, item_id, kind, qty, notes, created_at")
-          .in("item_id", itemIds)
-          .order("created_at", { ascending: false })
-          .limit(200);
+  const itemIds = items.map((i: any) => i.id);
+  let movements: any[] = [];
+  if (itemIds.length > 0) {
+    const { data: mData, error: mErr } = await sb
+      .from("inventory_movements")
+      .select("id, item_id, kind, qty, notes, created_at")
+      .in("item_id", itemIds)
+      .order("created_at", { ascending: false })
+      .limit(200);
 
-        if (!mErr && Array.isArray(mData)) {
-          const itemMap = new Map(items.map((i: any) => [i.id, i]));
-          movements = mData.map((m: any) => ({
-            ...m,
-            inventory_items: itemMap.get(m.item_id) || null,
-          }));
-        }
-      } catch (err) {
-        console.warn("Error fetching inventory movements:", err);
-        movements = [];
-      }
+    if (!mErr && Array.isArray(mData)) {
+      const itemMap = new Map(items.map((i: any) => [i.id, i]));
+      movements = mData.map((m: any) => ({
+        ...m,
+        inventory_items: itemMap.get(m.item_id) || null,
+      }));
     }
-
-    const lowStock = items.filter((i) => Number(i.stock_qty) <= Number(i.min_stock));
-    return { items, movements, lowStock };
-  } catch (err) {
-    console.error("Critical error in getMyInventoryReport:", err);
-    return { items: [], movements: [], lowStock: [] };
   }
-}
 
+  const lowStock = items.filter((i) => Number(i.stock_qty) <= Number(i.min_stock));
+  return { items, movements, lowStock };
+}
 
 // ── Farmer Crop Performance Report ────────────────────────────────────────
 
-export async function getMyCropPerformanceReport() {
+export async function getMyCropPerformanceReport(ownerId?: string) {
   const user = await getFastSessionUser();
-  if (!user) return [];
+  const targetUserId = ownerId || user?.id;
+  if (!targetUserId) return [];
 
-  const { data: parcels } = await supabase
+  const { data: parcels, error: pErr } = await supabase
     .from("parcels")
     .select("id")
-    .eq("owner_id", u.user.id);
+    .eq("owner_id", targetUserId);
 
+  if (pErr) throw pErr;
   const parcelIds = (parcels ?? []).map((p) => p.id);
   if (parcelIds.length === 0) return [];
 
@@ -617,23 +660,26 @@ export async function getMyCropPerformanceReport() {
 
 // ── Farmer Pest Incidents Summary ─────────────────────────────────────────
 
-export async function getMyPestIncidentsSummary() {
+export async function getMyPestIncidentsSummary(ownerId?: string) {
   const user = await getFastSessionUser();
-  if (!user) return [];
+  const targetUserId = ownerId || user?.id;
+  if (!targetUserId) return [];
 
-  const { data: parcels } = await supabase
+  const { data: parcels, error: pErr } = await supabase
     .from("parcels")
     .select("id")
-    .eq("owner_id", u.user.id);
+    .eq("owner_id", targetUserId);
 
+  if (pErr) throw pErr;
   const parcelIds = (parcels ?? []).map((p) => p.id);
   if (parcelIds.length === 0) return [];
 
-  const { data: cropIds } = await supabase
+  const { data: cropIds, error: cErr } = await supabase
     .from("crops")
     .select("id")
     .in("parcel_id", parcelIds);
 
+  if (cErr) throw cErr;
   const ids = (cropIds ?? []).map((c) => c.id);
   if (ids.length === 0) return [];
 
@@ -649,32 +695,40 @@ export async function getMyPestIncidentsSummary() {
 
 // ── Farmer Projections and Upcoming Tasks ────────────────────────────────
 
-export async function getMyUpcomingHarvestsAndTasks() {
+export async function getMyUpcomingHarvestsAndTasks(ownerId?: string) {
   const user = await getFastSessionUser();
-  if (!user) return { crops: [], alerts: [], upcomingActivities: [] };
+  const targetUserId = ownerId || user?.id;
+  if (!targetUserId) return { crops: [], alerts: [], upcomingActivities: [] };
 
-  const { data: parcels } = await supabase
+  const { data: parcels, error: pErr } = await supabase
     .from("parcels")
     .select("id")
-    .eq("owner_id", u.user.id);
+    .eq("owner_id", targetUserId);
 
+  if (pErr) throw pErr;
   const parcelIds = (parcels ?? []).map((p) => p.id);
-  if (parcelIds.length === 0) return { crops: [], alerts: [], upcomingActivities: [] };
+
+  const alertsPromise = supabase
+    .from("alerts")
+    .select("id, title, body, kind, status, scheduled_at")
+    .eq("user_id", targetUserId)
+    .eq("status", "PENDIENTE")
+    .order("scheduled_at", { ascending: true })
+    .limit(30);
+
+  if (parcelIds.length === 0) {
+    const alertsOnly = await alertsPromise;
+    return { crops: [], alerts: (alertsOnly.data ?? []) as any[], upcomingActivities: [] };
+  }
 
   const [cropsRes, alertsRes, actsRes] = await Promise.all([
     (supabase as any)
       .from("crops")
       .select("id, status, planting_date, estimated_harvest_date, crop_catalog(name, cycle_days), parcels(name)")
       .in("parcel_id", parcelIds)
-      .in("status", ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO", "COSECHA"])
+      .in("status", ["PLANEADO", "SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO", "COSECHA"])
       .order("estimated_harvest_date", { ascending: true }),
-    supabase
-      .from("alerts")
-      .select("id, title, body, kind, status, scheduled_at")
-      .eq("user_id", u.user.id)
-      .eq("status", "PENDIENTE")
-      .order("scheduled_at", { ascending: true })
-      .limit(30),
+    alertsPromise,
     (supabase as any)
       .from("activities")
       .select("id, kind, performed_at, notes, crops!inner(parcel_id, crop_catalog(name), parcels(name))")

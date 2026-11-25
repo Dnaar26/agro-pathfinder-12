@@ -14,27 +14,34 @@ import { CROP_STATUS_OPTIONS, cropStatusClass, cropStatusLabel } from "@/lib/sta
 import { Sprout, Download, FileSpreadsheet, TrendingUp, DollarSign, Wheat, Loader2, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 
 const formatCOP = formatCurrencyInt;
+function safeLocalDate(dateStr: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(`${dateStr}T12:00:00`) : new Date(dateStr);
+}
+
 const statusLabel = Object.fromEntries(CROP_STATUS_OPTIONS) as Record<string, string>;
 
-export function CropPerformanceReport() {
+export function CropPerformanceReport({ farmerId, farmerNameProp }: { farmerId?: string; farmerNameProp?: string } = {}) {
   const [exporting, setExporting] = useState(false);
   const [cropSearch, setCropSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("priority");
 
   const cropsQuery = useQuery({
-    queryKey: ["my-crop-performance-report"],
-    queryFn: getMyCropPerformanceReport,
+    queryKey: ["my-crop-performance-report", farmerId ?? "self"],
+    queryFn: () => getMyCropPerformanceReport(farmerId),
   });
 
   const profileQuery = useQuery({
-    queryKey: ["farmer-report-profile"],
+    queryKey: ["farmer-subreport-name", farmerId ?? "self"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
-      const { data } = await supabase.from("profiles").select("full_name").eq("id", u.user.id).maybeSingle();
+      if (farmerNameProp) return { fullName: farmerNameProp };
+      const { data: s } = await supabase.auth.getSession();
+      const targetId = farmerId || s.session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
+      if (!targetId) return null;
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", targetId).maybeSingle();
       return { fullName: data?.full_name || "Agricultor" };
     },
+    enabled: !farmerNameProp,
   });
 
   const crops = useMemo(() => (cropsQuery.data ?? []) as any[], [cropsQuery.data]);
@@ -52,8 +59,8 @@ export function CropPerformanceReport() {
       }
       const harvestSummary = [...harvestByUnit.entries()].map(([unit, quantity]) => `${quantity.toLocaleString("es-CO", { maximumFractionDigits: 2 })} ${unit}`).join(" + ");
       const activityCount = (c.activities ?? []).length;
-      const daysInField = c.planting_date ? differenceInDays(new Date(), new Date(c.planting_date)) : 0;
-      const daysToHarvest = c.estimated_harvest_date ? differenceInDays(new Date(c.estimated_harvest_date), new Date()) : null;
+      const daysInField = c.planting_date ? differenceInDays(new Date(), safeLocalDate(c.planting_date)) : 0;
+      const daysToHarvest = c.estimated_harvest_date ? differenceInDays(safeLocalDate(c.estimated_harvest_date), new Date()) : null;
       return {
         ...c,
         totalCost,
@@ -95,12 +102,12 @@ export function CropPerformanceReport() {
   const handleExportPDF = async () => {
     setExporting(true);
     try {
-      const farmerName = profileQuery.data?.fullName || "Agricultor";
+      const farmerName = farmerNameProp || profileQuery.data?.fullName || "Agricultor";
       const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", {
         locale: es,
       });
 
-      const summaryBody = cropMetrics.map((c) => [c.crop_catalog?.name ?? "—", c.parcels?.name ?? "—", statusLabel[c.status] ?? c.status, c.planting_date ? format(new Date(c.planting_date), "dd/MM/yyyy") : "—", c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "dd/MM/yyyy") : "—", String(c.activityCount), formatCOP(c.totalCost), formatCOP(c.totalRevenue), c.totalRevenue > 0 || c.totalCost > 0 ? (c.netMargin >= 0 ? `+${formatCOP(c.netMargin)}` : formatCOP(c.netMargin)) : "—", c.harvestSummary || "—", c.costPerUnit !== null ? `${formatCOP(c.costPerUnit)} / ${[...new Set((c.crop_harvests ?? []).map((h: any) => String(h.unit || "KG").toUpperCase()))][0]}` : "—"]);
+      const summaryBody = cropMetrics.map((c) => [c.crop_catalog?.name ?? "—", c.parcels?.name ?? "—", statusLabel[c.status] ?? c.status, c.planting_date ? format(safeLocalDate(c.planting_date), "dd/MM/yyyy") : "—", c.estimated_harvest_date ? format(safeLocalDate(c.estimated_harvest_date), "dd/MM/yyyy") : "—", String(c.activityCount), formatCOP(c.totalCost), formatCOP(c.totalRevenue), c.totalRevenue > 0 || c.totalCost > 0 ? (c.netMargin >= 0 ? `+${formatCOP(c.netMargin)}` : formatCOP(c.netMargin)) : "—", c.harvestSummary || "—", c.costPerUnit !== null ? `${formatCOP(c.costPerUnit)} / ${[...new Set((c.crop_harvests ?? []).map((h: any) => String(h.unit || "KG").toUpperCase()))][0]}` : "—"]);
 
       const doc = await generatePdfReport({
         template: "resumen",
@@ -141,8 +148,8 @@ export function CropPerformanceReport() {
   // ── Export CSV ─────────────────────────────────────────────────────────
   const handleExportCSV = () => {
     try {
-      const farmerName = profileQuery.data?.fullName || "Agricultor";
-      const rows = [["Reporte de Rendimiento de Cultivos SIGIC"], [`Agricultor: ${farmerName}`], [`Fecha: ${format(new Date(), "yyyy-MM-dd HH:mm")}`], [], ["Cultivo", "Parcela", "Estado", "Fecha Siembra", "Cosecha Estimada", "Días en Campo", "Días Para Cosecha", "Cosecha Total", "Costo por unidad cosechada (COP)", "N° Actividades", "Costo Total (COP)", "Ingreso Total (COP)", "Margen Neto (COP)", "Margen sobre ingresos (%)"], ...cropMetrics.map((c) => [c.crop_catalog?.name ?? "—", c.parcels?.name ?? "—", statusLabel[c.status] ?? c.status, c.planting_date ? format(new Date(c.planting_date), "yyyy-MM-dd") : "—", c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "yyyy-MM-dd") : "—", c.daysInField, c.daysToHarvest !== null ? c.daysToHarvest : "—", c.harvestSummary || "—", c.costPerUnit !== null ? c.costPerUnit.toFixed(2) : "—", c.activityCount, c.totalCost.toFixed(2), c.totalRevenue.toFixed(2), c.netMargin.toFixed(2), c.marginRate !== null ? c.marginRate.toFixed(1) : "—"])];
+      const farmerName = farmerNameProp || profileQuery.data?.fullName || "Agricultor";
+      const rows = [["Reporte de Rendimiento de Cultivos SIGIC"], [`Agricultor: ${farmerName}`], [`Fecha: ${format(new Date(), "yyyy-MM-dd HH:mm")}`], [], ["Cultivo", "Parcela", "Estado", "Fecha Siembra", "Cosecha Estimada", "Días en Campo", "Días Para Cosecha", "Cosecha Total", "Costo por unidad cosechada (COP)", "N° Actividades", "Costo Total (COP)", "Ingreso Total (COP)", "Margen Neto (COP)", "Margen sobre ingresos (%)"], ...cropMetrics.map((c) => [c.crop_catalog?.name ?? "—", c.parcels?.name ?? "—", statusLabel[c.status] ?? c.status, c.planting_date ? format(safeLocalDate(c.planting_date), "yyyy-MM-dd") : "—", c.estimated_harvest_date ? format(safeLocalDate(c.estimated_harvest_date), "yyyy-MM-dd") : "—", c.daysInField, c.daysToHarvest !== null ? c.daysToHarvest : "—", c.harvestSummary || "—", c.costPerUnit !== null ? c.costPerUnit.toFixed(2) : "—", c.activityCount, c.totalCost.toFixed(2), c.totalRevenue.toFixed(2), c.netMargin.toFixed(2), c.marginRate !== null ? c.marginRate.toFixed(1) : "—"])];
 
       const csvContent =
         "\uFEFF" +
@@ -178,6 +185,18 @@ export function CropPerformanceReport() {
         <Loader2 className="size-5 animate-spin" />
         <span className="text-sm">Cargando rendimiento de cultivos...</span>
       </div>
+    );
+  }
+
+  if (cropsQuery.isError) {
+    return (
+      <Card role="alert" className="p-6 border-destructive/30 text-center space-y-3">
+        <AlertTriangle className="size-6 text-destructive mx-auto" />
+        <p className="text-sm font-medium text-destructive">No se pudo cargar el rendimiento de cultivos.</p>
+        <Button variant="outline" size="sm" onClick={() => void cropsQuery.refetch()}>
+          Reintentar
+        </Button>
+      </Card>
     );
   }
 
@@ -351,7 +370,7 @@ export function CropPerformanceReport() {
                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <Clock className="size-3" />
                   Cosecha est.:{" "}
-                  {format(new Date(c.estimated_harvest_date), "dd MMM yyyy", {
+                  {format(safeLocalDate(c.estimated_harvest_date), "dd MMM yyyy", {
                     locale: es,
                   })}
                   {c.daysToHarvest !== null && c.daysToHarvest < 0 && (

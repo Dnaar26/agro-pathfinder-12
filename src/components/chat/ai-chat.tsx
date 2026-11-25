@@ -132,7 +132,7 @@ export function AiChat() {
         supabase
           .from("pest_incidents")
           .select("pest_name, severity, crops(crop_catalog(name), parcels(id, name))")
-          .order("detected_at", { ascending: false })
+          .order("date", { ascending: false })
           .limit(4),
         supabase
           .from("inventory_items")

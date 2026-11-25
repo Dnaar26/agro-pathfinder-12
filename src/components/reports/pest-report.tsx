@@ -12,23 +12,30 @@ import { toast } from "sonner";
 import { severityClass, severityLabel } from "@/lib/status-styles";
 import { Bug, Download, FileSpreadsheet, AlertTriangle, ShieldCheck, ShieldAlert, Loader2, Calendar, Activity } from "lucide-react";
 
-export function PestReport() {
+function safeLocalDate(dateStr: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(`${dateStr}T12:00:00`) : new Date(dateStr);
+}
+
+export function PestReport({ farmerId, farmerNameProp }: { farmerId?: string; farmerNameProp?: string } = {}) {
   const [exporting, setExporting] = useState(false);
   const [filterSeverity, setFilterSeverity] = useState<string>("ALL");
 
   const pestsQuery = useQuery({
-    queryKey: ["my-pests-report"],
-    queryFn: getMyPestIncidentsSummary,
+    queryKey: ["my-pests-report", farmerId ?? "self"],
+    queryFn: () => getMyPestIncidentsSummary(farmerId),
   });
 
   const profileQuery = useQuery({
-    queryKey: ["farmer-report-profile"],
+    queryKey: ["farmer-subreport-name", farmerId ?? "self"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
-      const { data } = await supabase.from("profiles").select("full_name").eq("id", u.user.id).maybeSingle();
+      if (farmerNameProp) return { fullName: farmerNameProp };
+      const { data: s } = await supabase.auth.getSession();
+      const targetId = farmerId || s.session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
+      if (!targetId) return null;
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", targetId).maybeSingle();
       return { fullName: data?.full_name || "Agricultor" };
     },
+    enabled: !farmerNameProp,
   });
 
   const pests = useMemo(() => (pestsQuery.data ?? []) as any[], [pestsQuery.data]);
@@ -58,12 +65,12 @@ export function PestReport() {
   const handleExportPDF = async () => {
     setExporting(true);
     try {
-      const farmerName = profileQuery.data?.fullName || "Agricultor";
+      const farmerName = farmerNameProp || profileQuery.data?.fullName || "Agricultor";
       const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", {
         locale: es,
       });
 
-      const bodyRows = filteredPests.map((p) => [p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—", p.pest_name || "—", p.severity || "—", p.crops?.crop_catalog?.name || "—", p.crops?.parcels?.name || "—", p.treatment || "Sin tratamiento registrado", p.notes || "—"]);
+      const bodyRows = filteredPests.map((p) => [p.date ? format(safeLocalDate(p.date), "dd/MM/yyyy") : "—", p.pest_name || "—", p.severity || "—", p.crops?.crop_catalog?.name || "—", p.crops?.parcels?.name || "—", p.treatment || "Sin tratamiento registrado", p.notes || "—"]);
 
       const doc = await generatePdfReport({
         template: "resumen",
@@ -104,7 +111,7 @@ export function PestReport() {
   // Exportar CSV
   const handleExportCSV = () => {
     try {
-      const farmerName = profileQuery.data?.fullName || "Agricultor";
+      const farmerName = farmerNameProp || profileQuery.data?.fullName || "Agricultor";
       const rows = [["Reporte de Sanidad y Control de Plagas SIGIC"], [`Agricultor: ${farmerName}`], [`Fecha: ${format(new Date(), "yyyy-MM-dd HH:mm")}`], [], ["Fecha", "Plaga o Incidente", "Severidad", "Cultivo", "Parcela", "Tratamiento Aplicado", "Notas"], ...filteredPests.map((p) => [p.date || "—", p.pest_name || "—", p.severity || "—", p.crops?.crop_catalog?.name || "—", p.crops?.parcels?.name || "—", p.treatment || "", p.notes || ""])];
 
       const csvContent =
@@ -246,7 +253,7 @@ export function PestReport() {
               <tbody className="divide-y divide-border/50">
                 {filteredPests.map((p: any) => (
                   <tr key={p.id} className="hover:bg-muted/30">
-                    <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">{p.date ? format(new Date(p.date), "dd/MM/yyyy") : "—"}</td>
+                    <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">{p.date ? format(safeLocalDate(p.date), "dd/MM/yyyy") : "—"}</td>
                     <td className="py-2.5 px-3 font-semibold text-foreground">{p.pest_name}</td>
                     <td className="py-2.5 px-3">
                       <Badge variant="outline" className={`text-[10px] ${severityClass(p.severity)}`}>

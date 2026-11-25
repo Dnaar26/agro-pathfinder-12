@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress";
 import { Package, Plus, AlertTriangle, Search, Edit3, Trash2, TrendingDown, TrendingUp, List, Grid3X3, Filter, DollarSign, Layers, Shield, Sparkles, CheckCircle2, Loader2, History, X } from "lucide-react";
 import { normalizeSearchText } from "@/lib/ai/chat-action-extractor";
+import { FarmGroupSection } from "@/components/admin/producer-scope-bar";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { inferCategory } from "@/lib/queries";
@@ -31,6 +32,8 @@ const INVENTORY_PRESETS = [
 
 export interface InventoryPanelProps {
   farmerId?: string;
+  groupedByOwner?: boolean;
+  onFocusProducer?: (id: string) => void;
   initialQuery?: string;
   initialCategory?: string;
   initialLowStock?: boolean;
@@ -45,6 +48,8 @@ export interface InventoryPanelProps {
 
 export function InventoryPanel({
   farmerId: propFarmerId,
+  groupedByOwner = false,
+  onFocusProducer,
   initialQuery,
   initialCategory,
   initialLowStock,
@@ -145,11 +150,18 @@ export function InventoryPanel({
       if (!user) throw new Error("No session");
       const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
       const isStaff = (roles ?? []).some((r: any) => ["tecnico", "admin"].includes(r.role));
-      let q = (supabase as any).from("inventory_items").select("*");
+      let q = (supabase as any).from("inventory_items").select("*, profiles!owner_id(full_name)");
       if (propFarmerId) q = q.eq("owner_id", propFarmerId);
       else if (!isStaff) q = q.eq("owner_id", user.id);
-      const { data, error } = await q.order("name");
-      if (error) throw error;
+      let { data, error } = await q.order("name");
+      if (error) {
+        let fallbackQ = (supabase as any).from("inventory_items").select("*");
+        if (propFarmerId) fallbackQ = fallbackQ.eq("owner_id", propFarmerId);
+        else if (!isStaff) fallbackQ = fallbackQ.eq("owner_id", user.id);
+        const retry = await fallbackQ.order("name");
+        if (retry.error) throw retry.error;
+        data = retry.data;
+      }
       const raw = (data ?? []) as any[];
       return raw.map((i) => {
         const rawCat = i.category || inferCategory(i.name);
@@ -167,7 +179,7 @@ export function InventoryPanel({
       if (!historyItem?.id) return [];
       const { data, error } = await supabase
         .from("inventory_movements")
-        .select("id, kind, qty, delta, notes, created_at")
+        .select("id, kind, qty, notes, created_at")
         .eq("item_id", historyItem.id)
         .order("created_at", { ascending: false })
         .limit(20);
@@ -182,7 +194,7 @@ export function InventoryPanel({
     const qTokens = qNorm ? qNorm.split(" ").filter((t) => t.length >= 2) : [];
 
     return (items.data ?? []).filter((i) => {
-      const itemNorm = normalizeSearchText(`${i.name} ${i.category || ""}`);
+      const itemNorm = normalizeSearchText(`${i.name} ${i.category || ""} ${i.profiles?.full_name || ""}`);
       const matchesSearch =
         !qNorm ||
         itemNorm.includes(qNorm) ||
@@ -196,6 +208,23 @@ export function InventoryPanel({
   useEffect(() => { setPage(1); }, [query, filterCategory, onlyLowStock]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page]);
+
+  const ownerGroups = useMemo(() => {
+    if (!groupedByOwner) return [];
+    const map = new Map<string, { ownerId: string; ownerName: string; rows: any[]; totalVal: number; lowCount: number }>();
+    for (const it of filtered) {
+      const oid = it.owner_id || "unknown";
+      const oName = it.profiles?.full_name || "Productor sin nombre";
+      if (!map.has(oid)) {
+        map.set(oid, { ownerId: oid, ownerName: oName, rows: [], totalVal: 0, lowCount: 0 });
+      }
+      const g = map.get(oid)!;
+      g.rows.push(it);
+      g.totalVal += Number(it.stock_qty || 0) * Number(it.unit_cost || 0);
+      if (Number(it.stock_qty) <= Number(it.min_stock)) g.lowCount++;
+    }
+    return Array.from(map.values()).sort((a, b) => a.ownerName.localeCompare(b.ownerName));
+  }, [filtered, groupedByOwner]);
 
   const createItem = useMutation({
     mutationFn: async (input: { name: string; category: string; unit: string; stock_qty: number; min_stock: number; unit_cost: number }) => {
@@ -692,7 +721,66 @@ export function InventoryPanel({
       )}
 
       {/* Content */}
-      {viewMode === "list" ? (
+      {groupedByOwner && filtered.length > 0 ? (
+        <div className="space-y-5">
+          {ownerGroups.map((group) => (
+            <FarmGroupSection
+              key={group.ownerId}
+              ownerId={group.ownerId}
+              ownerName={group.ownerName}
+              badgeText={`${group.rows.length} insumo${group.rows.length !== 1 ? "s" : ""}`}
+              subtitle={`Valor en bodega: ${formatCOP(group.totalVal)}${group.lowCount > 0 ? ` · ${group.lowCount} con stock bajo` : ""}`}
+              onFocusProducer={onFocusProducer}
+            >
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Insumo</TableHead>
+                      <TableHead>Categoría</TableHead>
+                      <TableHead>Stock / Mín</TableHead>
+                      <TableHead>Costo Unit.</TableHead>
+                      <TableHead>Valor Total</TableHead>
+                      <TableHead className="text-right">Kardex</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {group.rows.map((item) => {
+                      const status = getStockStatus(item.stock_qty, item.min_stock);
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {status !== "ok" && (
+                                <AlertTriangle className={`size-4 ${status === "critical" ? "text-destructive" : "text-warning-text"}`} />
+                              )}
+                              {item.name}
+                            </div>
+                          </TableCell>
+                          <TableCell><Badge variant="outline">{item.category || "Otro"}</Badge></TableCell>
+                          <TableCell>
+                            <span className={status !== "ok" ? "font-bold text-destructive" : ""}>
+                              {item.stock_qty} {item.unit}
+                            </span>{" "}
+                            <span className="text-xs text-muted-foreground">/ {item.min_stock}</span>
+                          </TableCell>
+                          <TableCell>{formatCOP(item.unit_cost || 0)}</TableCell>
+                          <TableCell className="font-semibold">{formatCOP((item.unit_cost || 0) * item.stock_qty)}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" className="size-8" title="Historial Kardex" onClick={() => setHistoryItem(item)}>
+                              <History className="size-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </FarmGroupSection>
+          ))}
+        </div>
+      ) : viewMode === "list" ? (
         <div className="rounded-md border bg-card">
           <Table>
             <TableHeader>
@@ -846,7 +934,7 @@ export function InventoryPanel({
         </div>
       )}
 
-      {totalPages > 1 && (
+      {!groupedByOwner && totalPages > 1 && (
         <PaginationBar page={page} totalPages={totalPages} onPageChange={setPage} />
       )}
 
@@ -1028,7 +1116,7 @@ export function InventoryPanel({
           ) : (
             <ul className="divide-y divide-border text-xs">
               {(itemHistoryQuery.data ?? []).map((mov: any) => {
-                const isExit = mov.kind === "SALIDA" || Number(mov.delta) < 0;
+                const isExit = mov.kind === "SALIDA";
                 return (
                   <li key={mov.id} className="flex items-start justify-between gap-3 py-2.5">
                     <div className="space-y-0.5">

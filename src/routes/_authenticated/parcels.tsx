@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Plus, Search, Ruler, Sprout, ExternalLink, MoreHorizontal, Edit, Trash2, User, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
+import { ProducerScopeBar, FarmGroupSection, useProducerScope } from "@/components/admin/producer-scope-bar";
 
 
 export const Route = createFileRoute("/_authenticated/parcels")({
@@ -35,12 +36,20 @@ const parcelSchema = z.object({
 
 function ParcelsPage() {
   const [page, setPage] = useState(1);
+  const { isStaff, producerId, setProducerId, groupByFarm, setGroupByFarm, producers } = useProducerScope();
   const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
   const parcelsPage = useQuery({
     queryKey: ["parcels", "page", page],
     queryFn: () => listParcelsPage({ page, pageSize: 18 }),
     placeholderData: (previous) => previous,
+    enabled: !isStaff,
   });
+
+  const scopedParcels = useMemo(() => {
+    const all = parcels.data ?? [];
+    if (!isStaff || !producerId) return all;
+    return all.filter((p: any) => p.owner_id === producerId);
+  }, [parcels.data, isStaff, producerId]);
   const soils = useQuery({ queryKey: ["soils"], queryFn: listSoils });
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -206,16 +215,34 @@ function ParcelsPage() {
         </Dialog>
       </header>
 
-      <ParcelSummary data={parcels.data ?? []} />
+      <ProducerScopeBar
+        isStaff={isStaff}
+        producerId={producerId}
+        onProducerChange={setProducerId}
+        groupByFarm={groupByFarm}
+        onGroupByFarmChange={setGroupByFarm}
+        producers={producers}
+        totalRecordsCount={scopedParcels.length}
+        recordLabel="parcelas"
+      />
 
-      {parcelsPage.isError && (
+      <ParcelSummary data={scopedParcels} />
+
+      {parcelsPage.isError && !isStaff && (
         <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-foreground" role="status">
           No se pudo cargar la página solicitada. Mostrando los datos disponibles.
         </p>
       )}
 
-      <ParcelGrid data={parcelsPage.data?.data ?? parcels.data ?? []} loading={parcels.isLoading} onEdit={(p) => { setEditingParcel(p); setEditOpen(true); }} onDelete={(id) => setDeleteConfirmId(id)} />
-      {parcelsPage.data && <PaginationBar page={parcelsPage.data.page} totalPages={parcelsPage.data.totalPages} onPageChange={setPage} />}
+      <ParcelGrid
+        data={isStaff ? scopedParcels : (parcelsPage.data?.data ?? parcels.data ?? [])}
+        loading={parcels.isLoading}
+        groupedByOwner={Boolean(isStaff && !producerId && groupByFarm)}
+        onFocusProducer={setProducerId}
+        onEdit={(p) => { setEditingParcel(p); setEditOpen(true); }}
+        onDelete={(id) => setDeleteConfirmId(id)}
+      />
+      {!isStaff && parcelsPage.data && <PaginationBar page={parcelsPage.data.page} totalPages={parcelsPage.data.totalPages} onPageChange={setPage} />}
 
       {/* Edit dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -314,19 +341,57 @@ function SummaryStat({ icon: Icon, label, value, sub }: { icon: any; label: stri
   );
 }
 
-function ParcelGrid({ data, loading, onEdit, onDelete }: { data: any[]; loading: boolean; onEdit?: (p: any) => void; onDelete?: (id: string) => void }) {
+function ParcelGrid({
+  data,
+  loading,
+  groupedByOwner = false,
+  onFocusProducer,
+  onEdit,
+  onDelete,
+}: {
+  data: any[];
+  loading: boolean;
+  groupedByOwner?: boolean;
+  onFocusProducer?: (ownerId: string) => void;
+  onEdit?: (p: any) => void;
+  onDelete?: (id: string) => void;
+}) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"recent" | "name" | "area" | "crops">("recent");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const arr = data.filter((p) => !q || p.name.toLowerCase().includes(q));
+    const arr = data.filter(
+      (p) =>
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        String((p as any).profiles?.full_name ?? "").toLowerCase().includes(q)
+    );
     const sorted = [...arr];
     if (sort === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
     if (sort === "area") sorted.sort((a, b) => Number(b.area_m2) - Number(a.area_m2));
     if (sort === "crops") sorted.sort((a, b) => (b.crops?.length ?? 0) - (a.crops?.length ?? 0));
     return sorted;
   }, [data, query, sort]);
+
+  const ownerGroups = useMemo(() => {
+    if (!groupedByOwner) return [];
+    const map = new Map<string, { ownerId: string; ownerName: string; items: any[]; totalM2: number; activeCrops: number }>();
+    for (const p of filtered) {
+      const oid = p.owner_id || "unknown";
+      const oName = (p as any).profiles?.full_name || "Productor sin nombre";
+      if (!map.has(oid)) {
+        map.set(oid, { ownerId: oid, ownerName: oName, items: [], totalM2: 0, activeCrops: 0 });
+      }
+      const g = map.get(oid)!;
+      g.items.push(p);
+      g.totalM2 += Number(p.area_m2 || 0);
+      g.activeCrops += (p.crops ?? []).filter((c: any) =>
+        ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO", "COSECHA"].includes(c.status)
+      ).length;
+    }
+    return Array.from(map.values()).sort((a, b) => a.ownerName.localeCompare(b.ownerName));
+  }, [filtered, groupedByOwner]);
 
   if (loading) return <p className="text-sm text-muted-foreground">Cargando…</p>;
   if (data.length === 0) {
@@ -358,6 +423,69 @@ function ParcelGrid({ data, loading, onEdit, onDelete }: { data: any[]; loading:
 
       {filtered.length === 0 ? (
         <p className="p-6 text-sm text-muted-foreground text-center">Sin resultados.</p>
+      ) : groupedByOwner ? (
+        <div className="space-y-5">
+          {ownerGroups.map((group) => (
+            <FarmGroupSection
+              key={group.ownerId}
+              ownerId={group.ownerId}
+              ownerName={group.ownerName}
+              badgeText={`${group.items.length} parcela${group.items.length !== 1 ? "s" : ""}`}
+              subtitle={`Superficie total: ${(group.totalM2 / 10000).toFixed(2)} ha · ${group.activeCrops} cultivo(s) activo(s)`}
+              onFocusProducer={onFocusProducer}
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {group.items.map((p) => {
+                  const cropsCount = p.crops?.length ?? 0;
+                  const activeCount = (p.crops ?? []).filter((c: any) =>
+                    ["SEMBRADO", "CRECIMIENTO", "MANTENIMIENTO"].includes(c.status)
+                  ).length;
+                  const hasGPS = p.latitude && p.longitude;
+                  return (
+                    <div key={p.id} className="group relative p-5 rounded-xl border border-border bg-background hover:border-primary hover:shadow-md transition-all">
+                      <Link to="/parcels/$id" params={{ id: p.id }} className="block">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{p.name}</h3>
+                          <MapPin className="size-4 text-muted-foreground group-hover:text-primary shrink-0" />
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          <Badge variant="secondary">{(Number(p.area_m2) / 10000).toFixed(2)} ha</Badge>
+                          {p.soil_types?.name && <Badge variant="outline">{p.soil_types.name}</Badge>}
+                          {cropsCount > 0 && (
+                            <Badge className="bg-primary/10 text-primary border-primary/20">
+                              {activeCount}/{cropsCount} activos
+                            </Badge>
+                          )}
+                        </div>
+                        <dl className="mt-2 text-xs text-muted-foreground space-y-1">
+                          <div>{Number(p.area_m2).toLocaleString()} m²</div>
+                          {hasGPS && (
+                            <div className="flex items-center gap-1">
+                              <span>{Number(p.latitude).toFixed(4)}, {Number(p.longitude).toFixed(4)}</span>
+                            </div>
+                          )}
+                        </dl>
+                      </Link>
+                      {(onEdit || onDelete) && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label={`Acciones de ${p.name}`} className="absolute top-2 right-2 size-7 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100">
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {onEdit && <DropdownMenuItem onClick={() => onEdit(p)}><Edit className="size-3.5 mr-2" /> Editar</DropdownMenuItem>}
+                            {onDelete && <><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive" onClick={() => onDelete(p.id)}><Trash2 className="size-3.5 mr-2" /> Eliminar</DropdownMenuItem></>}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </FarmGroupSection>
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((p) => {

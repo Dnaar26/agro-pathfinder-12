@@ -118,21 +118,26 @@ function ReportsPage() {
   const [chartYear, setChartYear] = useState<string>(validChartYear(initialFilters.chartYear));
   const myRoles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
   const isStaff = (myRoles.data ?? []).some((r: string) => ["tecnico", "admin"].includes(r));
-  const isAgricultor = !isStaff;
+  const isAgricultor = myRoles.isSuccess && !isStaff;
+  const { producerId, setProducerId, producers } = useProducerScope();
+
   const acts = useQuery({
     queryKey: ["report-acts"],
     queryFn: listAllActivitiesForReport,
+    enabled: isStaff,
   });
-  const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
-  const catalog = useQuery({ queryKey: ["catalog"], queryFn: listCatalog });
-  const alerts = useQuery({ queryKey: ["alerts"], queryFn: listAlerts });
+  const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels, enabled: isStaff });
+  const catalog = useQuery({ queryKey: ["catalog"], queryFn: listCatalog, enabled: isStaff });
+  const alerts = useQuery({ queryKey: ["alerts"], queryFn: listAlerts, enabled: isStaff });
   const schedReports = useQuery({
     queryKey: ["sched-reports"],
     queryFn: listScheduledReports,
+    enabled: isStaff,
   });
 
   const costsQuery = useQuery({
     queryKey: ["report-costs", chartYear],
+    enabled: isStaff,
     queryFn: async () => {
       const rows: any[] = [];
       let totalRows: number | null = null;
@@ -157,6 +162,7 @@ function ReportsPage() {
 
   const harvestsQuery = useQuery({
     queryKey: ["report-harvests", chartYear],
+    enabled: isStaff,
     queryFn: async () => {
       const rows: any[] = [];
       let totalRows: number | null = null;
@@ -685,20 +691,61 @@ function ReportsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Centro de Reportes</h1>
             <p className="text-xs text-muted-foreground">Panel analítico e institucional para rol {userRole === "admin" ? "Administrador" : "Técnico"}.</p>
           </div>
-          <TabsList className="bg-muted/60 p-1">
+          <TabsList className="bg-muted/60 p-1 flex flex-wrap h-auto gap-1">
             <TabsTrigger value="specialized" className="text-xs gap-1.5 py-1.5">
               <Layers className="size-3.5" />
-              Reportes Especializados por Rol
+              Consolidados Generales
+            </TabsTrigger>
+            <TabsTrigger value="by-farm" className="text-xs gap-1.5 py-1.5">
+              <Tractor className="size-3.5" />
+              Expediente por Finca
             </TabsTrigger>
             <TabsTrigger value="builder" className="text-xs gap-1.5 py-1.5">
               <Filter className="size-3.5" />
-              Generador con Filtros & Plantillas
+              Generador con Plantillas
             </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="specialized" className="space-y-6">
           <Suspense fallback={<SkeletonCard />}><StaffReportsPanel userRole={userRole} /></Suspense>
+        </TabsContent>
+
+        <TabsContent value="by-farm" className="space-y-6">
+          <Card className="p-4 border-primary/25 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
+                <Tractor className="size-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-foreground">Seleccionar Unidad Productiva / Finca</h2>
+                <p className="text-xs text-muted-foreground">
+                  Consulta el estado financiero, parcelas, bitácora, sanidad e inventario individual de cada agricultor.
+                </p>
+              </div>
+            </div>
+            <Combobox
+              value={producerId || producers[0]?.id || ""}
+              onChange={(val) => setProducerId(val)}
+              options={producers.map((p) => ({
+                value: p.id,
+                label: `${p.full_name} (${p.parcels} lotes · ${(p.area_m2 / 10000).toFixed(1)} ha)`,
+              }))}
+              placeholder="Elegir finca o productor…"
+              searchPlaceholder="Buscar productor…"
+              className="w-full sm:w-80 bg-card"
+            />
+          </Card>
+
+          {(producerId || producers[0]?.id) ? (
+            <Suspense fallback={<SkeletonCard />}>
+              <FarmerReport key={producerId || producers[0]?.id} farmerId={producerId || producers[0]?.id} />
+            </Suspense>
+          ) : (
+            <Card className="p-8 text-center border-dashed text-sm text-muted-foreground">
+              No hay fincas registradas todavía para generar un expediente individual.
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="builder" className="space-y-6">

@@ -22,6 +22,7 @@ import { coordsOrDefault } from "@/lib/geo";
 
 import { AiCropAdvisor } from "@/components/dashboard/ai-crop-advisor";
 import { RoleFieldWorkspace } from "@/components/dashboard/role-field-workspace";
+import { getStoredProducerScope, setGlobalProducerScope } from "@/components/admin/producer-scope-bar";
 import { MarketPrices } from "@/components/dashboard/market-prices";
 
 
@@ -73,7 +74,15 @@ function Dashboard() {
   const roles = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
   const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
   const alerts = useQuery({ queryKey: ["alerts"], queryFn: listAlerts });
-  const [farmerFilter, setFarmerFilter] = useState("__all__");
+  const [farmerFilter, setFarmerFilterState] = useState(() => {
+    const saved = getStoredProducerScope();
+    return saved || "__all__";
+  });
+  const setFarmerFilter = (val: string) => {
+    const normalized = val || "__all__";
+    setFarmerFilterState(normalized);
+    setGlobalProducerScope(normalized === "__all__" ? "" : normalized);
+  };
   const [farmerModal, setFarmerModal] = useState<any>(null);
   const isStaff = (roles.data ?? []).some((r) => ["tecnico", "admin"].includes(r));
   const farmerParam = isStaff && farmerFilter !== "__all__" ? farmerFilter : undefined;
@@ -229,15 +238,20 @@ function Dashboard() {
           <User className="size-4 text-muted-foreground" aria-hidden="true" />
           <Combobox
             value={farmerFilter}
-            onChange={setFarmerFilter}
+            onChange={(v) => setFarmerFilter(v || "__all__")}
             options={[
-              { value: "__all__", label: "Todos los agricultores" },
-              ...(farmers.data ?? []).map((f: any) => ({ value: f.id, label: f.full_name })),
+              { value: "__all__", label: "Todas las fincas (Consolidado)" },
+              ...(farmers.data ?? []).map((f: any) => ({ value: f.id, label: `Finca: ${f.full_name}` })),
             ]}
-            placeholder="Todos los agricultores"
-            searchPlaceholder="Buscar agricultor…"
-            className="w-56"
+            placeholder="Todas las fincas"
+            searchPlaceholder="Buscar finca o productor…"
+            className="w-64"
           />
+          {selectedFarmer && (
+            <Button variant="ghost" size="sm" onClick={() => setFarmerFilter("__all__")} className="text-xs">
+              Volver a vista global
+            </Button>
+          )}
           {selectedFarmer && (
             <>
               <Button variant="outline" size="sm" onClick={() => setFarmerModal(selectedFarmer)}>
@@ -446,7 +460,7 @@ function Dashboard() {
             )}
           </Card>
 
-          <CollapsibleSection title="Mis parcelas" icon={MapPin} storageKey="dashboard-parcels-collapsed" actions={
+          <CollapsibleSection title={isStaff ? (selectedFarmer ? `Parcelas de ${selectedFarmer.full_name}` : "Unidades Productivas / Fincas") : "Mis parcelas"} icon={MapPin} storageKey="dashboard-parcels-collapsed" actions={
             <>
               <RoleGate roles={["tecnico", "admin"]}>
                 <Button asChild size="sm" variant="outline"><Link to="/cultivos"><Plus className="size-3.5 mr-1" /> Nuevo cultivo</Link></Button>
@@ -462,6 +476,31 @@ function Dashboard() {
               <div className="p-8 border border-dashed border-border rounded-xl text-center bg-muted/20">
                 <p className="text-muted-foreground">Aún no has registrado parcelas.</p>
                 <Button asChild className="mt-4"><Link to="/parcels">Crear primera parcela</Link></Button>
+              </div>
+            ) : isStaff && farmerFilter === "__all__" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {(farmersWithStats.data ?? [])
+                  .filter((f: any) => f.parcels > 0)
+                  .slice(0, 6)
+                  .map((f: any) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setFarmerFilter(f.id)}
+                      className="text-left rounded-xl border border-border bg-card p-4 hover:border-primary hover:bg-primary/5 transition-all space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-sm text-foreground truncate">{f.name}</span>
+                        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary shrink-0">
+                          {(f.area / 10000).toFixed(2)} ha
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {f.parcels} parcela{f.parcels !== 1 ? "s" : ""} ·{" "}
+                        <strong className="text-success">{f.active}</strong> cultivo(s) activo(s) · {f.activities} labores
+                      </p>
+                    </button>
+                  ))}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

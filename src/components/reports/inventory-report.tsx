@@ -16,6 +16,7 @@ const formatCOP = formatCurrencyInt;
 
 const categoryColors: Record<string, string> = {
   Fertilizante: "bg-success/10 text-success border-success/30",
+  Bioinsumo: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
   Plaguicida: "bg-destructive/10 text-destructive border-destructive/30",
   Semilla: "bg-warning/15 text-warning-text border-warning/35",
   Herramienta: "bg-info/10 text-info border-info/30",
@@ -23,22 +24,25 @@ const categoryColors: Record<string, string> = {
   Otro: "bg-muted text-muted-foreground border-border",
 };
 
-export function InventoryReport() {
+export function InventoryReport({ farmerId, farmerNameProp }: { farmerId?: string; farmerNameProp?: string } = {}) {
   const [exporting, setExporting] = useState(false);
 
   const inventoryQuery = useQuery({
-    queryKey: ["my-inventory-report"],
-    queryFn: getMyInventoryReport,
+    queryKey: ["my-inventory-report", farmerId ?? "self"],
+    queryFn: () => getMyInventoryReport(farmerId),
   });
 
   const profileQuery = useQuery({
-    queryKey: ["farmer-report-profile"],
+    queryKey: ["farmer-subreport-name", farmerId ?? "self"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
-      const { data } = await supabase.from("profiles").select("full_name").eq("id", u.user.id).maybeSingle();
+      if (farmerNameProp) return { fullName: farmerNameProp };
+      const { data: s } = await supabase.auth.getSession();
+      const targetId = farmerId || s.session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
+      if (!targetId) return null;
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", targetId).maybeSingle();
       return { fullName: data?.full_name || "Agricultor" };
     },
+    enabled: !farmerNameProp,
   });
 
   const items = useMemo(() => (Array.isArray(inventoryQuery.data?.items) ? (inventoryQuery.data.items as any[]) : []), [inventoryQuery.data]);
@@ -62,7 +66,7 @@ export function InventoryReport() {
   const handleExportPDF = async () => {
     setExporting(true);
     try {
-      const farmerName = profileQuery.data?.fullName || "Agricultor";
+      const farmerName = farmerNameProp || profileQuery.data?.fullName || "Agricultor";
       const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", {
         locale: es,
       });
@@ -128,7 +132,7 @@ export function InventoryReport() {
   // ── Export CSV ──────────────────────────────────────────────────────────
   const handleExportCSV = () => {
     try {
-      const farmerName = profileQuery.data?.fullName || "Agricultor";
+      const farmerName = farmerNameProp || profileQuery.data?.fullName || "Agricultor";
       const rows = [["Reporte de Inventario SIGIC"], [`Agricultor: ${farmerName}`], [`Fecha: ${format(new Date(), "yyyy-MM-dd HH:mm")}`], [`Valor Total Inventario: ${formatCOP(totalValue)}`], [], ["--- INVENTARIO DE INSUMOS ---"], ["Nombre", "Categoría", "Stock Actual", "Unidad", "Stock Mínimo", "Costo Unitario (COP)", "Valor Total (COP)", "Estado"], ...(items as any[]).map((i) => [i.name, i.category || "—", Number(i.stock_qty).toFixed(2), i.unit || "—", Number(i.min_stock).toFixed(2), Number(i.unit_cost || 0).toFixed(2), (Number(i.stock_qty || 0) * Number(i.unit_cost || 0)).toFixed(2), Number(i.stock_qty) <= Number(i.min_stock) ? "STOCK BAJO" : "OK"]), [], ["--- MOVIMIENTOS DE INVENTARIO ---"], ["Fecha", "Ítem", "Tipo", "Cantidad", "Unidad", "Notas"], ...(movements as any[]).map((m) => [m.created_at ? format(new Date(m.created_at), "yyyy-MM-dd HH:mm") : "—", m.inventory_items?.name || "—", m.kind || "—", Number(m.qty).toFixed(2), m.inventory_items?.unit || "—", m.notes || "—"])];
 
       const csvContent =
@@ -163,6 +167,18 @@ export function InventoryReport() {
         <Loader2 className="size-5 animate-spin" />
         <span className="text-sm">Cargando inventario...</span>
       </div>
+    );
+  }
+
+  if (inventoryQuery.isError) {
+    return (
+      <Card role="alert" className="p-6 border-destructive/30 text-center space-y-3">
+        <AlertTriangle className="size-6 text-destructive mx-auto" />
+        <p className="text-sm font-medium text-destructive">No se pudo cargar el reporte de inventario.</p>
+        <Button variant="outline" size="sm" onClick={() => void inventoryQuery.refetch()}>
+          Reintentar
+        </Button>
+      </Card>
     );
   }
 

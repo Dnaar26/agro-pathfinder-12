@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BRANCH_NAME="${1:-main}"
-COMMIT_MSG="${2:-feat(v6): redesign executive PDF engine, add farmer/tech field workspaces and open public crop showcase (/vitrina)}"
+COMMIT_MSG="${2:-feat(v7): fix farmer reports queries/tabs and organize admin & staff views by farm/productive unit}"
 
 rm -rf ./agro-pathfinder-12-main
 
@@ -18,4 +18,4 @@ git reset -- .env .env.local .env.production 2>/dev/null || true
 
 git commit -m "$COMMIT_MSG"
 git push -u origin "$BRANCH_NAME"
-echo "Version v6 validada y subida a $BRANCH_NAME."
+echo "Version v7 validada y subida a $BRANCH_NAME."

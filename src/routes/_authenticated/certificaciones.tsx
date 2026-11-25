@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyProfile, getMyRoles, listAllCrops } from "@/lib/queries";
+import { ProducerScopeBar, FarmGroupSection, useProducerScope } from "@/components/admin/producer-scope-bar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -74,6 +75,7 @@ function BpaCertificationsPage() {
     Object.fromEntries(BPA_CHECKLIST_ITEMS.map((i) => [i.id, true]))
   );
   const [notes, setNotes] = useState("");
+  const { isStaff, producerId, setProducerId, groupByFarm, setGroupByFarm, producers } = useProducerScope();
 
   const profileQuery = useQuery({ queryKey: ["profile"], queryFn: getMyProfile });
   const rolesQuery = useQuery({ queryKey: ["my-roles"], queryFn: getMyRoles });
@@ -98,7 +100,7 @@ function BpaCertificationsPage() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("bpa_evaluations")
-        .select("*, crops(id, crop_catalog(name), parcels(name)), batches(batch_code)")
+        .select("*, crops(id, crop_catalog(name), parcels(name, owner_id, profiles!owner_id(full_name))), batches(batch_code)")
         .order("evaluated_at", { ascending: false });
       if (error) {
         if (String(error.code) === "42P01" || String(error.code) === "PGRST205") {
@@ -297,7 +299,24 @@ function BpaCertificationsPage() {
         </Card>
       )}
 
-      {(evaluationsQuery.data?.rows ?? []).length === 0 ? (
+      <ProducerScopeBar
+        isStaff={isStaff}
+        producerId={producerId}
+        onProducerChange={setProducerId}
+        groupByFarm={groupByFarm}
+        onGroupByFarmChange={setGroupByFarm}
+        producers={producers}
+        recordLabel="evaluaciones BPA"
+      />
+
+      {(() => {
+        const allEvs = evaluationsQuery.data?.rows ?? [];
+        const visibleEvs = isStaff && producerId
+          ? allEvs.filter((ev: any) => ev.crops?.parcels?.owner_id === producerId)
+          : allEvs;
+
+        if (visibleEvs.length === 0) {
+          return (
         <Card className="p-10 text-center space-y-3 border-dashed">
           <ShieldCheck className="size-10 mx-auto text-muted-foreground" />
           <p className="font-semibold">Sin auditorías BPA registradas aún</p>
@@ -305,9 +324,61 @@ function BpaCertificationsPage() {
             Evalúa tus cultivos con la lista oficial de 10 puntos para habilitar el sello verificado en los códigos QR de cosecha.
           </p>
         </Card>
-      ) : (
+          );
+        }
+
+        if (isStaff && !producerId && groupByFarm) {
+          const map = new Map<string, { ownerId: string; ownerName: string; items: any[] }>();
+          for (const ev of visibleEvs) {
+            const oid = ev.crops?.parcels?.owner_id || "unknown";
+            const oName = ev.crops?.parcels?.profiles?.full_name || "Productor sin nombre";
+            if (!map.has(oid)) map.set(oid, { ownerId: oid, ownerName: oName, items: [] });
+            map.get(oid)!.items.push(ev);
+          }
+          const groups = Array.from(map.values()).sort((a, b) => a.ownerName.localeCompare(b.ownerName));
+          return (
+            <div className="space-y-5">
+              {groups.map((g) => (
+                <FarmGroupSection
+                  key={g.ownerId}
+                  ownerId={g.ownerId}
+                  ownerName={g.ownerName}
+                  badgeText={`${g.items.length} auditoría${g.items.length !== 1 ? "s" : ""}`}
+                  subtitle="Evaluaciones de Buenas Prácticas Agrícolas (BPA)"
+                  onFocusProducer={setProducerId}
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {g.items.map((ev: any) => {
+                      const approved = ev.status === "APROBADO_BPA";
+                      return (
+                        <Card key={ev.id} className="p-4 space-y-2.5 bg-background">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h3 className="font-bold text-sm">{ev.crops?.crop_catalog?.name ?? "Cultivo"} — {ev.crops?.parcels?.name ?? "Parcela"}</h3>
+                              <p className="text-xs text-muted-foreground">Evaluador: {ev.evaluator_name} · {new Date(ev.evaluated_at).toLocaleDateString("es-CO")}</p>
+                            </div>
+                            <Badge className={approved ? "border-success/30 bg-success/15 text-success" : "border-warning/40 bg-warning/15 text-warning-text"}>
+                              {Number(ev.compliance_score).toFixed(0)}%
+                            </Badge>
+                          </div>
+                          <div className="flex justify-end">
+                            <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => printBpaCertificate(ev)}>
+                              <Printer className="size-3" /> Acta BPA
+                            </Button>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </FarmGroupSection>
+              ))}
+            </div>
+          );
+        }
+
+        return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {(evaluationsQuery.data?.rows ?? []).map((ev: any) => {
+          {visibleEvs.map((ev: any) => {
             const approved = ev.status === "APROBADO_BPA";
             return (
               <Card key={ev.id} className="p-5 space-y-3">
@@ -356,7 +427,8 @@ function BpaCertificationsPage() {
             );
           })}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

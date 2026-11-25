@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { listParcels } from "@/lib/queries";
+import { ProducerScopeBar, FarmGroupSection, useProducerScope } from "@/components/admin/producer-scope-bar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,6 +95,7 @@ function SoilAnalysisPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [parcelFilter, setParcelFilter] = useState<string>("__all__");
+  const { isStaff, producerId, setProducerId, groupByFarm, setGroupByFarm, producers } = useProducerScope();
 
   const [formParcelId, setFormParcelId] = useState<string>("");
   const [sampleDate, setSampleDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -117,7 +119,7 @@ function SoilAnalysisPage() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("soil_analyses")
-        .select("*, parcels(id, name, area_m2)")
+        .select("*, parcels(id, name, area_m2, owner_id, profiles!owner_id(full_name))")
         .order("sample_date", { ascending: false });
       if (error) {
         if (isMissingRelationError(error)) {
@@ -174,10 +176,25 @@ function SoilAnalysisPage() {
   });
 
   const filteredRows = useMemo(() => {
-    const all = samplesQuery.data?.rows ?? [];
+    let all = samplesQuery.data?.rows ?? [];
+    if (isStaff && producerId) {
+      all = all.filter((r: any) => r.parcels?.owner_id === producerId);
+    }
     if (parcelFilter === "__all__") return all;
     return all.filter((r: any) => r.parcel_id === parcelFilter);
-  }, [samplesQuery.data?.rows, parcelFilter]);
+  }, [samplesQuery.data?.rows, parcelFilter, isStaff, producerId]);
+
+  const groupedSoilFarms = useMemo(() => {
+    if (!isStaff || producerId || !groupByFarm) return [];
+    const map = new Map<string, { ownerId: string; ownerName: string; rows: any[] }>();
+    for (const r of filteredRows) {
+      const oid = r.parcels?.owner_id || "unknown";
+      const oName = r.parcels?.profiles?.full_name || "Productor sin nombre";
+      if (!map.has(oid)) map.set(oid, { ownerId: oid, ownerName: oName, rows: [] });
+      map.get(oid)!.rows.push(r);
+    }
+    return Array.from(map.values()).sort((a, b) => a.ownerName.localeCompare(b.ownerName));
+  }, [filteredRows, isStaff, producerId, groupByFarm]);
 
   const previewEval = useMemo(() => {
     const p = (parcelsQuery.data ?? []).find((x: any) => x.id === formParcelId);
@@ -342,6 +359,20 @@ function SoilAnalysisPage() {
         </div>
       </header>
 
+      <ProducerScopeBar
+        isStaff={isStaff}
+        producerId={producerId}
+        onProducerChange={(id) => {
+          setProducerId(id);
+          setParcelFilter("__all__");
+        }}
+        groupByFarm={groupByFarm}
+        onGroupByFarmChange={setGroupByFarm}
+        producers={producers}
+        totalRecordsCount={filteredRows.length}
+        recordLabel="muestras"
+      />
+
       {samplesQuery.data?.migrationPending && (
         <Card className="p-4 border-warning/40 bg-warning/10 text-xs flex items-start gap-2.5">
           <AlertTriangle className="size-4 shrink-0 text-warning-text mt-0.5" />
@@ -364,6 +395,41 @@ function SoilAnalysisPage() {
             Registra los resultados de laboratorio de tus parcelas para calcular automáticamente dosis de cal agrícola y planes nutricionales.
           </p>
         </Card>
+      ) : isStaff && !producerId && groupByFarm ? (
+        <div className="space-y-5">
+          {groupedSoilFarms.map((group) => (
+            <FarmGroupSection
+              key={group.ownerId}
+              ownerId={group.ownerId}
+              ownerName={group.ownerName}
+              badgeText={`${group.rows.length} muestra${group.rows.length !== 1 ? "s" : ""}`}
+              subtitle="Análisis fisicoquímicos de suelos por parcela"
+              onFocusProducer={setProducerId}
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {group.rows.map((row: any) => {
+                  const parcelName = row.parcels?.name ?? "Parcela";
+                  const diag = evaluateSoilSample(row, Number(row.parcels?.area_m2 || 10000));
+                  return (
+                    <Card key={row.id} className="p-4 space-y-3 bg-background">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <h3 className="font-bold text-sm">{parcelName}</h3>
+                          <p className="text-xs text-muted-foreground">Muestreo: {row.sample_date} · {row.texture}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">pH {Number(row.ph).toFixed(1)}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        MO: <strong>{row.organic_matter_pct}%</strong> · Sat. Al: <strong>{diag.alSaturationPct}%</strong> · Cal req:{" "}
+                        <strong>{diag.totalLimeKg} kg</strong>
+                      </p>
+                    </Card>
+                  );
+                })}
+              </div>
+            </FarmGroupSection>
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredRows.map((row: any) => {
@@ -373,6 +439,11 @@ function SoilAnalysisPage() {
               <Card key={row.id} className="p-5 space-y-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
+                    {isStaff && row.parcels?.profiles?.full_name && (
+                      <p className="text-[11px] font-semibold text-primary mb-0.5">
+                        Finca: {row.parcels.profiles.full_name}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2">
                       <h2 className="font-bold text-base">{parcelName}</h2>
                       <Badge variant="outline" className="text-xs">

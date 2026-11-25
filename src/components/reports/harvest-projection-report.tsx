@@ -11,22 +11,29 @@ import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { CalendarClock, Download, FileSpreadsheet, Clock, AlertTriangle, Wheat, BellRing, Loader2, CheckCircle2, Droplet } from "lucide-react";
 
-export function HarvestProjectionReport() {
+function safeLocalDate(dateStr: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(`${dateStr}T12:00:00`) : new Date(dateStr);
+}
+
+export function HarvestProjectionReport({ farmerId, farmerNameProp }: { farmerId?: string; farmerNameProp?: string } = {}) {
   const [exporting, setExporting] = useState(false);
 
   const dataQuery = useQuery({
-    queryKey: ["my-harvest-projections"],
-    queryFn: getMyUpcomingHarvestsAndTasks,
+    queryKey: ["my-harvest-projections", farmerId ?? "self"],
+    queryFn: () => getMyUpcomingHarvestsAndTasks(farmerId),
   });
 
   const profileQuery = useQuery({
-    queryKey: ["farmer-report-profile"],
+    queryKey: ["farmer-subreport-name", farmerId ?? "self"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
-      const { data } = await supabase.from("profiles").select("full_name").eq("id", u.user.id).maybeSingle();
+      if (farmerNameProp) return { fullName: farmerNameProp };
+      const { data: s } = await supabase.auth.getSession();
+      const targetId = farmerId || s.session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
+      if (!targetId) return null;
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", targetId).maybeSingle();
       return { fullName: data?.full_name || "Agricultor" };
     },
+    enabled: !farmerNameProp,
   });
 
   const { crops, alerts, upcomingActivities } = useMemo(() => {
@@ -41,7 +48,7 @@ export function HarvestProjectionReport() {
 
     for (const c of crops) {
       if (!c.estimated_harvest_date) continue;
-      const diff = differenceInDays(new Date(c.estimated_harvest_date), new Date());
+      const diff = differenceInDays(safeLocalDate(c.estimated_harvest_date), new Date());
       if (diff < 0) overdue++;
       else if (diff <= 15) next15Days++;
       else if (diff <= 30) next30Days++;
@@ -54,16 +61,16 @@ export function HarvestProjectionReport() {
   const handleExportPDF = async () => {
     setExporting(true);
     try {
-      const farmerName = profileQuery.data?.fullName || "Agricultor";
+      const farmerName = farmerNameProp || profileQuery.data?.fullName || "Agricultor";
       const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", {
         locale: es,
       });
 
       const harvestRows = crops.map((c) => {
-        const diff = c.estimated_harvest_date ? differenceInDays(new Date(c.estimated_harvest_date), new Date()) : null;
+        const diff = c.estimated_harvest_date ? differenceInDays(safeLocalDate(c.estimated_harvest_date), new Date()) : null;
         const statusText = diff !== null ? (diff < 0 ? `Vencida (${Math.abs(diff)}d)` : diff === 0 ? "Hoy" : `En ${diff} días`) : "Sin fecha";
 
-        return [c.crop_catalog?.name || "Cultivo", c.parcels?.name || "—", c.status || "—", c.planting_date ? format(new Date(c.planting_date), "dd/MM/yyyy") : "—", c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "dd/MM/yyyy") : "—", statusText];
+        return [c.crop_catalog?.name || "Cultivo", c.parcels?.name || "—", c.status || "—", c.planting_date ? format(safeLocalDate(c.planting_date), "dd/MM/yyyy") : "—", c.estimated_harvest_date ? format(safeLocalDate(c.estimated_harvest_date), "dd/MM/yyyy") : "—", statusText];
       });
 
       const alertRows = alerts.map((a: any) => [a.scheduled_at ? format(new Date(a.scheduled_at), "dd/MM/yyyy") : "—", a.kind || "—", a.title || "—", a.body || "Sin descripción"]);
@@ -116,7 +123,7 @@ export function HarvestProjectionReport() {
   // Exportar CSV
   const handleExportCSV = () => {
     try {
-      const farmerName = profileQuery.data?.fullName || "Agricultor";
+      const farmerName = farmerNameProp || profileQuery.data?.fullName || "Agricultor";
       const rows = [
         ["Reporte de Proyección de Cosechas y Labores SIGIC"],
         [`Agricultor: ${farmerName}`],
@@ -125,8 +132,8 @@ export function HarvestProjectionReport() {
         ["--- CULTIVOS Y COSECHAS ESTIMADAS ---"],
         ["Cultivo", "Parcela", "Estado", "Fecha Siembra", "Cosecha Estimada", "Días Restantes"],
         ...crops.map((c) => {
-          const diff = c.estimated_harvest_date ? differenceInDays(new Date(c.estimated_harvest_date), new Date()) : "";
-          return [c.crop_catalog?.name || "", c.parcels?.name || "", c.status || "", c.planting_date ? format(new Date(c.planting_date), "yyyy-MM-dd") : "", c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "yyyy-MM-dd") : "", diff !== "" ? String(diff) : ""];
+          const diff = c.estimated_harvest_date ? differenceInDays(safeLocalDate(c.estimated_harvest_date), new Date()) : "";
+          return [c.crop_catalog?.name || "", c.parcels?.name || "", c.status || "", c.planting_date ? format(safeLocalDate(c.planting_date), "yyyy-MM-dd") : "", c.estimated_harvest_date ? format(safeLocalDate(c.estimated_harvest_date), "yyyy-MM-dd") : "", diff !== "" ? String(diff) : ""];
         }),
         [],
         ["--- ALERTAS Y LABORES PENDIENTES ---"],
@@ -166,6 +173,18 @@ export function HarvestProjectionReport() {
         <Loader2 className="size-5 animate-spin" />
         <span className="text-sm">Calculando proyecciones de cosecha...</span>
       </div>
+    );
+  }
+
+  if (dataQuery.isError) {
+    return (
+      <Card role="alert" className="p-6 border-destructive/30 text-center space-y-3">
+        <AlertTriangle className="size-6 text-destructive mx-auto" />
+        <p className="text-sm font-medium text-destructive">No se pudieron calcular las proyecciones de cosecha.</p>
+        <Button variant="outline" size="sm" onClick={() => void dataQuery.refetch()}>
+          Reintentar
+        </Button>
+      </Card>
     );
   }
 
@@ -258,7 +277,7 @@ export function HarvestProjectionReport() {
               </thead>
               <tbody className="divide-y divide-border/50">
                 {crops.map((c: any) => {
-                  const diff = c.estimated_harvest_date ? differenceInDays(new Date(c.estimated_harvest_date), new Date()) : null;
+                  const diff = c.estimated_harvest_date ? differenceInDays(safeLocalDate(c.estimated_harvest_date), new Date()) : null;
                   return (
                     <tr key={c.id} className="hover:bg-muted/30">
                       <td className="py-2.5 px-3 font-semibold text-foreground">{c.crop_catalog?.name ?? "Cultivo"}</td>
@@ -268,8 +287,8 @@ export function HarvestProjectionReport() {
                           {c.status}
                         </Badge>
                       </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">{c.planting_date ? format(new Date(c.planting_date), "dd/MM/yyyy") : "—"}</td>
-                      <td className="py-2.5 px-3 font-medium">{c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date), "dd/MM/yyyy") : "—"}</td>
+                      <td className="py-2.5 px-3 text-muted-foreground">{c.planting_date ? format(safeLocalDate(c.planting_date), "dd/MM/yyyy") : "—"}</td>
+                      <td className="py-2.5 px-3 font-medium">{c.estimated_harvest_date ? format(safeLocalDate(c.estimated_harvest_date), "dd/MM/yyyy") : "—"}</td>
                       <td className="py-2.5 px-3 text-right font-bold tabular-nums">{diff !== null ? diff < 0 ? <span className="text-warning-text">Vencida hace {Math.abs(diff)}d</span> : diff <= 15 ? <span className="font-bold text-success">{diff} días (Próxima)</span> : <span className="text-foreground">{diff} días</span> : <span className="text-muted-foreground">—</span>}</td>
                     </tr>
                   );

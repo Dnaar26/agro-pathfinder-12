@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Sprout, Search, Calendar, MapPin, Plus, Download, CheckSquare } from "lucide-react";
+import { Sprout, Search, Calendar, MapPin, Plus, Download, CheckSquare, User } from "lucide-react";
+import { ProducerScopeBar, FarmGroupSection, useProducerScope } from "@/components/admin/producer-scope-bar";
 import { format, addDays, parse } from "date-fns";
 import { toast } from "sonner";
 
@@ -40,6 +41,7 @@ const cropCreateSchema = z.object({
 function CultivosPage() {
   const search = useSearch({ from: "/_authenticated/cultivos" });
   const qc = useQueryClient();
+  const { isStaff, producerId, setProducerId, groupByFarm, setGroupByFarm, producers } = useProducerScope();
   const crops = useQuery({ queryKey: ["crops"], queryFn: listAllCrops });
   const catalog = useQuery({ queryKey: ["catalog"], queryFn: listCatalog });
   const parcels = useQuery({ queryKey: ["parcels"], queryFn: listParcels });
@@ -56,21 +58,44 @@ function CultivosPage() {
   const parcelOptions = useMemo(() => {
     const names = new Set((crops.data ?? []).map((c: any) => (c.parcels as any)?.name).filter(Boolean));
     return Array.from(names).sort();
-  }, [crops.data]);
+  }, [scopedCrops]);
+
+  const scopedCrops = useMemo(() => {
+    const all = crops.data ?? [];
+    if (!isStaff || !producerId) return all;
+    return all.filter((c: any) => (c.parcels as any)?.owner_id === producerId);
+  }, [crops.data, isStaff, producerId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (crops.data ?? []).filter((c: any) => {
+    return scopedCrops.filter((c: any) => {
       const name = (c.crop_catalog as any)?.name ?? "";
       const parcelName = (c.parcels as any)?.name ?? "";
-      if (q && !name.toLowerCase().includes(q) && !parcelName.toLowerCase().includes(q)) return false;
+      const ownerName = (c.parcels as any)?.profiles?.full_name ?? "";
+      if (q && !name.toLowerCase().includes(q) && !parcelName.toLowerCase().includes(q) && !ownerName.toLowerCase().includes(q)) return false;
       if (filterStatus === "activos" && !isActive(c.status)) return false;
       if (filterStatus === "inactivos" && isActive(c.status)) return false;
       if (filterStatus !== "all" && filterStatus !== "activos" && filterStatus !== "inactivos" && c.status !== filterStatus) return false;
       if (filterParcel !== "all" && parcelName !== filterParcel) return false;
       return true;
     });
-  }, [crops.data, query, filterStatus, filterParcel]);
+  }, [scopedCrops, query, filterStatus, filterParcel]);
+
+  const groupedCropFarms = useMemo(() => {
+    if (!isStaff || producerId || !groupByFarm) return [];
+    const map = new Map<string, { ownerId: string; ownerName: string; rows: any[]; activeCount: number }>();
+    for (const c of filtered) {
+      const oid = (c.parcels as any)?.owner_id || "unknown";
+      const oName = (c.parcels as any)?.profiles?.full_name || "Productor sin nombre";
+      if (!map.has(oid)) {
+        map.set(oid, { ownerId: oid, ownerName: oName, rows: [], activeCount: 0 });
+      }
+      const g = map.get(oid)!;
+      g.rows.push(c);
+      if (isActive(c.status)) g.activeCount++;
+    }
+    return Array.from(map.values()).sort((a, b) => a.ownerName.localeCompare(b.ownerName));
+  }, [filtered, isStaff, producerId, groupByFarm]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   useEffect(() => { setPage(1); }, [query, filterStatus, filterParcel]);
@@ -80,7 +105,7 @@ function CultivosPage() {
   }, [filtered, page, pageSize]);
 
   const counts = useMemo(() => {
-    const all = crops.data ?? [];
+    const all = scopedCrops;
     return {
       total: all.length,
       activos: all.filter((c: any) => isActive(c.status)).length,
@@ -92,7 +117,7 @@ function CultivosPage() {
       postcosecha: all.filter((c: any) => c.status === "POSTCOSECHA").length,
       finalizado: all.filter((c: any) => c.status === "FINALIZADO").length,
     };
-  }, [crops.data]);
+  }, [scopedCrops]);
 
   const createCrop = useMutation({
     mutationFn: async (input: z.infer<typeof cropCreateSchema>) => {
@@ -219,6 +244,17 @@ function CultivosPage() {
         </DialogContent>
       </Dialog>
 
+      <ProducerScopeBar
+        isStaff={isStaff}
+        producerId={producerId}
+        onProducerChange={setProducerId}
+        groupByFarm={groupByFarm}
+        onGroupByFarmChange={setGroupByFarm}
+        producers={producers}
+        totalRecordsCount={filtered.length}
+        recordLabel="cultivos"
+      />
+
       {/* Status bar chart */}
       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
         <StatusCount label="Total" value={counts.total} color="bg-chart-7" />
@@ -263,6 +299,60 @@ function CultivosPage() {
           <Sprout className="size-8 mx-auto text-muted-foreground" />
           <p className="mt-3 text-muted-foreground">No se encontraron cultivos.</p>
         </div>
+      ) : isStaff && !producerId && groupByFarm ? (
+        <div className="space-y-5">
+          {groupedCropFarms.map((group) => (
+            <FarmGroupSection
+              key={group.ownerId}
+              ownerId={group.ownerId}
+              ownerName={group.ownerName}
+              badgeText={`${group.rows.length} cultivo${group.rows.length !== 1 ? "s" : ""}`}
+              subtitle={`${group.activeCount} cultivo(s) activo(s) en campo`}
+              onFocusProducer={setProducerId}
+            >
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40 text-muted-foreground text-xs uppercase">
+                      <th className="p-3 w-8" />
+                      <th className="text-left p-3 font-medium">Cultivo</th>
+                      <th className="text-left p-3 font-medium">Parcela</th>
+                      <th className="text-left p-3 font-medium">Estado</th>
+                      <th className="text-left p-3 font-medium">Siembra</th>
+                      <th className="text-left p-3 font-medium">Cosecha est.</th>
+                      <th className="p-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.rows.map((c: any) => {
+                      const name = c.crop_catalog?.name ?? "—";
+                      const parcelName = c.parcels?.name ?? "—";
+                      const planting = c.planting_date ? format(new Date(c.planting_date + "T12:00:00"), "dd MMM yyyy") : "—";
+                      const harvest = c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date + "T12:00:00"), "dd MMM yyyy") : "—";
+                      return (
+                        <tr key={c.id} className={`border-b border-border hover:bg-muted/30 transition-colors ${selectedIds.has(c.id) ? "bg-primary/5" : ""}`}>
+                          <td className="p-3"><input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleSelect(c.id)} className="size-3.5" /></td>
+                          <td className="p-3 font-medium">{name}</td>
+                          <td className="p-3 text-muted-foreground">
+                            <Link to="/parcels/$id" params={{ id: c.parcel_id }} className="hover:text-primary inline-flex items-center gap-1">
+                              <MapPin className="size-3" /> {parcelName}
+                            </Link>
+                          </td>
+                          <td className="p-3"><StatusBadge status={c.status} /></td>
+                          <td className="p-3 text-muted-foreground">{planting}</td>
+                          <td className="p-3 text-muted-foreground">{harvest}</td>
+                          <td className="p-3 text-right">
+                            <Link to="/crops/$id" params={{ id: c.id }} className="text-primary hover:underline text-xs font-medium">Ver</Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </FarmGroupSection>
+          ))}
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-sm">
@@ -273,6 +363,7 @@ function CultivosPage() {
                 </th>
                 <th className="text-left p-3 font-medium">Cultivo</th>
                 <th className="text-left p-3 font-medium">Parcela</th>
+                {isStaff && <th className="text-left p-3 font-medium">Finca / Productor</th>}
                 <th className="text-left p-3 font-medium">Estado</th>
                 <th className="text-left p-3 font-medium">Siembra</th>
                 <th className="text-left p-3 font-medium">Cosecha est.</th>
@@ -284,6 +375,7 @@ function CultivosPage() {
               {paginated.map((c: any) => {
                 const name = c.crop_catalog?.name ?? "—";
                 const parcelName = c.parcels?.name ?? "—";
+                const ownerName = c.parcels?.profiles?.full_name ?? "—";
                 const planting = c.planting_date ? format(new Date(c.planting_date + "T12:00:00"), "dd MMM yyyy") : "—";
                 const harvest = c.estimated_harvest_date ? format(new Date(c.estimated_harvest_date + "T12:00:00"), "dd MMM yyyy") : "—";
                 const days = c.crop_catalog?.cycle_days ?? "—";
@@ -296,6 +388,13 @@ function CultivosPage() {
                         <MapPin className="size-3" /> {parcelName}
                       </Link>
                     </td>
+                    {isStaff && (
+                      <td className="p-3 text-xs text-primary font-medium">
+                        <span className="inline-flex items-center gap-1">
+                          <User className="size-3" /> {ownerName}
+                        </span>
+                      </td>
+                    )}
                     <td className="p-3"><StatusBadge status={c.status} /></td>
                     <td className="p-3 text-muted-foreground"><span className="inline-flex items-center gap-1"><Calendar className="size-3" />{planting}</span></td>
                     <td className="p-3 text-muted-foreground">{harvest}</td>
@@ -310,7 +409,9 @@ function CultivosPage() {
           </table>
         </div>
       )}
-      {filtered.length > pageSize && <PaginationBar page={page} totalPages={totalPages} onPageChange={setPage} />}
+      {!(isStaff && !producerId && groupByFarm) && filtered.length > pageSize && (
+        <PaginationBar page={page} totalPages={totalPages} onPageChange={setPage} />
+      )}
     </div>
   );
 }

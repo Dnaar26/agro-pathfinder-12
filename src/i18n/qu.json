@@ -31,7 +31,11 @@
     "group_admin": "Hatun kamachiy",
     "audit": "Yupay qhaway",
     "more": "Aswan",
-    "main": "Qhapaq ñan"
+    "main": "Qhapaq ñan",
+    "soils": "Allpa Qhaway",
+    "bpa": "BPA Unanchay",
+    "labor": "Llamk'aqkuna",
+    "market": "Qhatu Wasi"
   },
   "parcels": {
     "title": "Chakrakuna",

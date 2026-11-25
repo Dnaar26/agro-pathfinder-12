@@ -20,13 +20,17 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
+import { Route as AuthenticatedCertificacionesRouteImport } from './routes/_authenticated/certificaciones'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedCultivosRouteImport } from './routes/_authenticated/cultivos'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedInventoryRouteImport } from './routes/_authenticated/inventory'
+import { Route as AuthenticatedJornalesRouteImport } from './routes/_authenticated/jornales'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
+import { Route as AuthenticatedMercadoRouteImport } from './routes/_authenticated/mercado'
 import { Route as AuthenticatedParcelsRouteImport } from './routes/_authenticated/parcels'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
+import { Route as AuthenticatedSuelosRouteImport } from './routes/_authenticated/suelos'
 import { Route as TraceCodeRouteImport } from './routes/trace.$code'
 import { Route as AuthenticatedCropsIdRouteImport } from './routes/_authenticated/crops.$id'
 import { Route as AuthenticatedParcelsIdRouteImport } from './routes/_authenticated/parcels.$id'
@@ -85,6 +89,11 @@ const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
   path: '/calendar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCertificacionesRoute = AuthenticatedCertificacionesRouteImport.update({
+  id: '/certificaciones',
+  path: '/certificaciones',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
   id: '/chat',
   path: '/chat',
@@ -105,9 +114,19 @@ const AuthenticatedInventoryRoute = AuthenticatedInventoryRouteImport.update({
   path: '/inventory',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedJornalesRoute = AuthenticatedJornalesRouteImport.update({
+  id: '/jornales',
+  path: '/jornales',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMapaRoute = AuthenticatedMapaRouteImport.update({
   id: '/mapa',
   path: '/mapa',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMercadoRoute = AuthenticatedMercadoRouteImport.update({
+  id: '/mercado',
+  path: '/mercado',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedParcelsRoute = AuthenticatedParcelsRouteImport.update({
@@ -118,6 +137,11 @@ const AuthenticatedParcelsRoute = AuthenticatedParcelsRouteImport.update({
 const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSuelosRoute = AuthenticatedSuelosRouteImport.update({
+  id: '/suelos',
+  path: '/suelos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const TraceCodeRoute = TraceCodeRouteImport.update({
@@ -147,13 +171,17 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AuthenticatedAlertsRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/calendar': typeof AuthenticatedCalendarRoute
+  '/certificaciones': typeof AuthenticatedCertificacionesRoute
   '/chat': typeof AuthenticatedChatRoute
   '/cultivos': typeof AuthenticatedCultivosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inventory': typeof AuthenticatedInventoryRoute
+  '/jornales': typeof AuthenticatedJornalesRoute
   '/mapa': typeof AuthenticatedMapaRoute
+  '/mercado': typeof AuthenticatedMercadoRoute
   '/parcels': typeof AuthenticatedParcelsRouteWithChildren
   '/reports': typeof AuthenticatedReportsRoute
+  '/suelos': typeof AuthenticatedSuelosRoute
   '/trace/$code': typeof TraceCodeRoute
   '/crops/$id': typeof AuthenticatedCropsIdRoute
   '/parcels/$id': typeof AuthenticatedParcelsIdRoute
@@ -169,13 +197,17 @@ export interface FileRoutesByTo {
   '/alerts': typeof AuthenticatedAlertsRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/calendar': typeof AuthenticatedCalendarRoute
+  '/certificaciones': typeof AuthenticatedCertificacionesRoute
   '/chat': typeof AuthenticatedChatRoute
   '/cultivos': typeof AuthenticatedCultivosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inventory': typeof AuthenticatedInventoryRoute
+  '/jornales': typeof AuthenticatedJornalesRoute
   '/mapa': typeof AuthenticatedMapaRoute
+  '/mercado': typeof AuthenticatedMercadoRoute
   '/parcels': typeof AuthenticatedParcelsRouteWithChildren
   '/reports': typeof AuthenticatedReportsRoute
+  '/suelos': typeof AuthenticatedSuelosRoute
   '/trace/$code': typeof TraceCodeRoute
   '/crops/$id': typeof AuthenticatedCropsIdRoute
   '/parcels/$id': typeof AuthenticatedParcelsIdRoute
@@ -193,13 +225,17 @@ export interface FileRoutesById {
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
+  '/_authenticated/certificaciones': typeof AuthenticatedCertificacionesRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/cultivos': typeof AuthenticatedCultivosRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/inventory': typeof AuthenticatedInventoryRoute
+  '/_authenticated/jornales': typeof AuthenticatedJornalesRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
+  '/_authenticated/mercado': typeof AuthenticatedMercadoRoute
   '/_authenticated/parcels': typeof AuthenticatedParcelsRouteWithChildren
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
+  '/_authenticated/suelos': typeof AuthenticatedSuelosRoute
   '/trace/$code': typeof TraceCodeRoute
   '/_authenticated/crops/$id': typeof AuthenticatedCropsIdRoute
   '/_authenticated/parcels/$id': typeof AuthenticatedParcelsIdRoute
@@ -217,13 +253,17 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/audit'
     | '/calendar'
+    | '/certificaciones'
     | '/chat'
     | '/cultivos'
     | '/dashboard'
     | '/inventory'
+    | '/jornales'
     | '/mapa'
+    | '/mercado'
     | '/parcels'
     | '/reports'
+    | '/suelos'
     | '/trace/$code'
     | '/crops/$id'
     | '/parcels/$id'
@@ -239,13 +279,17 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/audit'
     | '/calendar'
+    | '/certificaciones'
     | '/chat'
     | '/cultivos'
     | '/dashboard'
     | '/inventory'
+    | '/jornales'
     | '/mapa'
+    | '/mercado'
     | '/parcels'
     | '/reports'
+    | '/suelos'
     | '/trace/$code'
     | '/crops/$id'
     | '/parcels/$id'
@@ -262,13 +306,17 @@ export interface FileRouteTypes {
     | '/_authenticated/alerts'
     | '/_authenticated/audit'
     | '/_authenticated/calendar'
+    | '/_authenticated/certificaciones'
     | '/_authenticated/chat'
     | '/_authenticated/cultivos'
     | '/_authenticated/dashboard'
     | '/_authenticated/inventory'
+    | '/_authenticated/jornales'
     | '/_authenticated/mapa'
+    | '/_authenticated/mercado'
     | '/_authenticated/parcels'
     | '/_authenticated/reports'
+    | '/_authenticated/suelos'
     | '/trace/$code'
     | '/_authenticated/crops/$id'
     | '/_authenticated/parcels/$id'
@@ -364,6 +412,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCalendarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/certificaciones': {
+      id: '/_authenticated/certificaciones'
+      path: '/certificaciones'
+      fullPath: '/certificaciones'
+      preLoaderRoute: typeof AuthenticatedCertificacionesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/chat': {
       id: '/_authenticated/chat'
       path: '/chat'
@@ -392,11 +447,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInventoryRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/jornales': {
+      id: '/_authenticated/jornales'
+      path: '/jornales'
+      fullPath: '/jornales'
+      preLoaderRoute: typeof AuthenticatedJornalesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/mapa': {
       id: '/_authenticated/mapa'
       path: '/mapa'
       fullPath: '/mapa'
       preLoaderRoute: typeof AuthenticatedMapaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/mercado': {
+      id: '/_authenticated/mercado'
+      path: '/mercado'
+      fullPath: '/mercado'
+      preLoaderRoute: typeof AuthenticatedMercadoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/parcels': {
@@ -411,6 +480,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/suelos': {
+      id: '/_authenticated/suelos'
+      path: '/suelos'
+      fullPath: '/suelos'
+      preLoaderRoute: typeof AuthenticatedSuelosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/trace/$code': {
@@ -453,13 +529,17 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
+  AuthenticatedCertificacionesRoute: typeof AuthenticatedCertificacionesRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedCultivosRoute: typeof AuthenticatedCultivosRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedInventoryRoute: typeof AuthenticatedInventoryRoute
+  AuthenticatedJornalesRoute: typeof AuthenticatedJornalesRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
+  AuthenticatedMercadoRoute: typeof AuthenticatedMercadoRoute
   AuthenticatedParcelsRoute: typeof AuthenticatedParcelsRouteWithChildren
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
+  AuthenticatedSuelosRoute: typeof AuthenticatedSuelosRoute
   AuthenticatedCropsIdRoute: typeof AuthenticatedCropsIdRoute
 }
 
@@ -468,13 +548,17 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
+  AuthenticatedCertificacionesRoute: AuthenticatedCertificacionesRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedCultivosRoute: AuthenticatedCultivosRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedInventoryRoute: AuthenticatedInventoryRoute,
+  AuthenticatedJornalesRoute: AuthenticatedJornalesRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
+  AuthenticatedMercadoRoute: AuthenticatedMercadoRoute,
   AuthenticatedParcelsRoute: AuthenticatedParcelsRouteWithChildren,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
+  AuthenticatedSuelosRoute: AuthenticatedSuelosRoute,
   AuthenticatedCropsIdRoute: AuthenticatedCropsIdRoute,
 }
 

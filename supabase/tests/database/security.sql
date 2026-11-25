@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 
 BEGIN;
 
-SELECT plan(52);
+SELECT plan(56);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.profiles'::regclass),
@@ -332,6 +332,24 @@ SELECT ok(
       AND roles::text[] && ARRAY['anon']
   ),
   'anon users cannot read or write client_error_logs'
+);
+
+
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.soil_analyses'::regclass),
+  'soil_analyses has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.bpa_evaluations'::regclass),
+  'bpa_evaluations has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.field_labor_logs'::regclass),
+  'field_labor_logs has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.harvest_listings'::regclass),
+  'harvest_listings has RLS enabled'
 );
 
 SELECT * FROM finish();

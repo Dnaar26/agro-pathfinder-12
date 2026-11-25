@@ -31,7 +31,11 @@
     "group_admin": "Administración",
     "audit": "Auditoría",
     "more": "Más",
-    "main": "Navegación principal"
+    "main": "Navegación principal",
+    "soils": "Análisis de Suelos",
+    "bpa": "Certificación BPA",
+    "labor": "Jornales y Nómina",
+    "market": "Vitrina Comercial"
   },
   "parcels": {
     "title": "Parcelas",

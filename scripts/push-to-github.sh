@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BRANCH_NAME="${1:-main}"
-COMMIT_MSG="${2:-feat(v4): auto-prefill calendar, smart inventory filter/kardex/calculator, visual audit diff, admin monitor and profitability simulator}"
+COMMIT_MSG="${2:-feat(v5): add 4 commercial modules (soil lab, BPA certification, field labor payroll, crop marketplace) + smart chat-calendar-inventory flow}"
 
 rm -rf ./agro-pathfinder-12-main
 
@@ -18,4 +18,4 @@ git reset -- .env .env.local .env.production 2>/dev/null || true
 
 git commit -m "$COMMIT_MSG"
 git push -u origin "$BRANCH_NAME"
-echo "Version v4 validada y subida a $BRANCH_NAME."
+echo "Version v5 validada y subida a $BRANCH_NAME."

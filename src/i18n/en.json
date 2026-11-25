@@ -31,7 +31,11 @@
     "group_admin": "Administration",
     "audit": "Audit log",
     "more": "More",
-    "main": "Main navigation"
+    "main": "Main navigation",
+    "soils": "Soil Analysis",
+    "bpa": "GAP Certification",
+    "labor": "Field Labor",
+    "market": "Crop Marketplace"
   },
   "parcels": {
     "title": "Parcels",

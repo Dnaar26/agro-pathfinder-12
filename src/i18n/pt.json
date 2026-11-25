@@ -31,7 +31,11 @@
     "group_admin": "Administração",
     "audit": "Auditoria",
     "more": "Mais",
-    "main": "Navegação principal"
+    "main": "Navegação principal",
+    "soils": "Análise de Solo",
+    "bpa": "Certificação BPA",
+    "labor": "Diárias de Campo",
+    "market": "Vitrine Comercial"
   },
   "parcels": {
     "title": "Parcelas",

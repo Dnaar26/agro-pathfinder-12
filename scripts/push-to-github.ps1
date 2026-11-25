@@ -1,6 +1,6 @@
 param(
   [string]$BranchName = "main",
-  [string]$CommitMessage = "feat(v4): auto-prefill calendar, smart inventory filter/kardex/calculator, visual audit diff, admin monitor and profitability simulator"
+  [string]$CommitMessage = "feat(v5): add 4 commercial modules (soil lab, BPA certification, field labor payroll, crop marketplace) + smart chat-calendar-inventory flow"
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,23 +9,32 @@ if (Test-Path "./agro-pathfinder-12-main") {
   Remove-Item -Recurse -Force "./agro-pathfinder-12-main"
 }
 
-Write-Host "1. Verificando dependencias sincronizadas (npm ci)..." -ForegroundColor Cyan
-npm ci
+Write-Host "1. Verificando dependencias sincronizadas (npm.cmd ci)..." -ForegroundColor Cyan
+npm.cmd ci
 
 Write-Host "2. Ejecutando typecheck, lint y pruebas unitarias..." -ForegroundColor Cyan
-npm run typecheck
-npm run lint
-npm run test:e2e:safety
-npm run test:phase34
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run test:e2e:safety
+npm.cmd run test:phase34
 
 Write-Host "3. Compilando build SSR de produccion..." -ForegroundColor Cyan
-npm run build
+npm.cmd run build
 
 Write-Host "4. Confirmando y subiendo cambios a GitHub ($BranchName)..." -ForegroundColor Cyan
+if (-not (Test-Path "./.git")) {
+  git init -b $BranchName
+  git remote add origin https://github.com/Dnaar26/agro-pathfinder-12.git
+  git fetch origin $BranchName
+  git reset --soft "origin/$BranchName"
+}
+
 git add -A
-git reset -- .env .env.local .env.production 2>$null
+if (Test-Path ".env") { git reset -- .env }
+if (Test-Path ".env.local") { git reset -- .env.local }
+if (Test-Path ".env.production") { git reset -- .env.production }
 
 git commit -m $CommitMessage
 git push -u origin $BranchName
 
-Write-Host "Version v4 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green
+Write-Host "Version v5 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green

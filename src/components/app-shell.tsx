@@ -2,7 +2,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   MapPin, Calendar, Bell, FileBarChart, LogOut, LayoutDashboard, Menu, Shield, Package2, Bot,
-  Globe, MapIcon, Leaf, Search, ClipboardList, RefreshCw, type LucideIcon,
+  Globe, MapIcon, Leaf, Search, ClipboardList, RefreshCw, FlaskConical, Award, HardHat, Store, type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { signOutHttpOnlyCookie } from "@/lib/api/auth.server";
@@ -35,6 +35,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
       { to: "/parcels", labelKey: "nav.parcels", icon: MapPin },
       { to: "/cultivos", labelKey: "nav.crops", icon: Leaf },
+      { to: "/suelos", labelKey: "nav.soils", icon: FlaskConical },
       { to: "/mapa", labelKey: "nav.map", icon: MapIcon },
     ],
   },
@@ -43,6 +44,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/calendar", labelKey: "nav.calendar", icon: Calendar },
       { to: "/inventory", labelKey: "nav.inventory", icon: Package2 },
+      { to: "/jornales", labelKey: "nav.labor", icon: HardHat },
+      { to: "/certificaciones", labelKey: "nav.bpa", icon: Award },
       { to: "/alerts", labelKey: "nav.alerts", icon: Bell },
     ],
   },
@@ -50,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
     labelKey: "nav.group_insights",
     items: [
       { to: "/chat", labelKey: "nav.chat", icon: Bot },
+      { to: "/mercado", labelKey: "nav.market", icon: Store },
       { to: "/reports", labelKey: "nav.reports", icon: FileBarChart },
     ],
   },

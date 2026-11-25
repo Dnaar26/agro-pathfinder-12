@@ -9,6 +9,8 @@ interface Props {
   message?: string;
   /** Si es true, ocupa toda la pantalla (para rutas completas). */
   fullPage?: boolean;
+  /** Clave de ruta/estado: al cambiar, el límite limpia automáticamente cualquier error previo sin pulsar Reintentar. */
+  resetKey?: string | number;
   /** Callback opcional cuando se captura un error. */
   onError?: (error: Error, info: ErrorInfo) => void;
 }
@@ -17,16 +19,6 @@ interface State {
   error: Error | null;
 }
 
-/**
- * ErrorBoundary de propósito general.
- * Úsalo alrededor de widgets o secciones del dashboard para que un fallo
- * aislado no tire toda la página.
- *
- * @example
- * <ErrorBoundary message="No se pudo cargar el mapa">
- *   <ParcelMap ... />
- * </ErrorBoundary>
- */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 
@@ -34,9 +26,17 @@ export class ErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.error !== null && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ error: null });
+    }
+  }
+
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // Registrar en consola para depuración; en producción podrías enviar a Sentry.
-    captureAppError(error, { boundary: "ErrorBoundary", componentStack: info.componentStack?.slice(0, 1000) });
+    captureAppError(error, {
+      boundary: "ErrorBoundary",
+      componentStack: info.componentStack?.slice(0, 1000),
+    });
     this.props.onError?.(error, info);
   }
 
@@ -80,10 +80,6 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-/**
- * Variante de pantalla completa para usar en páginas/rutas.
- * Muestra un mensaje más amigable con botón de recarga.
- */
 export class RouteErrorBoundary extends Component<Omit<Props, "fullPage">, State> {
   state: State = { error: null };
 
@@ -91,8 +87,17 @@ export class RouteErrorBoundary extends Component<Omit<Props, "fullPage">, State
     return { error };
   }
 
+  componentDidUpdate(prevProps: Omit<Props, "fullPage">) {
+    if (this.state.error !== null && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ error: null });
+    }
+  }
+
   componentDidCatch(error: Error, info: ErrorInfo) {
-    captureAppError(error, { boundary: "RouteErrorBoundary", componentStack: info.componentStack?.slice(0, 1000) });
+    captureAppError(error, {
+      boundary: "RouteErrorBoundary",
+      componentStack: info.componentStack?.slice(0, 1000),
+    });
     this.props.onError?.(error, info);
   }
 

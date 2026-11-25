@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { QRCodeSVG } from "qrcode.react";
-import { Calendar, Scale, Scan, X } from "lucide-react";
+import { Calendar, Scale, Scan, X, Download, Award } from "lucide-react";
+import { exportTraceabilityCertificatePdf } from "@/lib/pdf-certificate";
 import { LogoIcon } from "@/components/logo";
 import jsQR from "jsqr";
 
@@ -178,7 +179,7 @@ function TracePage() {
                 <Scan className="size-4" />
               </Button>
             )}
-            <QRCodeSVG value={qrValue} size={60} level="M" />
+            <QRCodeSVG value={qrValue} size={60} level="M" data-public-trace-qr={data.batch_code} />
           </div>
         </div>
         {scannerError && <p className="text-sm text-destructive">{scannerError}</p>}
@@ -247,6 +248,45 @@ function TracePage() {
         <p className="text-xs text-muted-foreground text-center pt-2 border-t border-border">
           SIGIC — Sistema de Gestión Inteligente de Cultivos
         </p>
+        <div className="pt-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+          {data.globalgap_cert ? (
+            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs">
+              <Award className="size-3.5 mr-1" /> Sello BPA / GLOBALG.A.P. Verificado
+            </Badge>
+          ) : (
+            <span className="text-xs text-muted-foreground">Origen digital verificado en SIGIC</span>
+          )}
+
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={() => {
+              const svg = document.querySelector(`svg[data-public-trace-qr="${data.batch_code}"]`) as SVGSVGElement | null;
+              void exportTraceabilityCertificatePdf({
+                batchCode: data.batch_code,
+                cropName: data.crop_name || "Producto Agrícola",
+                parcelName: data.parcel_name || "Parcela Registrada",
+                producerName: data.farmer_name || "Productor Verificado SIGIC",
+                locationText:
+                  data.approx_latitude != null && data.approx_longitude != null
+                    ? `Zona aprox. ${Number(data.approx_latitude).toFixed(2)}°, ${Number(data.approx_longitude).toFixed(2)}°`
+                    : undefined,
+                harvestDate: data.harvest_date
+                  ? new Date(data.harvest_date + "T12:00:00").toLocaleDateString("es-CO")
+                  : "—",
+                quantityText: `${Number(data.qty).toFixed(1)} ${data.unit || "KG"}`,
+                bpaApproved: Boolean(data.globalgap_cert),
+                globalGapCertified: Boolean(data.globalgap_cert),
+                phytosanitarySummary: data.notes || undefined,
+                qrSvgElement: svg,
+                verifyUrl: qrValue,
+              });
+            }}
+          >
+            <Download className="size-3.5" /> Descargar Certificado PDF
+          </Button>
+        </div>
       </Card>
     </div>
   );

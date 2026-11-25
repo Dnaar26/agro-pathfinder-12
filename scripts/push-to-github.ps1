@@ -1,6 +1,6 @@
 param(
   [string]$BranchName = "main",
-  [string]$CommitMessage = "feat(v7): fix farmer reports queries/tabs and organize admin & staff views by farm/productive unit"
+  [string]$CommitMessage = "feat(v8): fix cultivos TDZ & reports imports, auto-reset ErrorBoundary on navigation, and add diplomatic multi-logo PDF certificates"
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,4 +37,4 @@ if (Test-Path ".env.production") { git reset -- .env.production }
 git commit -m $CommitMessage
 git push -u origin $BranchName
 
-Write-Host "Version v7 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green
+Write-Host "Version v8 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green

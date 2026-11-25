@@ -13,7 +13,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Award, CheckCircle2, AlertTriangle, Plus, Printer, ShieldCheck, QrCode } from "lucide-react";
+import { Award, CheckCircle2, AlertTriangle, Plus, Download, ShieldCheck, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { exportBpaCertificatePdf } from "@/lib/pdf-certificate";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/certificaciones")({
@@ -34,36 +36,46 @@ const BPA_CHECKLIST_ITEMS = [
   { id: "ipm_plan", label: "10. Monitoreo de plagas documentado bajo Manejo Integrado (MIP)" },
 ] as const;
 
-function printBpaCertificate(ev: any) {
-  const win = window.open("", "_blank", "width=840,height=740");
-  if (!win) return;
-  const cropName = ev.crops?.crop_catalog?.name ?? "Cultivo";
-  const parcelName = ev.crops?.parcels?.name ?? "Parcela";
-  win.document.write(`<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <title>Acta de Evaluación BPA — SIGIC</title>
-  <style>
-    body { font-family: system-ui, sans-serif; padding: 36px; color: #1a241b; }
-    .box { border: 2px solid #1b5e20; border-radius: 12px; padding: 28px; }
-    h1 { margin: 0 0 6px; color: #1b5e20; font-size: 22px; }
-    .score { font-size: 28px; font-weight: 800; color: #1b5e20; margin: 14px 0; }
-    ul { line-height: 1.7; font-size: 13px; }
-  </style>
-</head>
-<body>
-  <div class="box">
-    <h1>Constancia de Evaluación Buenas Prácticas Agrícolas (BPA)</h1>
-    <p><strong>Cultivo / Parcela:</strong> ${cropName} — ${parcelName}</p>
-    <p><strong>Evaluador:</strong> ${ev.evaluator_name} (${ev.evaluator_role}) · <strong>Fecha:</strong> ${new Date(ev.evaluated_at).toLocaleDateString("es-CO")}</p>
-    <div class="score">Cumplimiento: ${Number(ev.compliance_score).toFixed(0)}% — ${ev.status}</div>
-    <p><strong>Observaciones:</strong> ${ev.notes || "Sin hallazgos críticos pendientes."}</p>
-  </div>
-  <script>window.onload = function(){ window.print(); };</script>
-</body>
-</html>`);
-  win.document.close();
+async function downloadOfficialBpaPdf(ev: any) {
+  try {
+    const cropName = ev.crops?.crop_catalog?.name ?? "Cultivo";
+    const parcelName = ev.crops?.parcels?.name ?? "Parcela";
+    const ownerName = ev.crops?.parcels?.profiles?.full_name || ev.evaluator_name || "Productor SIGIC";
+    const batchCode = ev.batches?.batch_code || undefined;
+    const score = Number(ev.compliance_score || 0);
+    const approved = ev.status === "APROBADO_BPA" || score >= 80;
+    const qrSvg = batchCode
+      ? (document.querySelector(`svg[data-bpa-qr="${ev.id}"]`) as SVGSVGElement | null)
+      : null;
+
+    await exportBpaCertificatePdf({
+      folio: `BPA-${String(ev.id || "").slice(0, 8).toUpperCase()}`,
+      farmName: `Unidad Productiva ${ownerName}`,
+      producerName: ownerName,
+      parcelName,
+      cropName,
+      batchCode,
+      score,
+      approved,
+      evaluatedAt: new Date(ev.evaluated_at).toLocaleDateString("es-CO"),
+      evaluatorName: `${ev.evaluator_name} (${ev.evaluator_role})`,
+      globalGapCertified: approved && Boolean(batchCode),
+      observations: ev.notes || undefined,
+      qrSvgElement: qrSvg,
+      verifyUrl:
+        batchCode && typeof window !== "undefined"
+          ? `${window.location.origin}/trace/${batchCode}`
+          : undefined,
+      checklist: BPA_CHECKLIST_ITEMS.map((c, idx) => ({
+        code: `BPA-${String(idx + 1).padStart(2, "0")}`,
+        label: c.label.replace(/^\d+\.\s*/, ""),
+        compliant: Boolean(ev.checks?.[c.id]),
+      })),
+    });
+    toast.success("Certificado oficial BPA con logos descargado en PDF");
+  } catch (err: any) {
+    toast.error(err?.message ?? "No se pudo exportar el certificado PDF");
+  }
 }
 
 function BpaCertificationsPage() {
@@ -361,9 +373,19 @@ function BpaCertificationsPage() {
                               {Number(ev.compliance_score).toFixed(0)}%
                             </Badge>
                           </div>
+                          {ev.batches?.batch_code && (
+                            <div className="hidden">
+                              <QRCodeSVG
+                                value={typeof window !== "undefined" ? `${window.location.origin}/trace/${ev.batches.batch_code}` : ev.batches.batch_code}
+                                size={140}
+                                level="M"
+                                data-bpa-qr={ev.id}
+                              />
+                            </div>
+                          )}
                           <div className="flex justify-end">
-                            <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => printBpaCertificate(ev)}>
-                              <Printer className="size-3" /> Acta BPA
+                            <Button type="button" size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10" onClick={() => void downloadOfficialBpaPdf(ev)}>
+                              <Download className="size-3.5" /> Certificado PDF Oficial
                             </Button>
                           </div>
                         </Card>
@@ -417,10 +439,20 @@ function BpaCertificationsPage() {
 
                 {ev.notes && <p className="text-xs text-muted-foreground">{ev.notes}</p>}
 
+                {ev.batches?.batch_code && (
+                  <div className="hidden">
+                    <QRCodeSVG
+                      value={typeof window !== "undefined" ? `${window.location.origin}/trace/${ev.batches.batch_code}` : ev.batches.batch_code}
+                      size={140}
+                      level="M"
+                      data-bpa-qr={ev.id}
+                    />
+                  </div>
+                )}
                 <div className="pt-2 border-t border-border/60 flex justify-end">
-                  <Button type="button" size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => printBpaCertificate(ev)}>
-                    <Printer className="size-3.5" />
-                    Imprimir Acta BPA
+                  <Button type="button" size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10" onClick={() => void downloadOfficialBpaPdf(ev)}>
+                    <Download className="size-3.5" />
+                    Descargar Certificado PDF Oficial
                   </Button>
                 </div>
               </Card>

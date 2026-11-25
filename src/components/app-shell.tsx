@@ -93,6 +93,7 @@ function CountBadge({ count, tone = "warning" }: { count: number; tone?: "warnin
 }
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const locationHref = useRouterState({ select: (s) => s.location.href });
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { t, i18n } = useTranslation();
@@ -338,7 +339,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main id="contenido" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 outline-none md:px-8 md:py-10 md:pb-10">
-          <ErrorBoundary message="Ocurrió un error al cargar esta sección">{children}</ErrorBoundary>
+          <ErrorBoundary key={pathname} resetKey={locationHref} message="Ocurrió un error al cargar esta sección">{children}</ErrorBoundary>
         </main>
       </div>
 

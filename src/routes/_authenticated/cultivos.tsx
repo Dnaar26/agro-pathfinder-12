@@ -55,16 +55,16 @@ function CultivosPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState("");
 
-  const parcelOptions = useMemo(() => {
-    const names = new Set((crops.data ?? []).map((c: any) => (c.parcels as any)?.name).filter(Boolean));
-    return Array.from(names).sort();
-  }, [scopedCrops]);
-
   const scopedCrops = useMemo(() => {
     const all = crops.data ?? [];
     if (!isStaff || !producerId) return all;
     return all.filter((c: any) => (c.parcels as any)?.owner_id === producerId);
   }, [crops.data, isStaff, producerId]);
+
+  const parcelOptions = useMemo(() => {
+    const names = new Set(scopedCrops.map((c: any) => (c.parcels as any)?.name).filter(Boolean));
+    return Array.from(names).sort();
+  }, [scopedCrops]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

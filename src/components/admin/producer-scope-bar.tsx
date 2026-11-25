@@ -95,6 +95,15 @@ export function useProducerScope() {
     staleTime: 60_000,
   });
 
+  useEffect(() => {
+    if (!isStaff || !producerId || !farmersQuery.isSuccess) return;
+    const existsInScope = (farmersQuery.data ?? []).some((f) => f.id === producerId);
+    if (!existsInScope) {
+      setProducerIdState("");
+      setGlobalProducerScope("");
+    }
+  }, [isStaff, producerId, farmersQuery.isSuccess, farmersQuery.data]);
+
   const activeProducer = isStaff && producerId
     ? (farmersQuery.data ?? []).find((f) => f.id === producerId) ?? null
     : null;

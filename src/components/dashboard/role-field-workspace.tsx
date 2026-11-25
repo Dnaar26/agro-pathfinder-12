@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { executeWithOfflineFallback } from "@/lib/services/offline-sync";
 import { fetchWeatherForecast } from "@/lib/services/weather";
 import { coordsOrDefault } from "@/lib/geo";
 import { Card } from "@/components/ui/card";
@@ -161,37 +162,53 @@ export function RoleFieldWorkspace({
       if (!uid) throw new Error("Sesión expirada");
 
       if (quickMode === "activity") {
-        const { error } = await supabase.from("activities").insert({
+        const payload = {
           crop_id: selectedCropId,
           responsible_id: uid,
           kind: actKind as any,
           performed_at: new Date().toISOString(),
           notes: actNotes.trim() || null,
-          photo_urls: [],
+          photo_urls: [] as string[],
+        };
+        const outcome = await executeWithOfflineFallback({
+          offlineMutation: { table: "activities", action: "INSERT", data: payload },
+          onlineRunner: async () => {
+            const { error } = await supabase.from("activities").insert(payload);
+            if (error) throw error;
+          },
         });
-        if (error) throw error;
-        return "Labor registrada en la bitácora del cultivo";
+        return outcome.queuedOffline
+          ? "Sin señal: labor guardada en cola offline para sincronizar al reconectar"
+          : "Labor registrada en la bitácora del cultivo";
       }
 
       if (quickMode === "harvest") {
         const qty = Number(harvestQty);
         const price = Number(harvestPrice) || 0;
         if (!Number.isFinite(qty) || qty <= 0) throw new Error("Ingresa una cantidad cosechada válida");
-        const { error } = await supabase.from("crop_harvests").insert({
+        const payload = {
           crop_id: selectedCropId,
           harvested_qty: qty,
           unit: "KG",
           sale_price: price > 0 ? price : null,
           total_revenue: price > 0 ? Math.round(qty * price) : null,
           performed_at: new Date().toISOString(),
+        };
+        const outcome = await executeWithOfflineFallback({
+          offlineMutation: { table: "crop_harvests", action: "INSERT", data: payload },
+          onlineRunner: async () => {
+            const { error } = await supabase.from("crop_harvests").insert(payload);
+            if (error) throw error;
+          },
         });
-        if (error) throw error;
-        return "Cosecha registrada y sumada a tus ingresos";
+        return outcome.queuedOffline
+          ? "Sin señal: cosecha guardada en cola offline"
+          : "Cosecha registrada y sumada a tus ingresos";
       }
 
       const amount = Number(costAmount);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error("Ingresa un monto válido");
-      const { error } = await supabase.from("crop_costs").insert({
+      const costPayload = {
         crop_id: selectedCropId,
         kind: costKind,
         description: costDesc.trim() || `Registro rápido (${costKind})`,
@@ -199,9 +216,17 @@ export function RoleFieldWorkspace({
         unit: "GLOBAL",
         unit_cost: amount,
         total: amount,
+      };
+      const outcome = await executeWithOfflineFallback({
+        offlineMutation: { table: "crop_costs", action: "INSERT", data: costPayload },
+        onlineRunner: async () => {
+          const { error } = await supabase.from("crop_costs").insert(costPayload);
+          if (error) throw error;
+        },
       });
-      if (error) throw error;
-      return "Gasto registrado en la contabilidad del cultivo";
+      return outcome.queuedOffline
+        ? "Sin señal: gasto guardado en cola offline"
+        : "Gasto registrado en la contabilidad del cultivo";
     },
     onSuccess: (msg) => {
       toast.success(msg);

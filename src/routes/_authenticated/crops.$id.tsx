@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useMemo } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { executeWithOfflineFallback } from "@/lib/services/offline-sync";
 import type { Database } from "@/integrations/supabase/types";
 import { getCrop, listPestIncidents, getCropPhotoUrls, getMyRoles } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
@@ -200,15 +201,22 @@ function CropDetail() {
         .filter(Boolean)
         .join(" — ");
 
-      const { error } = await supabase.from("activities").insert({
+      const activityPayload = {
         crop_id: id,
         responsible_id: user.id,
         kind: data.kind,
         performed_at: new Date(data.performed_at).toISOString(),
         notes: enrichedNotes || null,
         photo_urls,
+      };
+      const actOutcome = await executeWithOfflineFallback({
+        offlineMutation: { table: "activities", action: "INSERT", data: activityPayload },
+        onlineRunner: async () => {
+          const { error } = await supabase.from("activities").insert(activityPayload);
+          if (error) throw error;
+        },
       });
-      if (error) throw error;
+      if (actOutcome.queuedOffline) return;
 
       if (selectedItem && usedQty > 0 && autoLogCost) {
         const { error: movErr } = await supabase.rpc("apply_inventory_movement", {
@@ -251,10 +259,16 @@ function CropDetail() {
   const addCost = useMutation({
     mutationFn: async (data: z.infer<typeof costSchema>) => {
       const total = data.total ?? (data.qty && data.unit_cost ? data.qty * data.unit_cost : data.unit_cost);
-      const { error } = await supabase.from("crop_costs").insert({ crop_id: id, ...data, total });
-      if (error) throw error;
+      const payload = { crop_id: id, ...data, total };
+      return executeWithOfflineFallback({
+        offlineMutation: { table: "crop_costs", action: "INSERT", data: payload },
+        onlineRunner: async () => {
+          const { error } = await supabase.from("crop_costs").insert(payload);
+          if (error) throw error;
+        },
+      });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["crop-costs", id] }); setCostOpen(false); toast.success("Costo registrado"); },
+    onSuccess: (res) => { qc.invalidateQueries({ queryKey: ["crop-costs", id] }); setCostOpen(false); toast.success(res.queuedOffline ? "Sin señal: costo guardado en cola offline" : "Costo registrado"); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -277,7 +291,7 @@ function CropDetail() {
 
   const addHarvest = useMutation({
     mutationFn: async (data: z.infer<typeof harvestSchema>) => {
-      const { error } = await supabase.from("crop_harvests").insert({
+      const payload = {
         crop_id: id,
         harvested_qty: data.harvested_qty,
         unit: data.unit || "KG",
@@ -285,10 +299,16 @@ function CropDetail() {
         total_revenue: data.total_revenue ?? (data.sale_price ? data.harvested_qty * data.sale_price : null),
         notes: data.notes ?? null,
         performed_at: new Date(data.performed_at).toISOString(),
+      };
+      return executeWithOfflineFallback({
+        offlineMutation: { table: "crop_harvests", action: "INSERT", data: payload },
+        onlineRunner: async () => {
+          const { error } = await supabase.from("crop_harvests").insert(payload);
+          if (error) throw error;
+        },
       });
-      if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["crop-harvests", id] }); setHarvestOpen(false); toast.success("Cosecha registrada"); },
+    onSuccess: (res) => { qc.invalidateQueries({ queryKey: ["crop-harvests", id] }); setHarvestOpen(false); toast.success(res.queuedOffline ? "Sin señal: cosecha guardada en cola offline" : "Cosecha registrada"); },
     onError: (e: Error) => toast.error(e.message),
   });
 

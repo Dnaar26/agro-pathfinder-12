@@ -1,6 +1,6 @@
 param(
   [string]$BranchName = "main",
-  [string]$CommitMessage = "feat(v8): fix cultivos TDZ & reports imports, auto-reset ErrorBoundary on navigation, and add diplomatic multi-logo PDF certificates"
+  [string]$CommitMessage = "feat(v9): implement offline field queue, mobile bottom-sheet modals, agenda calendar, realtime alerts, org branding in PDFs, and harvest photos"
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,4 +37,4 @@ if (Test-Path ".env.production") { git reset -- .env.production }
 git commit -m $CommitMessage
 git push -u origin $BranchName
 
-Write-Host "Version v8 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green
+Write-Host "Version v9 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green

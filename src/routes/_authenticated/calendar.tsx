@@ -43,7 +43,10 @@ import {
   Snowflake,
   Sun,
   AlertTriangle,
+  CalendarDays,
+  ListTodo,
 } from "lucide-react";
+import { executeWithOfflineFallback } from "@/lib/services/offline-sync";
 import { addMonths, format, startOfMonth, startOfWeek, addDays, isSameDay, isSameMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -144,6 +147,9 @@ function CalendarPage() {
   const qc = useQueryClient();
 
   const [cursor, setCursor] = useState(new Date());
+  const [calendarMode, setCalendarMode] = useState<"month" | "agenda">(() =>
+    typeof window !== "undefined" && window.innerWidth < 640 ? "agenda" : "month"
+  );
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Date>(new Date());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -328,6 +334,29 @@ function CalendarPage() {
       const eventDate = new Date(payload.event.starts_at);
       if (isNaN(eventDate.getTime()) || eventDate.getTime() < Date.now() - 2 * 60 * 1000) {
         throw new Error("No se pueden programar eventos en fechas u horas pasadas");
+      }
+
+      if (!payload.invItemId && typeof navigator !== "undefined" && !navigator.onLine) {
+        const { data: s } = await supabase.auth.getSession();
+        const uid = s.session?.user?.id;
+        if (uid) {
+          await executeWithOfflineFallback({
+            offlineMutation: {
+              table: "calendar_events",
+              action: "INSERT",
+              data: {
+                user_id: uid,
+                title: payload.event.title,
+                starts_at: eventDate.toISOString(),
+                description: payload.event.description ?? null,
+                crop_id: payload.event.crop_id ?? null,
+                done: false,
+              },
+            },
+            onlineRunner: async () => undefined,
+          });
+          return;
+        }
       }
 
       const { error } = await supabase.rpc("create_calendar_event_with_inventory", {
@@ -519,6 +548,19 @@ function CalendarPage() {
   }, [events.data, cropEvents.data, activityEvents.data]);
 
   const selectedItems = allItems[format(selected, "yyyy-MM-dd")] ?? [];
+
+  const agendaDays = useMemo(() => {
+    const entries: { dateKey: string; dateObj: Date; items: any[] }[] = [];
+    for (const d of days) {
+      if (!isSameMonth(d, cursor)) continue;
+      const key = format(d, "yyyy-MM-dd");
+      const dayList = allItems[key] ?? [];
+      if (dayList.length > 0 || isSameDay(d, new Date())) {
+        entries.push({ dateKey: key, dateObj: d, items: dayList });
+      }
+    }
+    return entries;
+  }, [days, cursor, allItems]);
   const chosenDayForecast = formStartsAt ? weatherByDay[formStartsAt.slice(0, 10)] : undefined;
 
   return (
@@ -530,7 +572,34 @@ function CalendarPage() {
             {format(cursor, "MMMM yyyy", { locale: es })}
           </p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="inline-flex items-center rounded-lg border border-border bg-muted/40 p-0.5 mr-1">
+            <button
+              type="button"
+              onClick={() => setCalendarMode("month")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                calendarMode === "month"
+                  ? "bg-card text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <CalendarDays className="size-3.5" /> Mes
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalendarMode("agenda")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                calendarMode === "agenda"
+                  ? "bg-card text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <ListTodo className="size-3.5" /> Agenda
+            </button>
+          </div>
+
           <Button variant="outline" size="icon" onClick={() => setCursor(addMonths(cursor, -1))} aria-label="Mes anterior">
             <ChevronLeft className="size-4" />
           </Button>
@@ -701,6 +770,87 @@ function CalendarPage() {
         </div>
       </header>
 
+      {calendarMode === "agenda" ? (
+        <div className="space-y-3">
+          {agendaDays.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
+              No hay labores, siembras ni cosechas programadas en {format(cursor, "MMMM yyyy", { locale: es })}.
+            </div>
+          ) : (
+            agendaDays.map(({ dateKey, dateObj, items }) => {
+              const dw = weatherByDay[dateKey];
+              const isTodayDate = isSameDay(dateObj, new Date());
+              return (
+                <div
+                  key={dateKey}
+                  className={cn(
+                    "rounded-xl border bg-card p-4 space-y-2.5",
+                    isTodayDate ? "border-primary/50 ring-1 ring-primary/20" : "border-border"
+                  )}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelected(dateObj);
+                        setCalendarMode("month");
+                      }}
+                      className="text-sm font-bold capitalize text-foreground hover:text-primary flex items-center gap-2"
+                    >
+                      <span>{format(dateObj, "EEEE d 'de' MMMM", { locale: es })}</span>
+                      {isTodayDate && (
+                        <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                          HOY
+                        </span>
+                      )}
+                    </button>
+                    {dw && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        {dw.precipProb > 65 ? (
+                          <CloudRain className="size-3.5 text-info" />
+                        ) : (
+                          <Sun className="size-3.5 text-warning" />
+                        )}
+                        {Math.round(dw.tempMax)}°/{Math.round(dw.tempMin)}° · Lluvia {dw.precipProb}%
+                      </span>
+                    )}
+                  </div>
+                  {items.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">Sin labores agendadas hoy.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {items.map((it: any, idx: number) => (
+                        <li key={`${it.type}-${it.id ?? idx}`} className={cn("rounded-lg border p-3 text-sm", KIND_STYLE[it.type]?.card)}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className={cn("font-medium", it.done && "line-through text-muted-foreground")}>
+                              {it.title}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {it.starts_at && (
+                                <span className="text-xs text-muted-foreground tabular-nums">
+                                  {format(new Date(it.starts_at), "HH:mm")}
+                                </span>
+                              )}
+                              {it.type === "event" && !it.done && (
+                                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => markDone.mutate(it.id)}>
+                                  Realizado
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          {it.description && (
+                            <p className="mt-1 text-xs text-muted-foreground whitespace-pre-line">{it.description}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : (
       <div className="grid grid-cols-7 gap-px bg-border rounded-xl overflow-hidden border border-border">
         {["L", "M", "X", "J", "V", "S", "D"].map((d) => (
           <div key={d} className="bg-muted text-muted-foreground text-xs font-medium text-center py-2">
@@ -768,6 +918,9 @@ function CalendarPage() {
         })}
       </div>
 
+      )}
+
+      {calendarMode === "month" && (
       <section>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h2 className="text-lg font-semibold capitalize">
@@ -850,6 +1003,7 @@ function CalendarPage() {
           </ul>
         )}
       </section>
+      )}
 
       <Dialog
         open={editOpen}

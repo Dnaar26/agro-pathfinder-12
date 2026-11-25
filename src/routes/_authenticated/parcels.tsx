@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, type ReactNode } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { executeWithOfflineFallback } from "@/lib/services/offline-sync";
 import { deleteParcelCascade, listParcels, listParcelsPage, listSoils } from "@/lib/queries";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { Button } from "@/components/ui/button";
@@ -64,11 +65,17 @@ function ParcelsPage() {
       const { data: s } = await supabase.auth.getSession();
       const user = s.session?.user ?? (await supabase.auth.getUser()).data.user;
       if (!user) throw new Error("Sesión expirada");
-      const { error } = await supabase.from("parcels").insert({ ...data, owner_id: user.id });
-      if (error) throw error;
+      const payload = { ...data, owner_id: user.id };
+      return executeWithOfflineFallback({
+        offlineMutation: { table: "parcels", action: "INSERT", data: payload },
+        onlineRunner: async () => {
+          const { error } = await supabase.from("parcels").insert(payload);
+          if (error) throw error;
+        },
+      });
     },
-    onSuccess: () => {
-      toast.success("Parcela creada");
+    onSuccess: (res) => {
+      toast.success(res.queuedOffline ? "Sin señal: parcela guardada en cola offline" : "Parcela creada");
       qc.invalidateQueries({ queryKey: ["parcels"] });
       setOpen(false);
     },

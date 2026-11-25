@@ -118,7 +118,15 @@ export function AiChat() {
         identifyClaritySession({ userId, screenName: "chat" });
       }
 
-      const [parcelsRes, alertsRes, pestsRes, invRes] = await Promise.all([
+      const soilsPromise = (supabase as any)
+        .from("soil_analyses")
+        .select("parcel_id, sample_date, ph, organic_matter_pct, phosphorus_ppm, potassium_cmol, cec_cmol, aluminum_cmol, texture")
+        .order("sample_date", { ascending: false })
+        .limit(15)
+        .then((r: any) => (r.error ? [] : r.data ?? []))
+        .catch(() => []);
+
+      const [parcelsRes, alertsRes, pestsRes, invRes, soilsData] = await Promise.all([
         supabase
           .from("parcels")
           .select("id, name, area_m2, soil_types(name), crops(id, status, crop_catalog(name))")
@@ -139,6 +147,7 @@ export function AiChat() {
           .select("id, name, unit, stock_qty, min_stock")
           .order("name")
           .limit(50),
+        soilsPromise,
       ]);
 
       return {
@@ -147,6 +156,7 @@ export function AiChat() {
         alerts: alertsRes.data ?? [],
         pests: pestsRes.data ?? [],
         inventory: (invRes.data ?? []) as InventoryItemSummary[],
+        soils: (soilsData ?? []) as any[],
       };
     },
     staleTime: 45_000,
@@ -165,6 +175,7 @@ export function AiChat() {
     const alerts = contextQuery.data?.alerts ?? [];
     const pests = contextQuery.data?.pests ?? [];
     const inv = contextQuery.data?.inventory ?? [];
+    const soils = contextQuery.data?.soils ?? [];
 
     if (pests[0]?.pest_name) {
       dynamic.push(`¿Qué plan y tabla de dosis aplico para controlar ${pests[0].pest_name}?`);
@@ -315,6 +326,7 @@ export function AiChat() {
     const alerts = contextQuery.data?.alerts ?? [];
     const pests = contextQuery.data?.pests ?? [];
     const inv = contextQuery.data?.inventory ?? [];
+    const soils = contextQuery.data?.soils ?? [];
 
     const filtered =
       selectedParcelId === "__all__"
@@ -336,6 +348,23 @@ export function AiChat() {
           return `- Parcela "${p.name}" (${ha} ha, ${soil}): ${crops || "sin cultivos activos"}`;
         })
       );
+    }
+
+    if (soils.length > 0) {
+      const relevantSoils =
+        selectedParcelId === "__all__"
+          ? soils.slice(0, 3)
+          : soils.filter((s: any) => s.parcel_id === selectedParcelId).slice(0, 2);
+      if (relevantSoils.length > 0) {
+        lines.push(
+          `Análisis de laboratorio de suelos recientes: ${relevantSoils
+            .map(
+              (s: any) =>
+                `pH ${s.ph}, MO ${s.organic_matter_pct}%, P ${s.phosphorus_ppm} ppm, K ${s.potassium_cmol} cmol, CIC ${s.cec_cmol}, Al ${s.aluminum_cmol} cmol (${s.texture})`
+            )
+            .join(" | ")}`
+        );
+      }
     }
 
     if (inv.length > 0) {

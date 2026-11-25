@@ -1,5 +1,6 @@
 import type jsPDF from "jspdf";
 import { format } from "date-fns";
+import { fetchOrgBranding, type OrgBrandingConfig } from "@/lib/org-branding";
 
 export type PdfReportTemplate = "actividades" | "parcelas" | "resumen";
 
@@ -110,6 +111,7 @@ function drawCoverHeader(
   doc: jsPDF,
   opts: PdfReportOptions,
   logoDataUrl: string | null,
+  orgBranding: OrgBrandingConfig,
   folio: string
 ): number {
   const w = doc.internal.pageSize.getWidth();
@@ -139,16 +141,39 @@ function drawCoverHeader(
     doc.text("SIGIC", 22.5, 14.5, { align: "center" });
   }
 
+  let leftTextX = 35;
+  if (orgBranding.orgLogoUrl) {
+    try {
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(33, 4.5, 17, 17, 2.5, 2.5, "F");
+      const fmt = orgBranding.orgLogoUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
+      doc.addImage(orgBranding.orgLogoUrl, fmt, 34.5, 6, 14, 14);
+      leftTextX = 54;
+    } catch {
+      /* ignore invalid org logo */
+    }
+  }
+
   // Identidad institucional izquierda
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12.5);
-  doc.text("SIGIC - Sistema Inteligente de Gestion Integral de Cultivos", 35, 11.5);
+  doc.setFontSize(11.8);
+  const headerMainTitle = orgBranding.orgName
+    ? sanitizePdfText(`SIGIC | ${orgBranding.orgName}`).slice(0, 62)
+    : "SIGIC - Sistema Inteligente de Gestion Integral de Cultivos";
+  doc.text(headerMainTitle, leftTextX, 11.2);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(7.8);
   doc.setTextColor(212, 232, 220);
-  doc.text(templateLabel(opts.template), 35, 17.5);
+  const orgSub = [
+    templateLabel(opts.template),
+    orgBranding.orgNit ? `NIT ${orgBranding.orgNit}` : "",
+    orgBranding.orgMunicipality || "",
+  ]
+    .filter(Boolean)
+    .join("  |  ");
+  doc.text(sanitizePdfText(orgSub).slice(0, 78), leftTextX, 17.5);
 
   // Caja de metadatos de control documental a la derecha
   const metaRightX = w - 14;
@@ -548,7 +573,7 @@ export async function generatePdfReport(opts: PdfReportOptions): Promise<jsPDF> 
   });
 
   const folio = buildFolioCode();
-  const logo = await loadLogo();
+  const [logo, orgBranding] = await Promise.all([loadLogo(), fetchOrgBranding()]);
 
   // Si el reporte no pasó tarjetas summary pero su primera sección es una tabla pequeña Indicador/Valor,
   // la promovemos automáticamente a tarjetas KPI ejecutivas para un acabado visual superior.
@@ -569,7 +594,7 @@ export async function generatePdfReport(opts: PdfReportOptions): Promise<jsPDF> 
     effectiveSections = effectiveSections.slice(1);
   }
 
-  let y = drawCoverHeader(doc, opts, logo, folio);
+  let y = drawCoverHeader(doc, opts, logo, orgBranding, folio);
   y = drawFilters(doc, opts, y);
   y = drawSummaryCards(doc, effectiveSummary, opts, logo, folio, y);
   y = drawBarCharts(doc, opts, logo, folio, y);

@@ -1,4 +1,5 @@
 import type jsPDF from "jspdf";
+import { fetchOrgBranding } from "@/lib/org-branding";
 
 export interface BpaChecklistItemPdf {
   code?: string;
@@ -280,7 +281,14 @@ async function loadPdfEngines() {
   return { jsPDFClass, autoTable };
 }
 
-export async function exportBpaCertificatePdf(opts: BpaCertificateOptions): Promise<void> {
+export async function exportBpaCertificatePdf(rawOpts: BpaCertificateOptions): Promise<void> {
+  const orgCfg = await fetchOrgBranding();
+  const opts: BpaCertificateOptions = {
+    ...rawOpts,
+    organizationName: rawOpts.organizationName || orgCfg.orgName || undefined,
+    organizationNit: rawOpts.organizationNit || orgCfg.orgNit || undefined,
+    organizationLogoUrl: rawOpts.organizationLogoUrl || orgCfg.orgLogoUrl || undefined,
+  };
   const [{ jsPDFClass, autoTable }, sigicLogo, orgLogo, qrPng] = await Promise.all([
     loadPdfEngines(),
     loadImageAsPngDataUrl("/sigic-logo.png"),
@@ -520,8 +528,14 @@ export async function exportBpaCertificatePdf(opts: BpaCertificateOptions): Prom
 }
 
 export async function exportTraceabilityCertificatePdf(
-  opts: TraceabilityCertificateOptions
+  rawOpts: TraceabilityCertificateOptions
 ): Promise<void> {
+  const orgCfg = await fetchOrgBranding();
+  const opts: TraceabilityCertificateOptions = {
+    ...rawOpts,
+    locationText: rawOpts.locationText || orgCfg.orgMunicipality || undefined,
+    organizationLogoUrl: rawOpts.organizationLogoUrl || orgCfg.orgLogoUrl || undefined,
+  };
   const [{ jsPDFClass, autoTable }, sigicLogo, orgLogo, qrPng] = await Promise.all([
     loadPdfEngines(),
     loadImageAsPngDataUrl("/sigic-logo.png"),

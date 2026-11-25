@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { executeWithOfflineFallback } from "@/lib/services/offline-sync";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -63,6 +65,7 @@ export function InventoryPanel({
   const [editingItem, setEditingItem] = useState<any>(null);
   const [movOpen, setMovOpen] = useState<string | null>(null);
   const [historyItem, setHistoryItem] = useState<any>(null);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ id: string; name: string } | null>(null);
   
   // Detectar si el usuario es técnico (solo lectura)
   const rolesQuery = useQuery({
@@ -228,24 +231,35 @@ export function InventoryPanel({
 
   const createItem = useMutation({
     mutationFn: async (input: { name: string; category: string; unit: string; stock_qty: number; min_stock: number; unit_cost: number }) => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("No session");
-      const payload: any = { ...input, owner_id: u.user.id };
+      const { data: s } = await supabase.auth.getSession();
+      const user = s.session?.user ?? (await supabase.auth.getUser()).data.user;
+      if (!user) throw new Error("No session");
+      const payload: any = { ...input, owner_id: user.id };
 
-      const sb = supabase as any;
-      const { error } = await sb.from("inventory_items").insert(payload);
-      if (error) {
-        // Fallback seguro si la columna 'category' aún no existe en PostgreSQL
-        if (error.message?.includes("category") || error.details?.includes("category") || error.code === "PGRST204") {
-          const { category: _c, ...safePayload } = payload;
-          const { error: retryError } = await sb.from("inventory_items").insert(safePayload);
-          if (retryError) throw retryError;
-        } else {
-          throw error;
-        }
-      }
+      return executeWithOfflineFallback({
+        offlineMutation: { table: "inventory_items", action: "INSERT", data: payload },
+        onlineRunner: async () => {
+          const sb = supabase as any;
+          const { error } = await sb.from("inventory_items").insert(payload);
+          if (error) {
+            if (error.message?.includes("category") || error.details?.includes("category") || error.code === "PGRST204") {
+              const { category: _c, ...safePayload } = payload;
+              const { error: retryError } = await sb.from("inventory_items").insert(safePayload);
+              if (retryError) throw retryError;
+            } else {
+              throw error;
+            }
+          }
+        },
+      });
     },
-    onSuccess: () => { 
+    onSuccess: (res) => {
+      if (res?.queuedOffline) {
+        setOpen(false);
+        resetAddForm();
+        toast.success("Sin señal: insumo guardado en cola offline");
+        return;
+      } 
       qc.invalidateQueries({ queryKey: ["inventory"] }); 
       qc.invalidateQueries({ queryKey: ["my-inventory-report"] });
       qc.invalidateQueries({ queryKey: ["global-inventory"] });
@@ -838,7 +852,7 @@ export function InventoryPanel({
                               <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                                 <Edit3 className="size-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" onClick={() => { if(confirm("¿Eliminar?")) deleteItem.mutate(item.id); }}>
+                              <Button variant="ghost" size="icon" onClick={() => setDeleteConfirmItem({ id: item.id, name: item.name })}>
                                 <Trash2 className="size-4 text-destructive" />
                               </Button>
                             </>
@@ -918,7 +932,7 @@ export function InventoryPanel({
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar insumo" aria-label={`Editar ${item.name}`} onClick={() => openEdit(item)}>
                             <Edit3 className="size-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => { if(confirm("¿Eliminar?")) deleteItem.mutate(item.id); }}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => setDeleteConfirmItem({ id: item.id, name: item.name })}>
                             <Trash2 className="size-4" />
                           </Button>
                         </div>
@@ -1143,6 +1157,29 @@ export function InventoryPanel({
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={Boolean(deleteConfirmItem)} onOpenChange={(o) => !o && setDeleteConfirmItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar insumo del inventario</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de eliminar «{deleteConfirmItem?.name}» y su historial asociado? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteConfirmItem) deleteItem.mutate(deleteConfirmItem.id);
+                setDeleteConfirmItem(null);
+              }}
+            >
+              Eliminar insumo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

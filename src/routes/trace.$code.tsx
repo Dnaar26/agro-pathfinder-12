@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { QRCodeSVG } from "qrcode.react";
-import { Calendar, Scale, Scan, X, Download, Award } from "lucide-react";
+import { Calendar, Scale, Scan, X, Download, Award, Sprout, Droplets, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { exportTraceabilityCertificatePdf } from "@/lib/pdf-certificate";
 import { LogoIcon } from "@/components/logo";
 import jsQR from "jsqr";
@@ -238,6 +238,54 @@ function TracePage() {
             <p className="font-medium">{data.farmer_name}</p>
           </div>
         )}
+
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-primary">
+            Historia Verificada del Campo a tu Mesa
+          </p>
+          <ol className="space-y-2.5 text-xs">
+            <li className="flex items-start gap-2.5">
+              <Sprout className="size-4 text-primary shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">1. Siembra Georreferenciada:</span>{" "}
+                <span className="text-muted-foreground">
+                  Establecida en {data.parcel_name || "parcela registrada"}{" "}
+                  {data.planting_date ? `el ${new Date(data.planting_date + "T12:00:00").toLocaleDateString("es-CO")}` : ""}.
+                </span>
+              </div>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <Droplets className="size-4 text-info shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">2. Nutrición y Manejo Trazable:</span>{" "}
+                <span className="text-muted-foreground">
+                  Bitácora digital de labores culturales y fertilización monitoreada en SIGIC.
+                </span>
+              </div>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <ShieldCheck className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">3. Aseguramiento de Inocuidad:</span>{" "}
+                <span className="text-muted-foreground">
+                  {data.globalgap_cert
+                    ? "Auditoría BPA / GLOBALG.A.P. aprobada con períodos de carencia cumplidos."
+                    : "Control sanitario verificado en origen."}
+                </span>
+              </div>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <CheckCircle2 className="size-4 text-success shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">4. Cosecha de Origen Fresco:</span>{" "}
+                <span className="text-muted-foreground">
+                  Lote {data.batch_code} recolectado{" "}
+                  {data.harvest_date ? `el ${new Date(data.harvest_date + "T12:00:00").toLocaleDateString("es-CO")}` : ""}.
+                </span>
+              </div>
+            </li>
+          </ol>
+        </div>
 
         {data.globalgap_cert && (
           <Badge className="border-success/30 bg-success/10 text-xs text-success">GLOBALG.A.P. Certified</Badge>

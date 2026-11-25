@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 
 BEGIN;
 
-SELECT plan(58);
+SELECT plan(60);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.profiles'::regclass),
@@ -365,6 +365,22 @@ SELECT ok(
       AND proconfig @> ARRAY['search_path=public, pg_temp']
   ),
   'get_public_marketplace_listings has a hardened search_path'
+);
+
+
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'alert_settings' AND column_name = 'org_name'
+  ),
+  'alert_settings includes institutional branding columns'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'harvest_listings' AND column_name = 'photo_url'
+  ),
+  'harvest_listings supports compressed product photography'
 );
 
 SELECT * FROM finish();

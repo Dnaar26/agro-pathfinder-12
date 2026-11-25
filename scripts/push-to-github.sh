@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BRANCH_NAME="${1:-main}"
-COMMIT_MSG="${2:-feat(v8): fix cultivos TDZ & reports imports, auto-reset ErrorBoundary on navigation, and add diplomatic multi-logo PDF certificates}"
+COMMIT_MSG="${2:-feat(v9): implement offline field queue, mobile bottom-sheet modals, agenda calendar, realtime alerts, org branding in PDFs, and harvest photos}"
 
 rm -rf ./agro-pathfinder-12-main
 
@@ -18,4 +18,4 @@ git reset -- .env .env.local .env.production 2>/dev/null || true
 
 git commit -m "$COMMIT_MSG"
 git push -u origin "$BRANCH_NAME"
-echo "Version v8 validada y subida a $BRANCH_NAME."
+echo "Version v9 validada y subida a $BRANCH_NAME."

@@ -2,11 +2,13 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   MapPin, Calendar, Bell, FileBarChart, LogOut, LayoutDashboard, Menu, Shield, Package2, Bot,
-  Globe, MapIcon, Leaf, Search, ClipboardList, RefreshCw, FlaskConical, Award, HardHat, Store, type LucideIcon,
+  Globe, MapIcon, Leaf, Search, ClipboardList, RefreshCw, FlaskConical, Award, HardHat, Store, QrCode, type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { signOutHttpOnlyCookie } from "@/lib/api/auth.server";
 import { EditProfileDialog } from "@/components/profile/edit-profile-dialog";
+import { OFFLINE_SYNCED_EVENT } from "@/lib/services/offline-sync";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useRef, useEffect, type ReactNode } from "react";
@@ -67,11 +69,11 @@ const ADMIN_GROUP: NavGroup = {
   ],
 };
 
-// Accesos fijos de la barra inferior en teléfono
+// Accesos fijos de la barra inferior en teléfono (incluye Asistente IA a 1 toque)
 const TAB_BAR: NavItem[] = [
   { to: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
-  { to: "/parcels", labelKey: "nav.parcels", icon: MapPin },
   { to: "/cultivos", labelKey: "nav.crops", icon: Leaf },
+  { to: "/chat", labelKey: "nav.chat", icon: Bot },
   { to: "/alerts", labelKey: "nav.alerts", icon: Bell },
 ];
 
@@ -111,7 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       const { count } = await supabase.from("alerts").select("*", { count: "exact", head: true }).eq("status", "PENDIENTE");
       return count ?? 0;
     },
-    refetchInterval: 30000,
+    refetchInterval: 120000,
   });
   const alertCount = pendingAlerts.data ?? 0;
 
@@ -122,7 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       const user = s.session?.user ?? (await supabase.auth.getUser()).data.user;
       if (!user) return null;
       const { data: p } = await supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).maybeSingle();
-      return { email: user.email, fullName: p?.full_name || user.user_metadata?.full_name, avatarUrl: p?.avatar_url };
+      return { id: user.id, email: user.email, fullName: p?.full_name || user.user_metadata?.full_name, avatarUrl: p?.avatar_url };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -132,21 +134,70 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Refresco automático de vistas cuando se sincroniza la cola offline al volver la señal
+  useEffect(() => {
+    const onOfflineSynced = (ev: Event) => {
+      const count = (ev as CustomEvent<{ count?: number }>).detail?.count ?? 1;
+      toast.success(`${count} registro(s) pendientes sincronizados con el servidor`);
+      void qc.invalidateQueries();
+    };
+    window.addEventListener(OFFLINE_SYNCED_EVENT, onOfflineSynced);
+    return () => window.removeEventListener(OFFLINE_SYNCED_EVENT, onOfflineSynced);
+  }, [qc]);
+
+  // Canal Supabase Realtime en vivo para alertas instantáneas (< 200 ms)
+  const activeUserId = (userProfile.data as { id?: string } | null)?.id;
+  useEffect(() => {
+    if (!activeUserId) return;
+
+    const channel = supabase
+      .channel(`sigic-alerts-${activeUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "alerts",
+          filter: `user_id=eq.${activeUserId}`,
+        },
+        (payload) => {
+          const newAlert = payload.new as { title?: string; kind?: string } | undefined;
+          if (newAlert?.title) {
+            toast.info(`Nuevo aviso (${newAlert.kind ?? "SIGIC"}): ${newAlert.title}`);
+          }
+          void qc.invalidateQueries({ queryKey: ["pending-alerts-count"] });
+          void qc.invalidateQueries({ queryKey: ["alerts"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [activeUserId, qc]);
+
   const searchResults = useQuery({
     queryKey: ["global-search", debouncedQuery],
     queryFn: async () => {
       const q = debouncedQuery.trim().slice(0, 80).replace(/[\\%_]/g, "\\$&");
-      if (!q) return { parcels: [], crops: [], events: [] };
+      if (!q) return { parcels: [], crops: [], events: [], items: [], batches: [] };
       const pattern = `%${q}%`;
-      const [parcelsRes, cropsRes, eventsRes] = await Promise.all([
-        supabase.from("parcels").select("id, name").ilike("name", pattern).limit(5),
-        // !inner hace que el filtro sobre crop_catalog descarte cultivos sin coincidencia
-        supabase.from("crops").select("id, crop_catalog!inner(name), parcels(name)").ilike("crop_catalog.name", pattern).limit(5),
-        supabase.from("calendar_events").select("id, title, starts_at").ilike("title", pattern).order("starts_at").limit(5),
+      const [parcelsRes, cropsRes, eventsRes, itemsRes, batchesRes] = await Promise.all([
+        supabase.from("parcels").select("id, name").ilike("name", pattern).limit(4),
+        supabase.from("crops").select("id, crop_catalog!inner(name), parcels(name)").ilike("crop_catalog.name", pattern).limit(4),
+        supabase.from("calendar_events").select("id, title, starts_at").ilike("title", pattern).order("starts_at").limit(4),
+        supabase.from("inventory_items").select("id, name, stock_qty, unit").ilike("name", pattern).limit(4),
+        supabase.from("batches").select("id, batch_code, crop_id").ilike("batch_code", pattern).limit(4),
       ]);
       const error = parcelsRes.error ?? cropsRes.error ?? eventsRes.error;
       if (error) throw error;
-      return { parcels: parcelsRes.data ?? [], crops: cropsRes.data ?? [], events: eventsRes.data ?? [] };
+      return {
+        parcels: parcelsRes.data ?? [],
+        crops: cropsRes.data ?? [],
+        events: eventsRes.data ?? [],
+        items: itemsRes.data ?? [],
+        batches: batchesRes.data ?? [],
+      };
     },
     enabled: debouncedQuery.trim().length > 0,
     staleTime: 30_000,
@@ -199,9 +250,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         className="mx-3 mb-3 flex items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-sidebar-accent"
         aria-label={t("shell.edit_profile")}
       >
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-sidebar-primary font-display text-sm font-bold text-sidebar-primary-foreground">
-          {initial}
-        </span>
+        {userProfile.data?.avatarUrl ? (
+          <img
+            src={userProfile.data.avatarUrl}
+            alt={displayName || "Avatar"}
+            className="size-9 shrink-0 rounded-full border border-sidebar-border object-cover"
+          />
+        ) : (
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-sidebar-primary font-display text-sm font-bold text-sidebar-primary-foreground">
+            {initial}
+          </span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold">{displayName || "…"}</span>
           <span className="block text-xs text-sidebar-foreground/65">{roleLabel}</span>
@@ -447,9 +506,51 @@ export function AppShell({ children }: { children: ReactNode }) {
                       </Link>
                     ))}
                   </section>}
-                  {searchResults.data && searchResults.data.parcels.length === 0 && searchResults.data.crops.length === 0 && searchResults.data.events.length === 0 && (
-                    <p className="px-1 py-3 text-sm text-muted-foreground">{t("shell.no_results")}</p>
+                  {(searchResults.data?.items ?? []).length > 0 && (
+                    <section>
+                      <h3 className="px-1 pb-1 font-sans text-xs font-semibold text-muted-foreground">Insumos en Inventario</h3>
+                      {searchResults.data?.items.map((it: any) => (
+                        <Link
+                          key={it.id}
+                          to="/inventory"
+                          search={{ q: it.name }}
+                          onClick={closeSearch}
+                          className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-accent"
+                        >
+                          <Package2 className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                          <span className="min-w-0 flex-1 truncate">{it.name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {it.stock_qty} {it.unit}
+                          </span>
+                        </Link>
+                      ))}
+                    </section>
                   )}
+                  {(searchResults.data?.batches ?? []).length > 0 && (
+                    <section>
+                      <h3 className="px-1 pb-1 font-sans text-xs font-semibold text-muted-foreground">Lotes Trazables QR</h3>
+                      {searchResults.data?.batches.map((b: any) => (
+                        <Link
+                          key={b.id}
+                          to="/trace/$code"
+                          params={{ code: b.batch_code }}
+                          onClick={closeSearch}
+                          className="flex items-center gap-2 rounded-md p-2 text-sm font-mono hover:bg-accent"
+                        >
+                          <QrCode className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                          <span className="min-w-0 flex-1 truncate">{b.batch_code}</span>
+                        </Link>
+                      ))}
+                    </section>
+                  )}
+                  {searchResults.data &&
+                    searchResults.data.parcels.length === 0 &&
+                    searchResults.data.crops.length === 0 &&
+                    searchResults.data.events.length === 0 &&
+                    (searchResults.data.items?.length ?? 0) === 0 &&
+                    (searchResults.data.batches?.length ?? 0) === 0 && (
+                      <p className="px-1 py-3 text-sm text-muted-foreground">{t("shell.no_results")}</p>
+                    )}
                 </>
               )}
             </div>

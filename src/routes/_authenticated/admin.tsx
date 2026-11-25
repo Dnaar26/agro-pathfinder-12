@@ -14,6 +14,8 @@ import {
   type FarmerSummary,
 } from "@/lib/queries";
 import { setGlobalProducerScope } from "@/components/admin/producer-scope-bar";
+import { compressImageFileToDataUrl, fetchOrgBranding, saveOrgBranding } from "@/lib/org-branding";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -45,6 +47,8 @@ import {
   ChevronUp,
   UserCheck,
   Stethoscope,
+  Building2,
+  ImagePlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -91,6 +95,12 @@ function AdminPage() {
   const [plantingReminderDays, setPlantingReminderDays] = useState("1");
   const [stockAlertThreshold, setStockAlertThreshold] = useState("0");
   const [stockAlertsEnabled, setStockAlertsEnabled] = useState(true);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const [orgName, setOrgName] = useState("");
+  const [orgNit, setOrgNit] = useState("");
+  const [orgMunicipality, setOrgMunicipality] = useState("");
+  const [orgLogoUrl, setOrgLogoUrl] = useState("");
 
   const metrics = useQuery({ queryKey: ["admin-metrics"], queryFn: getAdminMetrics });
   const farmers = useQuery({ queryKey: ["admin-farmers"], queryFn: listFarmerSummaries });
@@ -108,6 +118,35 @@ function AdminPage() {
       if (error) throw error;
       return data;
     },
+  });
+
+  const orgBrandingQuery = useQuery({
+    queryKey: ["org-branding"],
+    queryFn: fetchOrgBranding,
+  });
+
+  useEffect(() => {
+    if (!orgBrandingQuery.data) return;
+    setOrgName(orgBrandingQuery.data.orgName);
+    setOrgNit(orgBrandingQuery.data.orgNit);
+    setOrgMunicipality(orgBrandingQuery.data.orgMunicipality);
+    setOrgLogoUrl(orgBrandingQuery.data.orgLogoUrl);
+  }, [orgBrandingQuery.data]);
+
+  const saveBrandingMut = useMutation({
+    mutationFn: async () => {
+      const { data: s } = await supabase.auth.getSession();
+      const uid = s.session?.user?.id ?? (await supabase.auth.getUser()).data.user?.id;
+      return saveOrgBranding(
+        { orgName, orgNit, orgMunicipality, orgLogoUrl },
+        uid
+      );
+    },
+    onSuccess: () => {
+      toast.success("Identidad institucional guardada para Reportes PDF y Certificados");
+      qc.invalidateQueries({ queryKey: ["org-branding"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const assignments = useQuery({
@@ -637,15 +676,7 @@ function AdminPage() {
                     user={u}
                     onAssign={(role) => assign.mutate({ userId: u.id, role })}
                     onRevoke={(role) => revoke.mutate({ userId: u.id, role })}
-                    onDelete={() => {
-                      if (
-                        confirm(
-                          `¿Eliminar permanentemente a "${u.full_name}"?\n\nSe borrarán todas sus parcelas, cultivos, actividades, cosechas, costos, inventario y alertas.`
-                        )
-                      ) {
-                        deleteUserMut.mutate(u.id);
-                      }
-                    }}
+                    onDelete={() => setDeleteUserTarget({ id: u.id, name: u.full_name || "este usuario" })}
                     busy={assign.isPending || revoke.isPending || deleteUserMut.isPending}
                   />
                 ))}
@@ -655,8 +686,104 @@ function AdminPage() {
           </section>
         </TabsContent>
 
-        {/* PESTAÑA 4: REGLAS DE ALERTAS Y SALUD DEL SISTEMA */}
+        {/* PESTAÑA 4: IDENTIDAD COOPERATIVA, REGLAS DE ALERTAS Y SALUD DEL SISTEMA */}
         <TabsContent value="sistema" className="space-y-5">
+          <Card className="p-5 space-y-4 border-primary/25">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="font-semibold text-base flex items-center gap-2">
+                  <Building2 className="size-4 text-primary" />
+                  Identidad Institucional (Cooperativa / Asociación / Empresa)
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  El nombre, NIT y logo configurados aquí se estampan automáticamente en todos los Reportes PDF y Certificados Oficiales BPA/QR.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Nombre de Asociación / Cooperativa</Label>
+                <Input
+                  placeholder="Ej: Cooperativa Cafetera del Sur"
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">NIT / RUT Institucional</Label>
+                <Input
+                  placeholder="Ej: 900.456.789-1"
+                  value={orgNit}
+                  onChange={(e) => setOrgNit(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Municipio / Sede Principal</Label>
+                <Input
+                  placeholder="Ej: Pitalito, Huila"
+                  value={orgMunicipality}
+                  onChange={(e) => setOrgMunicipality(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-3">
+                {orgLogoUrl ? (
+                  <img
+                    src={orgLogoUrl}
+                    alt="Logo institucional"
+                    className="size-12 rounded-lg border border-border bg-white object-contain p-1"
+                  />
+                ) : (
+                  <div className="grid size-12 place-items-center rounded-lg border border-dashed border-border bg-muted/30 text-muted-foreground">
+                    <Building2 className="size-5" />
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-accent">
+                    <ImagePlus className="size-3.5 text-primary" />
+                    Subir logo institucional
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        try {
+                          const dataUrl = await compressImageFileToDataUrl(file, {
+                            maxDimension: 320,
+                            quality: 0.85,
+                            preservePng: true,
+                          });
+                          setOrgLogoUrl(dataUrl);
+                        } catch (err: any) {
+                          toast.error(err?.message ?? "No se pudo procesar el logo");
+                        }
+                      }}
+                    />
+                  </label>
+                  {orgLogoUrl && (
+                    <Button type="button" variant="ghost" size="sm" className="h-8 text-xs text-destructive" onClick={() => setOrgLogoUrl("")}>
+                      Quitar logo
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                disabled={saveBrandingMut.isPending}
+                onClick={() => saveBrandingMut.mutate()}
+              >
+                {saveBrandingMut.isPending ? "Guardando…" : "Guardar identidad institucional"}
+              </Button>
+            </div>
+          </Card>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <Card className="p-5 space-y-4">
               <div>
@@ -785,6 +912,30 @@ function AdminPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={Boolean(deleteUserTarget)} onOpenChange={(o) => !o && setDeleteUserTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar cuenta permanentemente</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Confirmas eliminar permanentemente a «{deleteUserTarget?.name}»? Se borrarán en cascada todas sus parcelas, cultivos, actividades, cosechas, costos, inventario y alertas. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteUserMut.isPending}
+              onClick={() => {
+                if (deleteUserTarget) deleteUserMut.mutate(deleteUserTarget.id);
+                setDeleteUserTarget(null);
+              }}
+            >
+              Eliminar permanentemente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

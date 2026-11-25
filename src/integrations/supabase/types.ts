@@ -759,6 +759,282 @@ export type Database = {
         }
         Relationships: []
       }
+      alert_settings: {
+        Row: {
+          id: boolean
+          planting_reminder_days: number
+          stock_alerts_enabled: boolean
+          stock_alert_threshold: number
+          org_name: string | null
+          org_nit: string | null
+          org_municipality: string | null
+          org_logo_url: string | null
+          updated_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          planting_reminder_days?: number
+          stock_alerts_enabled?: boolean
+          stock_alert_threshold?: number
+          org_name?: string | null
+          org_nit?: string | null
+          org_municipality?: string | null
+          org_logo_url?: string | null
+          updated_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          planting_reminder_days?: number
+          stock_alerts_enabled?: boolean
+          stock_alert_threshold?: number
+          org_name?: string | null
+          org_nit?: string | null
+          org_municipality?: string | null
+          org_logo_url?: string | null
+          updated_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      soil_analyses: {
+        Row: {
+          id: string
+          parcel_id: string
+          sample_date: string
+          ph: number
+          organic_matter_pct: number
+          nitrogen_ppm: number | null
+          phosphorus_ppm: number
+          potassium_cmol: number
+          cec_cmol: number
+          aluminum_cmol: number
+          texture: string
+          lab_name: string | null
+          notes: string | null
+          created_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          parcel_id: string
+          sample_date?: string
+          ph: number
+          organic_matter_pct?: number
+          nitrogen_ppm?: number | null
+          phosphorus_ppm?: number
+          potassium_cmol?: number
+          cec_cmol?: number
+          aluminum_cmol?: number
+          texture?: string
+          lab_name?: string | null
+          notes?: string | null
+          created_by: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          parcel_id?: string
+          sample_date?: string
+          ph?: number
+          organic_matter_pct?: number
+          nitrogen_ppm?: number | null
+          phosphorus_ppm?: number
+          potassium_cmol?: number
+          cec_cmol?: number
+          aluminum_cmol?: number
+          texture?: string
+          lab_name?: string | null
+          notes?: string | null
+          created_by?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      bpa_evaluations: {
+        Row: {
+          id: string
+          crop_id: string
+          batch_id: string | null
+          evaluator_id: string
+          evaluator_name: string
+          evaluator_role: string
+          checks: Json
+          compliance_score: number
+          status: string
+          notes: string | null
+          evaluated_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          crop_id: string
+          batch_id?: string | null
+          evaluator_id: string
+          evaluator_name: string
+          evaluator_role?: string
+          checks?: Json
+          compliance_score?: number
+          status?: string
+          notes?: string | null
+          evaluated_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          crop_id?: string
+          batch_id?: string | null
+          evaluator_id?: string
+          evaluator_name?: string
+          evaluator_role?: string
+          checks?: Json
+          compliance_score?: number
+          status?: string
+          notes?: string | null
+          evaluated_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      field_labor_logs: {
+        Row: {
+          id: string
+          owner_id: string
+          crop_id: string
+          worker_name: string
+          task_kind: string
+          payment_mode: string
+          units_worked: number
+          rate_cop: number
+          total_cop: number
+          work_date: string
+          paid: boolean
+          linked_cost_id: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          owner_id: string
+          crop_id: string
+          worker_name: string
+          task_kind?: string
+          payment_mode?: string
+          units_worked: number
+          rate_cop: number
+          total_cop: number
+          work_date?: string
+          paid?: boolean
+          linked_cost_id?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          owner_id?: string
+          crop_id?: string
+          worker_name?: string
+          task_kind?: string
+          payment_mode?: string
+          units_worked?: number
+          rate_cop?: number
+          total_cop?: number
+          work_date?: string
+          paid?: boolean
+          linked_cost_id?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      harvest_listings: {
+        Row: {
+          id: string
+          owner_id: string
+          crop_id: string | null
+          batch_id: string | null
+          farmer_display_name: string
+          product_name: string
+          variety: string | null
+          available_qty: number
+          unit: string
+          min_order_qty: number
+          price_per_unit: number
+          available_from: string
+          location_label: string
+          whatsapp_phone: string | null
+          bpa_verified: boolean
+          batch_code: string | null
+          photo_url: string | null
+          status: string
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          owner_id: string
+          crop_id?: string | null
+          batch_id?: string | null
+          farmer_display_name?: string
+          product_name: string
+          variety?: string | null
+          available_qty: number
+          unit?: string
+          min_order_qty?: number
+          price_per_unit: number
+          available_from?: string
+          location_label?: string
+          whatsapp_phone?: string | null
+          bpa_verified?: boolean
+          batch_code?: string | null
+          photo_url?: string | null
+          status?: string
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          owner_id?: string
+          crop_id?: string | null
+          batch_id?: string | null
+          farmer_display_name?: string
+          product_name?: string
+          variety?: string | null
+          available_qty?: number
+          unit?: string
+          min_order_qty?: number
+          price_per_unit?: number
+          available_from?: string
+          location_label?: string
+          whatsapp_phone?: string | null
+          bpa_verified?: boolean
+          batch_code?: string | null
+          photo_url?: string | null
+          status?: string
+          notes?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      ai_conversations: {
+        Row: { id: string; user_id: string; parcel_id: string | null; title: string; created_at: string; updated_at: string }
+        Insert: { id?: string; user_id: string; parcel_id?: string | null; title?: string; created_at?: string; updated_at?: string }
+        Update: { id?: string; user_id?: string; parcel_id?: string | null; title?: string; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      ai_messages: {
+        Row: { id: string; conversation_id: string; user_id: string; role: string; content: string; created_at: string }
+        Insert: { id?: string; conversation_id: string; user_id: string; role: string; content: string; created_at?: string }
+        Update: { id?: string; conversation_id?: string; user_id?: string; role?: string; content?: string; created_at?: string }
+        Relationships: []
+      }
+      client_error_logs: {
+        Row: { id: string; user_id: string | null; route: string; boundary: string; message: string; metadata: Json | null; created_at: string }
+        Insert: { id?: string; user_id?: string | null; route: string; boundary: string; message: string; metadata?: Json | null; created_at?: string }
+        Update: { id?: string; user_id?: string | null; route?: string; boundary?: string; message?: string; metadata?: Json | null; created_at?: string }
+        Relationships: []
+      }
       ndvi_cache: {
         Row: {
           created_at: string
@@ -859,6 +1135,10 @@ export type Database = {
       create_manual_alert: { Args: { p_recipient_id: string; p_kind: Database["public"]["Enums"]["alert_kind"]; p_title: string; p_body?: string | null }; Returns: string }
       list_manual_alert_recipients: { Args: never; Returns: { id: string; full_name: string; role: Database["public"]["Enums"]["app_role"] }[] }
       delete_parcel_cascade: { Args: { p_parcel_id: string }; Returns: string }
+      consume_ai_chat_quota: { Args: { p_max_requests?: number; p_window_minutes?: number }; Returns: boolean }
+      get_public_trace_batch: { Args: { p_batch_code: string }; Returns: Json }
+      certify_batch_from_bpa: { Args: { p_batch_id: string }; Returns: boolean }
+      get_public_marketplace_listings: { Args: { p_owner_id?: string | null }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -876,7 +1156,7 @@ export type Database = {
         | "INSUMOS"
         | "COSECHA"
         | "MONITOREO"
-      alert_kind: "RIEGO" | "FERTILIZACION" | "COSECHA" | "CLIMA" | "VENCIDA" | "STOCK"
+      alert_kind: "RIEGO" | "FERTILIZACION" | "COSECHA" | "CLIMA" | "VENCIDA" | "HELADA" | "STOCK"
       alert_status: "PENDIENTE" | "ATENDIDA" | "DESCARTADA"
       app_role: "agricultor" | "tecnico" | "admin"
       crop_status:

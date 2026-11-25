@@ -26,9 +26,12 @@ import {
   Share2,
   ExternalLink,
   Globe,
+  Camera,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrencyInt } from "@/lib/currency";
+import { compressImageFileToDataUrl } from "@/lib/org-branding";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/mercado")({
@@ -63,6 +66,7 @@ function CropMarketplacePage() {
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [listingStatus, setListingStatus] = useState<"PREVENTA" | "DISPONIBLE">("PREVENTA");
   const [notes, setNotes] = useState("");
+  const [photoUrl, setPhotoUrl] = useState<string>("");
 
   const profileQuery = useQuery({ queryKey: ["profile"], queryFn: getMyProfile });
   const cropsQuery = useQuery({ queryKey: ["crops"], queryFn: listAllCrops });
@@ -138,7 +142,7 @@ function CropMarketplacePage() {
         }
       }
 
-      const { error } = await (supabase as any).from("harvest_listings").insert({
+      const listingPayload: Record<string, unknown> = {
         owner_id: user.id,
         crop_id: selectedCropId !== "__none__" ? selectedCropId : null,
         batch_id: batchId,
@@ -154,16 +158,27 @@ function CropMarketplacePage() {
         whatsapp_phone: (whatsappPhone || profileQuery.data?.phone || "").trim() || null,
         bpa_verified: bpaVerified,
         batch_code: batchCode,
+        photo_url: photoUrl || null,
         status: listingStatus,
         notes: notes.trim() || null,
-      });
-      if (error) throw error;
+      };
+      const { error } = await (supabase as any).from("harvest_listings").insert(listingPayload);
+      if (error) {
+        if (String(error.message ?? "").includes("photo_url") || String(error.code ?? "") === "PGRST204") {
+          const { photo_url: _unused, ...fallbackPayload } = listingPayload;
+          const retry = await (supabase as any).from("harvest_listings").insert(fallbackPayload);
+          if (retry.error) throw retry.error;
+        } else {
+          throw error;
+        }
+      }
     },
     onSuccess: () => {
       toast.success("Oferta de cosecha publicada en la Vitrina Comercial");
       qc.invalidateQueries({ queryKey: ["harvest-listings"] });
       setOpen(false);
       setNotes("");
+      setPhotoUrl("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -358,6 +373,48 @@ function CropMarketplacePage() {
                 </div>
               </div>
 
+              <div className="space-y-1.5">
+                <Label className="text-xs">Fotografía real del producto / cosecha (opcional)</Label>
+                {photoUrl ? (
+                  <div className="relative rounded-xl overflow-hidden border border-border">
+                    <img src={photoUrl} alt="Vista previa de cosecha" className="h-36 w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setPhotoUrl("")}
+                      aria-label="Quitar foto"
+                      className="absolute top-2 right-2 grid size-7 place-items-center rounded-full bg-black/65 text-white hover:bg-black/85"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 py-3 text-xs font-medium text-muted-foreground hover:border-primary/50 hover:text-primary">
+                    <Camera className="size-4 text-primary" />
+                    Tomar o subir foto del lote cosechado
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      capture="environment"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        try {
+                          const compressed = await compressImageFileToDataUrl(file, {
+                            maxDimension: 680,
+                            quality: 0.72,
+                          });
+                          setPhotoUrl(compressed);
+                        } catch (err: any) {
+                          toast.error(err?.message ?? "No se pudo comprimir la foto");
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
               <div className="space-y-1">
                 <Label className="text-xs">Condiciones de entrega / Pedido mínimo ({minOrderQty} {unit})</Label>
                 <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Recogida en finca o puesto en cabecera municipal…" />
@@ -442,7 +499,15 @@ function CropMarketplacePage() {
             const refPrice = refPricesMap.get(String(item.product_name || "").toLowerCase());
 
             return (
-              <Card key={item.id} className="p-5 flex flex-col justify-between space-y-4">
+              <Card key={item.id} className="overflow-hidden flex flex-col justify-between">
+                {item.photo_url && (
+                  <img
+                    src={item.photo_url}
+                    alt={item.product_name}
+                    className="h-40 w-full object-cover border-b border-border"
+                  />
+                )}
+                <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                 <div className="space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -542,6 +607,7 @@ function CropMarketplacePage() {
                       <Trash2 className="size-4" />
                     </button>
                   )}
+                </div>
                 </div>
               </Card>
             );

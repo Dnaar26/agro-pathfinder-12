@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { executeWithOfflineFallback } from "@/lib/services/offline-sync";
 import { getMyRoles, listAllCrops } from "@/lib/queries";
 import { ProducerScopeBar, FarmGroupSection, useProducerScope } from "@/components/admin/producer-scope-bar";
 import { Card } from "@/components/ui/card";
@@ -135,7 +136,7 @@ function FieldLaborPage() {
         }
       }
 
-      const { error } = await (supabase as any).from("field_labor_logs").insert({
+      const laborPayload = {
         owner_id: uid,
         crop_id: cropId,
         worker_name: workerName.trim(),
@@ -147,8 +148,14 @@ function FieldLaborPage() {
         work_date: workDate,
         paid: paidNow,
         linked_cost_id: linkedCostId,
+      };
+      await executeWithOfflineFallback({
+        offlineMutation: { table: "field_labor_logs", action: "INSERT", data: laborPayload },
+        onlineRunner: async () => {
+          const { error } = await (supabase as any).from("field_labor_logs").insert(laborPayload);
+          if (error) throw error;
+        },
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Jornal registrado y contabilizado en costos del cultivo");

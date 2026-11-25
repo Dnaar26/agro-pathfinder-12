@@ -36,6 +36,7 @@ type PublicListing = {
   whatsapp_phone: string | null;
   bpa_verified: boolean;
   batch_code: string | null;
+  photo_url?: string | null;
   status: "PREVENTA" | "DISPONIBLE";
   notes: string | null;
 };
@@ -204,7 +205,15 @@ function PublicShowcasePage() {
             {filtered.map((item) => {
               const refPrice = refPricesMap.get(item.product_name.toLowerCase());
               return (
-                <Card key={item.id} className="p-5 flex flex-col justify-between space-y-4 hover:border-primary/40 transition-colors">
+                <Card key={item.id} className="overflow-hidden flex flex-col justify-between hover:border-primary/40 transition-colors">
+                  {item.photo_url && (
+                    <img
+                      src={item.photo_url}
+                      alt={item.product_name}
+                      className="h-44 w-full object-cover border-b border-border"
+                    />
+                  )}
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                   <div className="space-y-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -284,6 +293,7 @@ function PublicShowcasePage() {
                         Oferta informativa registrada en cooperativa SIGIC
                       </p>
                     )}
+                  </div>
                   </div>
                 </Card>
               );

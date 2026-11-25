@@ -16,8 +16,12 @@ import {
 const TABLE_LABELS: Record<StoredMutation["table"], string> = {
   parcels: "Parcela",
   crops: "Cultivo",
-  activities: "Actividad",
+  activities: "Labor",
+  crop_costs: "Gasto",
+  crop_harvests: "Cosecha",
   inventory_items: "Insumo",
+  field_labor_logs: "Jornal",
+  calendar_events: "Evento",
 };
 
 /** Estado real de conexión + bandeja de resolución de conflictos de sincronización offline */

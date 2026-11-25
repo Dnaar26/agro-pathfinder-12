@@ -3,8 +3,18 @@ import { supabase } from "@/integrations/supabase/client";
 
 type MutationAction = "INSERT" | "UPDATE" | "DELETE";
 
+export type OfflineSupportedTable =
+  | "parcels"
+  | "crops"
+  | "activities"
+  | "crop_costs"
+  | "crop_harvests"
+  | "inventory_items"
+  | "field_labor_logs"
+  | "calendar_events";
+
 export type OfflineMutation = {
-  table: "parcels" | "crops" | "activities" | "inventory_items";
+  table: OfflineSupportedTable;
   action: MutationAction;
   data: Record<string, unknown>;
   recordId?: string;
@@ -19,6 +29,7 @@ export type StoredMutation = OfflineMutation & {
 };
 
 export const MAX_SYNC_ATTEMPTS = 3;
+export const OFFLINE_SYNCED_EVENT = "sigic:offline-synced";
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 let syncInFlight: Promise<void> | null = null;
@@ -57,6 +68,18 @@ function getDb() {
   return dbPromise;
 }
 
+export function isLikelyOfflineNetworkError(error: unknown): boolean {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return true;
+  const msg = error instanceof Error ? error.message.toLowerCase() : String(error ?? "").toLowerCase();
+  return (
+    msg.includes("failed to fetch") ||
+    msg.includes("networkerror") ||
+    msg.includes("load failed") ||
+    msg.includes("network request failed") ||
+    msg.includes("offline")
+  );
+}
+
 export async function queueMutation(mutation: OfflineMutation) {
   if (mutation.action !== "INSERT" && !mutation.recordId) {
     throw new Error("Las mutaciones de actualización y eliminación requieren recordId");
@@ -71,6 +94,31 @@ export async function queueMutation(mutation: OfflineMutation) {
     lastError: undefined,
   });
   notifyListeners();
+}
+
+/**
+ * Ejecuta una operación en línea en Supabase; si el dispositivo está sin señal rural
+ * o sufre caída de red, encola automáticamente la mutación en IndexedDB para sincronizar luego.
+ */
+export async function executeWithOfflineFallback<T = void>(params: {
+  onlineRunner: () => Promise<T>;
+  offlineMutation: OfflineMutation;
+}): Promise<{ queuedOffline: boolean; result?: T }> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    await queueMutation(params.offlineMutation);
+    return { queuedOffline: true };
+  }
+
+  try {
+    const result = await params.onlineRunner();
+    return { queuedOffline: false, result };
+  } catch (err) {
+    if (isLikelyOfflineNetworkError(err)) {
+      await queueMutation(params.offlineMutation);
+      return { queuedOffline: true };
+    }
+    throw err;
+  }
 }
 
 export async function getPendingMutations(): Promise<StoredMutation[]> {
@@ -127,7 +175,6 @@ export async function clearCache() {
   await db.clear("cache");
 }
 
-/** Limpia tanto la caché como la cola de mutaciones pendientes al cerrar sesión en dispositivos compartidos */
 export async function clearAllOfflineData() {
   const db = await getDb();
   const tx = db.transaction(["cache", "mutations"], "readwrite");
@@ -141,13 +188,14 @@ export async function clearAllOfflineData() {
 
 async function syncMutation(mutation: StoredMutation): Promise<boolean> {
   try {
+    const sb = supabase as any;
     let result: { error?: { message?: string } | null } | undefined;
     if (mutation.action === "INSERT") {
-      result = await supabase.from(mutation.table).insert(mutation.data as never);
+      result = await sb.from(mutation.table).insert(mutation.data);
     } else if (mutation.action === "UPDATE") {
-      result = await supabase.from(mutation.table).update(mutation.data as never).eq("id", mutation.recordId!);
+      result = await sb.from(mutation.table).update(mutation.data).eq("id", mutation.recordId!);
     } else {
-      result = await supabase.from(mutation.table).delete().eq("id", mutation.recordId!);
+      result = await sb.from(mutation.table).delete().eq("id", mutation.recordId!);
     }
     if (result?.error) throw new Error(result.error.message || "Conflicto al sincronizar registro");
     return true;
@@ -181,6 +229,9 @@ export async function syncPendingMutations() {
     }
     await clearSyncedMutations(syncedIds);
     notifyListeners();
+    if (syncedIds.length > 0 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(OFFLINE_SYNCED_EVENT, { detail: { count: syncedIds.length } }));
+    }
   })()
     .catch((error) => {
       console.warn("No se pudo sincronizar la cola offline", error);

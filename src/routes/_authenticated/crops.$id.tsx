@@ -15,7 +15,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Plus, Droplet, Sprout, Bug, Scissors, Package, Wheat, Eye, ImagePlus, X, DollarSign, TrendingUp, Images, ShieldAlert, User } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
+import { ArrowLeft, Plus, Droplet, Sprout, Bug, Scissors, Package, Wheat, Eye, ImagePlus, X, DollarSign, TrendingUp, Images, ShieldAlert, User, CalendarPlus, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { NdviViewer } from "@/components/ndvi/ndvi-viewer";
@@ -115,6 +117,20 @@ function CropDetail() {
   const [tab, setTab] = useState("activities");
   const [pestOpen, setPestOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ kind: string; id?: string } | null>(null);
+  const [actInvItemId, setActInvItemId] = useState<string>("");
+  const [actInvQty, setActInvQty] = useState<string>("");
+  const [autoLogCost, setAutoLogCost] = useState<boolean>(true);
+
+  const cropInventory = useQuery({
+    queryKey: ["crop-detail-inventory"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("inventory_items")
+        .select("id, name, unit, stock_qty, unit_cost")
+        .order("name");
+      return data ?? [];
+    },
+  });
   const isAdmin = (roles.data ?? []).includes("admin");
   const isTechnician = (roles.data ?? []).includes("tecnico");
   const isCropOwner = Boolean(currentUserId.data && (crop.data as any)?.parcels?.owner_id === currentUserId.data);
@@ -167,24 +183,67 @@ function CropDetail() {
 
   const addActivity = useMutation({
     mutationFn: async (data: z.infer<typeof activitySchema>) => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Sesión expirada");
+      const { data: s } = await supabase.auth.getSession();
+      const user = s.session?.user ?? (await supabase.auth.getUser()).data.user;
+      if (!user) throw new Error("Sesión expirada");
       const photo_urls = files.length > 0 ? await uploadEvidences(files, id) : [];
+
+      const usedQty = actInvItemId && actInvQty ? Number(actInvQty) : 0;
+      const selectedItem = actInvItemId
+        ? (cropInventory.data ?? []).find((it: any) => it.id === actInvItemId)
+        : null;
+
+      const enrichedNotes = [
+        data.notes?.trim(),
+        selectedItem && usedQty > 0 ? `[Insumo aplicado: ${selectedItem.name} · ${usedQty} ${selectedItem.unit}]` : null,
+      ]
+        .filter(Boolean)
+        .join(" — ");
+
       const { error } = await supabase.from("activities").insert({
         crop_id: id,
-        responsible_id: u.user.id,
+        responsible_id: user.id,
         kind: data.kind,
         performed_at: new Date(data.performed_at).toISOString(),
-        notes: data.notes ?? null,
+        notes: enrichedNotes || null,
         photo_urls,
       });
       if (error) throw error;
+
+      if (selectedItem && usedQty > 0 && autoLogCost) {
+        const { error: movErr } = await supabase.rpc("apply_inventory_movement", {
+          p_item_id: selectedItem.id,
+          p_kind: "SALIDA",
+          p_qty: usedQty,
+          p_notes: `Aplicación en cultivo ${(crop.data as any)?.crop_catalog?.name ?? ""} (${data.kind})`,
+          p_delta: -usedQty,
+        });
+        if (movErr) {
+          toast.warning(`Actividad guardada, pero no se pudo descontar stock: ${movErr.message}`);
+        } else if (Number(selectedItem.unit_cost || 0) > 0) {
+          const unitCostVal = Number(selectedItem.unit_cost);
+          await supabase.from("crop_costs").insert({
+            crop_id: id,
+            kind: data.kind === "FERTILIZACION" ? "FERTILIZANTE" : data.kind === "CONTROL_PLAGAS" ? "FITOSANITARIO" : "INSUMOS",
+            description: `${selectedItem.name} (${data.kind})`,
+            qty: usedQty,
+            unit: selectedItem.unit,
+            unit_cost: unitCostVal,
+            total: Math.round(usedQty * unitCostVal * 100) / 100,
+          });
+        }
+      }
     },
     onSuccess: () => {
-      toast.success("Actividad registrada");
+      toast.success("Actividad registrada con éxito");
       qc.invalidateQueries({ queryKey: ["crop", id] });
+      qc.invalidateQueries({ queryKey: ["crop-costs", id] });
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["crop-detail-inventory"] });
       setOpen(false);
       setFiles([]);
+      setActInvItemId("");
+      setActInvQty("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -419,8 +478,47 @@ function CropDetail() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="notes">Observaciones</Label>
-                  <Textarea id="notes" name="notes" rows={3} />
+                  <Textarea id="notes" name="notes" rows={2} placeholder="Detalles de la labor realizada…" />
                 </div>
+
+                {canManageCrop && (
+                  <div className="space-y-2.5 rounded-lg border border-border bg-muted/30 p-3">
+                    <Label className="text-xs font-semibold">Insumo aplicado de bodega (opcional)</Label>
+                    <div className="flex gap-2">
+                      <Select value={actInvItemId || "__none__"} onValueChange={(v) => setActInvItemId(v === "__none__" ? "" : v)}>
+                        <SelectTrigger className="flex-1 text-xs h-9">
+                          <SelectValue placeholder="Sin insumo de bodega" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sin insumo de bodega</SelectItem>
+                          {(cropInventory.data ?? []).map((it: any) => (
+                            <SelectItem key={it.id} value={it.id} className="text-xs">
+                              {it.name} ({it.stock_qty} {it.unit})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="any"
+                        min="0"
+                        placeholder="Cant."
+                        value={actInvQty}
+                        onChange={(e) => setActInvQty(e.target.value)}
+                        className="w-24 h-9 text-xs"
+                      />
+                    </div>
+                    {actInvItemId && Number(actInvQty) > 0 && (
+                      <div className="flex items-center justify-between gap-2 pt-1">
+                        <span className="text-[11px] text-muted-foreground">
+                          Descontar stock y registrar gasto automático en Costos
+                        </span>
+                        <Switch checked={autoLogCost} onCheckedChange={setAutoLogCost} />
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2"><ImagePlus className="size-4" /> Foto-evidencias</Label>
                   <Input type="file" accept="image/*" multiple capture="environment" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
@@ -463,6 +561,67 @@ function CropDetail() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {(() => {
+        const plantMs = new Date(crop.data.planting_date + "T12:00:00").getTime();
+        const estHarvMs = new Date(crop.data.estimated_harvest_date + "T12:00:00").getTime();
+        const nowMs = Date.now();
+        const totalCycleDays = Math.max(
+          1,
+          Math.round((estHarvMs - plantMs) / 86_400_000) || Number((crop.data as any).crop_catalog?.cycle_days || 90)
+        );
+        const elapsedDays = Math.max(0, Math.floor((nowMs - plantMs) / 86_400_000));
+        const remainingDays = Math.max(0, Math.ceil((estHarvMs - nowMs) / 86_400_000));
+        const pct = crop.data.status === "FINALIZADO" ? 100 : Math.min(100, Math.round((elapsedDays / totalCycleDays) * 100));
+        const stageName =
+          crop.data.status === "FINALIZADO"
+            ? "Ciclo finalizado"
+            : pct < 20
+              ? "Germinación y establecimiento"
+              : pct < 55
+                ? "Desarrollo vegetativo"
+                : pct < 85
+                  ? "Floración y llenado"
+                  : "Maduración / Próximo a cosecha";
+
+        return (
+          <Card className="p-4 space-y-3 border-primary/20 bg-primary/5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  Avance Fenológico Estimado · {stageName}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Día {elapsedDays} de ~{totalCycleDays} días ({pct}%) ·{" "}
+                  {remainingDays > 0 ? `Faltan ~${remainingDays} días para cosecha` : "En ventana de cosecha"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild size="sm" variant="outline" className="h-8 text-xs gap-1.5 bg-card">
+                  <Link
+                    to="/calendar"
+                    search={{
+                      openNew: true,
+                      cropId: id,
+                      title: `Labor en ${(crop.data as any).crop_catalog?.name ?? "cultivo"}`,
+                    }}
+                  >
+                    <CalendarPlus className="size-3.5 text-primary" />
+                    Agendar labor
+                  </Link>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="h-8 text-xs gap-1.5 bg-card">
+                  <Link to="/chat">
+                    <Bot className="size-3.5 text-primary" />
+                    Consultar IA
+                  </Link>
+                </Button>
+              </div>
+            </div>
+            <Progress value={pct} className="h-2" />
+          </Card>
+        );
+      })()}
 
       {/* Profitability summary */}
       <div className="grid grid-cols-3 gap-3">

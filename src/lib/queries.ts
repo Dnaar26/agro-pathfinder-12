@@ -508,6 +508,9 @@ export async function getCropPhotoUrls(cropId: string) {
 
 export function inferCategory(name: string): string {
   const n = (name || "").toLowerCase();
+  if (n.includes("bioestimul") || n.includes("trichoderma") || n.includes("micorriz") || n.includes("beauveria") || n.includes("bacillus") || n.includes("biol")) {
+    return "Bioinsumo";
+  }
   if (n.includes("fertiliz") || n.includes("urea") || n.includes("npk") || n.includes("compost") || n.includes("abono") || n.includes("cal ") || n.includes("dolomit")) {
     return "Fertilizante";
   }

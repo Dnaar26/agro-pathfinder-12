@@ -1,6 +1,6 @@
 param(
   [string]$BranchName = "main",
-  [string]$CommitMessage = "feat(ai-free-v3): add free multi-model cascade (gpt-oss-120b/20b + gemini-3.5-flash-lite), voice/photo chat, humidity fix and fast queries"
+  [string]$CommitMessage = "feat(v4): auto-prefill calendar, smart inventory filter/kardex/calculator, visual audit diff, admin monitor and profitability simulator"
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,4 +28,4 @@ git reset -- .env .env.local .env.production 2>$null
 git commit -m $CommitMessage
 git push -u origin $BranchName
 
-Write-Host "Cambios validados y publicados en '$BranchName' exitosamente." -ForegroundColor Green
+Write-Host "Version v4 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green

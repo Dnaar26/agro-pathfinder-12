@@ -1,13 +1,9 @@
 import * as React from "react";
-import { Check, Copy, CalendarPlus, PackageSearch } from "lucide-react";
+import { Check, Copy, CalendarPlus, PackageSearch, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { ChatQuickAction } from "@/lib/ai/chat-action-extractor";
 
-export interface ChatQuickAction {
-  id: string;
-  label: string;
-  kind: "calendar" | "inventory" | "prompt";
-  payload?: string;
-}
+export type { ChatQuickAction };
 
 interface MarkdownMessageProps {
   content: string;
@@ -29,14 +25,18 @@ const SEVERITY_LABELS: Record<NonNullable<MarkdownMessageProps["severity"]>, str
   alto: "Riesgo Fitosanitario Alto",
 };
 
-/** Neutraliza etiquetas HTML crudas para prevenir inyecciones visuales o XSS */
+const BADGE_TONE_STYLES: Record<NonNullable<ChatQuickAction["badgeTone"]>, string> = {
+  ok: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  warn: "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30",
+  missing: "bg-muted text-muted-foreground border-border",
+};
+
 function stripDangerousHtml(input: string): string {
   return input
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
     .replace(/<\/?(script|iframe|object|embed|svg|img|style|link|meta)[^>]*>/gi, "");
 }
 
-/** Convierte formato en línea (**negrita**, `código`, *cursiva*) en nodos React puros sin innerHTML */
 function renderInline(text: string): React.ReactNode[] {
   const safe = stripDangerousHtml(text);
   const tokens = safe.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*\n]+\*)/g);
@@ -86,13 +86,11 @@ function parseMarkdownBlocks(raw: string): React.ReactNode[] {
   while (i < lines.length) {
     const line = lines[i];
     const trimmed = line.trim();
-
     if (!trimmed) {
       i++;
       continue;
     }
 
-    // 1. Tablas GFM (encabezado + fila separadora | :--- |)
     if (trimmed.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
       const headers = splitTableRow(lines[i]);
       i += 2;
@@ -111,10 +109,7 @@ function parseMarkdownBlocks(raw: string): React.ReactNode[] {
             <thead className="bg-muted/70 text-foreground">
               <tr>
                 {headers.map((h, hIdx) => (
-                  <th
-                    key={hIdx}
-                    className="border-b border-border px-3 py-2 font-semibold whitespace-nowrap"
-                  >
+                  <th key={hIdx} className="border-b border-border px-3 py-2 font-semibold whitespace-nowrap">
                     {renderInline(h)}
                   </th>
                 ))}
@@ -124,10 +119,7 @@ function parseMarkdownBlocks(raw: string): React.ReactNode[] {
               {rows.map((row, rIdx) => (
                 <tr key={rIdx} className="even:bg-muted/25">
                   {headers.map((_, cIdx) => (
-                    <td
-                      key={cIdx}
-                      className="border-b border-border/60 px-3 py-2 align-top"
-                    >
+                    <td key={cIdx} className="border-b border-border/60 px-3 py-2 align-top">
                       {renderInline(row[cIdx] ?? "")}
                     </td>
                   ))}
@@ -140,14 +132,10 @@ function parseMarkdownBlocks(raw: string): React.ReactNode[] {
       continue;
     }
 
-    // 2. Encabezados (#, ##, ###)
     const headingMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
     if (headingMatch) {
       elements.push(
-        <h3
-          key={`h-${i}`}
-          className="mt-3 mb-1.5 text-sm font-bold tracking-tight text-foreground"
-        >
+        <h3 key={`h-${i}`} className="mt-3 mb-1.5 text-sm font-bold tracking-tight text-foreground">
           {renderInline(headingMatch[2])}
         </h3>
       );
@@ -155,7 +143,6 @@ function parseMarkdownBlocks(raw: string): React.ReactNode[] {
       continue;
     }
 
-    // 3. Bloques de cita / Precaución (> ...)
     if (trimmed.startsWith(">")) {
       const quoteLines: string[] = [];
       while (i < lines.length && lines[i].trim().startsWith(">")) {
@@ -174,7 +161,6 @@ function parseMarkdownBlocks(raw: string): React.ReactNode[] {
       continue;
     }
 
-    // 4. Listas numeradas (1. ...)
     if (/^\d+\.\s+/.test(trimmed)) {
       const items: string[] = [];
       while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
@@ -184,16 +170,13 @@ function parseMarkdownBlocks(raw: string): React.ReactNode[] {
       elements.push(
         <ol key={`ol-${i}`} className="my-2 list-decimal space-y-1.5 pl-5">
           {items.map((item, idx) => (
-            <li key={idx} className="leading-relaxed">
-              {renderInline(item)}
-            </li>
+            <li key={idx} className="leading-relaxed">{renderInline(item)}</li>
           ))}
         </ol>
       );
       continue;
     }
 
-    // 5. Listas con viñetas (- ... o * ...)
     if (/^[-•*]\s+/.test(trimmed)) {
       const items: string[] = [];
       while (i < lines.length && /^[-•*]\s+/.test(lines[i].trim())) {
@@ -203,16 +186,13 @@ function parseMarkdownBlocks(raw: string): React.ReactNode[] {
       elements.push(
         <ul key={`ul-${i}`} className="my-2 list-disc space-y-1 pl-5">
           {items.map((item, idx) => (
-            <li key={idx} className="leading-relaxed">
-              {renderInline(item)}
-            </li>
+            <li key={idx} className="leading-relaxed">{renderInline(item)}</li>
           ))}
         </ul>
       );
       continue;
     }
 
-    // 6. Párrafo estándar
     const paraLines: string[] = [];
     while (
       i < lines.length &&
@@ -244,6 +224,7 @@ export function MarkdownMessage({
   compact = false,
 }: MarkdownMessageProps) {
   const [copied, setCopied] = React.useState(false);
+  const contentRef = React.useRef<HTMLDivElement>(null);
 
   const handleCopy = async () => {
     try {
@@ -251,15 +232,42 @@ export function MarkdownMessage({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard API restricted in insecure context
+      // Clipboard API restricted
     }
   };
 
+  const handlePrintPlan = () => {
+    if (typeof window === "undefined" || !contentRef.current) return;
+    const printWin = window.open("", "_blank", "width=820,height=720");
+    if (!printWin) return;
+    const htmlBody = contentRef.current.innerHTML;
+    printWin.document.write(`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Ficha Técnica Agronómica — SIGIC</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; padding: 32px; color: #1a241b; line-height: 1.55; }
+    h1 { font-size: 18px; margin: 0 0 4px; color: #1b5e20; }
+    .meta { font-size: 12px; color: #556; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px; }
+    th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; }
+    th { background: #f2f5f2; font-weight: 600; }
+    blockquote { border-left: 4px solid #d97706; background: #fffbeb; margin: 14px 0; padding: 10px 14px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>Ficha de Recomendación Agronómica — SIGIC</h1>
+  <div class="meta">Generada el ${new Date().toLocaleString("es-CO")}</div>
+  <div>${htmlBody}</div>
+  <script>window.onload = function(){ window.print(); };</script>
+</body>
+</html>`);
+    printWin.document.close();
+  };
+
   return (
-    <div
-      className="space-y-2.5 text-sm leading-relaxed"
-      data-testid="chat-markdown-container"
-    >
+    <div className="space-y-2.5 text-sm leading-relaxed" data-testid="chat-markdown-container">
       {!compact && (
         <div className="flex items-center justify-between gap-2">
           {severity ? (
@@ -272,31 +280,47 @@ export function MarkdownMessage({
           ) : (
             <span />
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleCopy}
-            aria-label="Copiar respuesta del asistente"
-            data-testid="chat-copy-button"
-            className="h-8 min-w-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            {copied ? (
-              <>
-                <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                Copiado
-              </>
-            ) : (
-              <>
-                <Copy className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                Copiar
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handlePrintPlan}
+              aria-label="Imprimir o guardar ficha técnica"
+              title="Imprimir ficha"
+              className="h-8 min-w-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Printer className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Ficha</span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleCopy}
+              aria-label="Copiar respuesta del asistente"
+              data-testid="chat-copy-button"
+              className="h-8 min-w-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {copied ? (
+                <>
+                  <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                  Copiado
+                </>
+              ) : (
+                <>
+                  <Copy className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                  Copiar
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       )}
 
-      <div className="space-y-2 break-words">{parseMarkdownBlocks(content)}</div>
+      <div ref={contentRef} className="space-y-2 break-words">
+        {parseMarkdownBlocks(content)}
+      </div>
 
       {quickActions.length > 0 && onQuickAction ? (
         <div
@@ -310,14 +334,21 @@ export function MarkdownMessage({
               variant="outline"
               size="sm"
               onClick={() => onQuickAction(action)}
-              className="min-h-11 text-xs font-medium"
+              className="min-h-11 h-auto py-1.5 text-xs font-medium bg-card hover:bg-primary/5 hover:border-primary/40"
             >
               {action.kind === "calendar" ? (
-                <CalendarPlus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                <CalendarPlus className="mr-1.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               ) : action.kind === "inventory" ? (
-                <PackageSearch className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                <PackageSearch className="mr-1.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               ) : null}
-              {action.label}
+              <span className="truncate max-w-[230px] sm:max-w-none">{action.label}</span>
+              {action.badgeText && action.badgeTone && (
+                <span
+                  className={`ml-1.5 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${BADGE_TONE_STYLES[action.badgeTone]}`}
+                >
+                  {action.badgeText}
+                </span>
+              )}
             </Button>
           ))}
         </div>

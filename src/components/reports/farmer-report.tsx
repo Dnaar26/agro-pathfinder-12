@@ -11,6 +11,8 @@ import { es } from "date-fns/locale";
 import { Download, MapPin, Sprout, DollarSign, BellRing, Wheat, TrendingUp, TrendingDown, FileSpreadsheet, Leaf, Activity, Sparkles, Calendar, Layers, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Droplet, Package, Scissors, Bug, Eye } from "lucide-react";
 import { generatePdfReport } from "@/lib/pdf-report";
 import { chatWithGroq } from "@/lib/api/groq-chat.server";
+import { MarkdownMessage } from "@/components/chat/markdown-message";
+import { ProfitabilitySimulator } from "@/components/reports/profitability-simulator";
 import { toast } from "sonner";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import { InventoryReport } from "@/components/reports/inventory-report";
@@ -112,7 +114,7 @@ export function FarmerReport() {
   const alerts = useQuery({
     queryKey: ["farmer-report-alerts"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("alerts").select("id, message, status, kind, created_at").eq("status", "PENDIENTE").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("alerts").select("id, title, body, status, kind, created_at").eq("status", "PENDIENTE").order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
@@ -256,7 +258,7 @@ export function FarmerReport() {
     try {
       const parcelsList = (parcels.data ?? []).map((p: any) => `${p.name} (${(Number(p.area_m2) / 10000).toFixed(1)} ha, suelo ${p.soil_types?.name ?? "estándar"})`).join("; ");
       const cropsList = (parcels.data ?? []).flatMap((p: any) => (p.crops ?? []).map((c: any) => `${c.crop_catalog?.name ?? "Cultivo"} (${c.status})`)).join(", ");
-      const pendingAlertsList = (alerts.data ?? []).map((a: any) => a.message).join("; ");
+      const pendingAlertsList = (alerts.data ?? []).map((a: any) => [a.title, a.body].filter(Boolean).join(": ")).join("; ");
 
       const prompt = `Como Asistente Agronómico Oficial de SIGIC, realiza una evaluación ejecutiva y accionable de mi finca con los siguientes datos actuales:
 - Mis Parcelas: ${parcelsList || "No registradas"}
@@ -517,7 +519,7 @@ Sé profesional, cálido y enfocado en la realidad de un agricultor de campo.`;
               Ocultar
             </Button>
           </div>
-          <div className="rounded-lg border border-border bg-muted p-4 text-xs leading-relaxed text-foreground whitespace-pre-line">{aiAnalysis}</div>
+          <div className="rounded-lg border border-border bg-muted/60 p-4 text-xs leading-relaxed text-foreground"><MarkdownMessage content={aiAnalysis} compact /></div>
         </Card>
       )}
 

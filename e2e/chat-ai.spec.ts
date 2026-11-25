@@ -50,6 +50,7 @@ test.describe("Pantalla única /chat - Streaming SSE, Responsive Móvil, Segurid
     await expect(tableWrapper).toBeVisible();
     await expect(tableWrapper).toContainText("Urea 46%");
     await expect(page.getByTestId("chat-warning-callout").first()).toBeVisible();
+    await expect(page.getByTestId("chat-quick-actions").first()).toContainText(/Agendar.*Urea/i);
 
     // 4. Verificar ausencia de scroll horizontal roto en viewport móvil
     const hasHorizontalOverflow = await page.evaluate(() => {

@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   Shield, UserCog, X, Users, MapPin, Sprout, ClipboardList,
-  BellRing, Activity, FileBarChart2, RefreshCcw, Search, Trash2,
+  BellRing, Activity, FileBarChart2, RefreshCcw, Search, Trash2, CheckCircle2, AlertTriangle, Download, Link2Off,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -73,10 +73,30 @@ function AdminPage() {
       return data;
     },
   });
-  const assignments = useQuery({ queryKey: ["technician-assignments"], queryFn: async () => {
-    const { data, error } = await (supabase as any).from("technician_farmer_assignments").select("*");
-    if (error) throw error; return data ?? [];
-  }});
+  const assignments = useQuery({
+    queryKey: ["technician-assignments"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("technician_farmer_assignments")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const clientErrors = useQuery({
+    queryKey: ["admin-client-errors"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("client_error_logs")
+        .select("id, route, boundary, message, created_at")
+        .order("created_at", { ascending: false })
+        .limit(8);
+      if (error) return [];
+      return data ?? [];
+    },
+  });
 
   const filteredFarmers = useMemo(() => {
     const q = farmerSearch.trim().toLowerCase();
@@ -146,13 +166,68 @@ function AdminPage() {
   const assignFarmer = useMutation({
     mutationFn: async () => {
       if (!assignmentTechnician || !assignmentFarmer) throw new Error("Selecciona técnico y agricultor");
-      const { data: auth } = await supabase.auth.getUser();
-      const { error } = await (supabase as any).from("technician_farmer_assignments").upsert({ technician_id: assignmentTechnician, farmer_id: assignmentFarmer, created_by: auth.user?.id });
+      const { data: s } = await supabase.auth.getSession();
+      const uid = s.session?.user?.id ?? (await supabase.auth.getUser()).data.user?.id;
+      const { error } = await (supabase as any)
+        .from("technician_farmer_assignments")
+        .upsert({ technician_id: assignmentTechnician, farmer_id: assignmentFarmer, created_by: uid });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Agricultor asignado al técnico"); qc.invalidateQueries({ queryKey: ["technician-assignments"] }); setAssignmentFarmer(""); },
+    onSuccess: () => {
+      toast.success("Agricultor asignado al técnico");
+      qc.invalidateQueries({ queryKey: ["technician-assignments"] });
+      setAssignmentFarmer("");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const removeAssignment = useMutation({
+    mutationFn: async (params: { technicianId: string; farmerId: string }) => {
+      const { error } = await (supabase as any)
+        .from("technician_farmer_assignments")
+        .delete()
+        .eq("technician_id", params.technicianId)
+        .eq("farmer_id", params.farmerId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Asignación revocada");
+      qc.invalidateQueries({ queryKey: ["technician-assignments"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const userNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const u of userDirectory.data ?? []) {
+      map.set(u.id, u.full_name || u.id.slice(0, 8));
+    }
+    return map;
+  }, [userDirectory.data]);
+
+  const exportFarmersDirectoryCsv = () => {
+    const rows = filteredFarmers;
+    if (!rows.length) return;
+    const headers = ["agricultor", "parcelas", "area_m2", "area_ha", "cultivos"];
+    const csvLines = rows.map((r) =>
+      [
+        `"${(r.full_name || "").replace(/"/g, '""')}"`,
+        r.parcels,
+        r.area_m2,
+        (r.area_m2 / 10000).toFixed(2),
+        r.crops,
+      ].join(",")
+    );
+    const blob = new Blob(["\uFEFF" + [headers.join(","), ...csvLines].join("\n")], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "directorio-agricultores-sigic.csv";
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   const pendingAlerts = (alerts.data ?? []).filter((a) => a.status === "PENDIENTE").slice(0, 5);
   const m = metrics.data;
@@ -169,10 +244,11 @@ function AdminPage() {
             <p className="text-sm text-muted-foreground">Métricas globales, agricultores y acciones rápidas.</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => genAlerts.mutate()} disabled={genAlerts.isPending}>
             <RefreshCcw className="size-4 mr-1" /> Regenerar alertas
           </Button>
+          <Button asChild variant="outline" size="sm"><Link to="/audit"><ClipboardList className="size-4 mr-1" /> Auditoría</Link></Button>
           <Button asChild size="sm"><Link to="/reports"><FileBarChart2 className="size-4 mr-1" /> Reportes</Link></Button>
         </div>
       </header>
@@ -193,9 +269,14 @@ function AdminPage() {
               <Users className="size-4 text-primary" />
               <h2 className="font-semibold">Agricultores ({filteredFarmers.length})</h2>
             </div>
-            <div className="relative">
-              <Search className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <Input placeholder="Buscar agricultor…" value={farmerSearch} onChange={(e) => setFarmerSearch(e.target.value)} aria-label="Buscar agricultor" className="pl-8 h-8 w-44" />
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input placeholder="Buscar agricultor…" value={farmerSearch} onChange={(e) => setFarmerSearch(e.target.value)} aria-label="Buscar agricultor" className="pl-8 h-8 w-44" />
+              </div>
+              <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1" disabled={filteredFarmers.length === 0} onClick={exportFarmersDirectoryCsv}>
+                <Download className="size-3.5" /> CSV
+              </Button>
             </div>
           </div>
           {farmers.isLoading ? (
@@ -302,6 +383,78 @@ function AdminPage() {
           <Button size="sm" disabled={assignFarmer.isPending || userDirectory.isLoading} onClick={() => assignFarmer.mutate()}>Asignar acceso</Button>
         </div>
         <p className="text-xs text-muted-foreground">Asignaciones activas: {assignments.data?.length ?? 0}</p>
+        {(assignments.data ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-2">
+            {(assignments.data ?? []).map((asg: any) => {
+              const techName = userNameById.get(asg.technician_id) ?? asg.technician_id?.slice(0, 8);
+              const farmName = userNameById.get(asg.farmer_id) ?? asg.farmer_id?.slice(0, 8);
+              return (
+                <span
+                  key={`${asg.technician_id}-${asg.farmer_id}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs"
+                >
+                  <span>
+                    <strong className="text-foreground">{techName}</strong> → {farmName}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={removeAssignment.isPending}
+                    onClick={() =>
+                      removeAssignment.mutate({
+                        technicianId: asg.technician_id,
+                        farmerId: asg.farmer_id,
+                      })
+                    }
+                    aria-label={`Desvincular a ${farmName} de ${techName}`}
+                    title="Revocar asignación"
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Link2Off className="size-3.5" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Monitor en vivo de salud y telemetría de clientes en producción */}
+      <section className="rounded-xl border border-border bg-card p-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold flex items-center gap-2">
+              <Activity className="size-4 text-primary" /> Salud Técnica y Telemetría de Clientes
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Excepciones capturadas automáticamente por los límites de seguridad (ErrorBoundary) en dispositivos de usuarios.
+            </p>
+          </div>
+          {(clientErrors.data ?? []).length === 0 ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-3 py-1 text-xs font-semibold text-success">
+              <CheckCircle2 className="size-3.5" /> 0 incidentes recientes
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/15 px-3 py-1 text-xs font-semibold text-warning-text">
+              <AlertTriangle className="size-3.5" /> {(clientErrors.data ?? []).length} evento(s) registrados
+            </span>
+          )}
+        </div>
+
+        {(clientErrors.data ?? []).length > 0 && (
+          <ul className="divide-y divide-border text-xs">
+            {(clientErrors.data ?? []).map((err: any) => (
+              <li key={err.id} className="py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <div className="min-w-0">
+                  <span className="font-mono font-semibold text-primary mr-2">{err.route}</span>
+                  <span className="text-foreground">{err.message}</span>
+                </div>
+                <span className="text-[11px] text-muted-foreground shrink-0">
+                  {new Date(err.created_at).toLocaleString("es-CO")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* Roles management */}

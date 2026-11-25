@@ -52,9 +52,10 @@ function ParcelsPage() {
 
   const create = useMutation({
     mutationFn: async (data: z.infer<typeof parcelSchema>) => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Sesión expirada");
-      const { error } = await supabase.from("parcels").insert({ ...data, owner_id: u.user.id });
+      const { data: s } = await supabase.auth.getSession();
+      const user = s.session?.user ?? (await supabase.auth.getUser()).data.user;
+      if (!user) throw new Error("Sesión expirada");
+      const { error } = await supabase.from("parcels").insert({ ...data, owner_id: user.id });
       if (error) throw error;
     },
     onSuccess: () => {

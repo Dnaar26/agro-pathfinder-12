@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar, Legend } from "recharts";
 import { Card } from "@/components/ui/card";
 const AiReportInsights = lazy(() => import("@/components/reports/ai-insights").then((m) => ({ default: m.AiReportInsights })));
+const ProfitabilitySimulator = lazy(() => import("@/components/reports/profitability-simulator").then((m) => ({ default: m.ProfitabilitySimulator })));
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 const FarmerReport = lazy(() => import("@/components/reports/farmer-report").then((m) => ({ default: m.FarmerReport })));
@@ -1016,6 +1017,8 @@ function ReportsPage() {
           </section>
 
           <Suspense fallback={<SkeletonCard />}><AiReportInsights activities={filtered} parcels={parcels.data ?? []} totalCost={totalCost} totalRevenue={totalRevenue} pendingAlerts={pendingAlerts} costsByKind={costsByKind} byKind={byKind} /></Suspense>
+
+          <Suspense fallback={<SkeletonCard />}><ProfitabilitySimulator /></Suspense>
 
           {costsQuery.data && harvestsQuery.data && (
             <section className="p-5 rounded-xl border border-border bg-card">

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,11 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { chatWithGroq } from "@/lib/api/groq-chat.server";
 import { MarkdownMessage, type ChatQuickAction } from "@/components/chat/markdown-message";
+import {
+  extractStructuredActionsFromAiReply,
+  type InventoryItemSummary,
+  type ParcelContextSummary,
+} from "@/lib/ai/chat-action-extractor";
 import { identifyClaritySession, trackClarityChatEvent } from "@/lib/analytics/clarity";
 
 type Message = {
@@ -37,7 +42,7 @@ type Message = {
 const WELCOME_MESSAGE: Message = {
   role: "assistant",
   content:
-    "¡Hola! Soy tu **Copiloto Agronómico SIGIC**.\n\nPuedes escribir, **dictar por voz** o **subir la foto de una hoja** para recibir diagnósticos rápidos con **pasos numerados, tablas de dosis por hectárea y precauciones de campo**.",
+    "¡Hola! Soy tu **Copiloto Agronómico SIGIC**.\n\nPuedes escribir, **dictar por voz** o **subir la foto de una hoja** para recibir planes con **pasos numerados y tablas de dosis**. Con un clic podrás **agendar la labor prellenada en Calendario** o **filtrar el insumo directo en Inventario**.",
 };
 
 function inferSeverity(text: string): "optimo" | "preventivo" | "alto" | undefined {
@@ -47,7 +52,6 @@ function inferSeverity(text: string): "optimo" | "preventivo" | "alto" | undefin
   return undefined;
 }
 
-/** Comprime una imagen en el navegador a JPEG ligero (máx 768px) para envío rápido en redes rurales */
 async function compressLeafImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -72,8 +76,7 @@ async function compressLeafImage(file: File): Promise<string> {
           return;
         }
         ctx.drawImage(img, 0, 0, width, height);
-        const compressed = canvas.toDataURL("image/jpeg", 0.76);
-        resolve(compressed);
+        resolve(canvas.toDataURL("image/jpeg", 0.76));
       };
       img.src = String(reader.result);
     };
@@ -81,7 +84,7 @@ async function compressLeafImage(file: File): Promise<string> {
   });
 }
 
-const QUICK_QUESTIONS = [
+const DEFAULT_QUICK_QUESTIONS = [
   "¿Cómo controlo la roya o manchas foliares con tabla de dosis?",
   "Plan paso a paso de fertilización nitrogenada por hectárea",
   "¿Cómo calcular la frecuencia de riego en época seca?",
@@ -106,7 +109,6 @@ export function AiChat() {
   const speechRecognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
-  // Carga enriquecida en una sola promesa paralela: parcelas + alertas activas + plagas abiertas
   const contextQuery = useQuery({
     queryKey: ["chat-enriched-context"],
     queryFn: async () => {
@@ -116,7 +118,7 @@ export function AiChat() {
         identifyClaritySession({ userId, screenName: "chat" });
       }
 
-      const [parcelsRes, alertsRes, pestsRes] = await Promise.all([
+      const [parcelsRes, alertsRes, pestsRes, invRes] = await Promise.all([
         supabase
           .from("parcels")
           .select("id, name, area_m2, soil_types(name), crops(id, status, crop_catalog(name))")
@@ -132,19 +134,60 @@ export function AiChat() {
           .select("pest_name, severity, crops(crop_catalog(name), parcels(id, name))")
           .order("detected_at", { ascending: false })
           .limit(4),
+        supabase
+          .from("inventory_items")
+          .select("id, name, unit, stock_qty, min_stock")
+          .order("name")
+          .limit(50),
       ]);
 
       return {
         userId: userId ?? null,
-        parcels: parcelsRes.data ?? [],
+        parcels: (parcelsRes.data ?? []) as any[],
         alerts: alertsRes.data ?? [],
         pests: pestsRes.data ?? [],
+        inventory: (invRes.data ?? []) as InventoryItemSummary[],
       };
     },
-    staleTime: 60_000,
+    staleTime: 45_000,
   });
 
-  // Recuperar última conversación guardada en Supabase (si la tabla ai_conversations ya está migrada)
+  const activeParcelForCalc: ParcelContextSummary | null = useMemo(() => {
+    const all = (contextQuery.data?.parcels ?? []) as ParcelContextSummary[];
+    if (selectedParcelId !== "__all__") {
+      return all.find((p) => p.id === selectedParcelId) ?? null;
+    }
+    return all.length === 1 ? all[0] : null;
+  }, [contextQuery.data?.parcels, selectedParcelId]);
+
+  const smartSuggestions = useMemo(() => {
+    const dynamic: string[] = [];
+    const alerts = contextQuery.data?.alerts ?? [];
+    const pests = contextQuery.data?.pests ?? [];
+    const inv = contextQuery.data?.inventory ?? [];
+
+    if (pests[0]?.pest_name) {
+      dynamic.push(`¿Qué plan y tabla de dosis aplico para controlar ${pests[0].pest_name}?`);
+    }
+    if (alerts[0]?.title) {
+      dynamic.push(`Tengo la alerta "${alerts[0].title}": ¿qué labor debo programar hoy?`);
+    }
+    const lowItem = inv.find((it) => Number(it.stock_qty) <= Number(it.min_stock ?? 0));
+    if (lowItem) {
+      dynamic.push(`Tengo poco stock de ${lowItem.name}: ¿qué alternativa o fraccionamiento recomiendas?`);
+    }
+    if (activeParcelForCalc) {
+      const ha = (Number(activeParcelForCalc.area_m2) / 10000).toFixed(1);
+      dynamic.push(`Plan nutricional con tabla de dosis para mi parcela ${activeParcelForCalc.name} (${ha} ha)`);
+    }
+
+    for (const q of DEFAULT_QUICK_QUESTIONS) {
+      if (dynamic.length >= 4) break;
+      dynamic.push(q);
+    }
+    return dynamic.slice(0, 4);
+  }, [contextQuery.data?.alerts, contextQuery.data?.pests, contextQuery.data?.inventory, activeParcelForCalc]);
+
   useEffect(() => {
     let active = true;
     const loadSavedHistory = async () => {
@@ -193,7 +236,7 @@ export function AiChat() {
           ]);
         }
       } catch {
-        // Si la migración aún no se aplicó en local, operar en memoria sin interrumpir
+        // Fallback en memoria
       }
     };
 
@@ -249,21 +292,11 @@ export function AiChat() {
         }
 
         await (supabase as any).from("ai_messages").insert([
-          {
-            conversation_id: activeConvId,
-            user_id: userId,
-            role: "user",
-            content: userText.slice(0, 4000),
-          },
-          {
-            conversation_id: activeConvId,
-            user_id: userId,
-            role: "assistant",
-            content: assistantText.slice(0, 11500),
-          },
+          { conversation_id: activeConvId, user_id: userId, role: "user", content: userText.slice(0, 4000) },
+          { conversation_id: activeConvId, user_id: userId, role: "assistant", content: assistantText.slice(0, 11500) },
         ]);
       } catch {
-        // Ignorar silenciosamente si la tabla opcional no está creada aún
+        // Ignorar si aún no fue migrada
       }
     },
     [conversationId, selectedParcelId]
@@ -281,6 +314,7 @@ export function AiChat() {
     const allParcels = contextQuery.data?.parcels ?? [];
     const alerts = contextQuery.data?.alerts ?? [];
     const pests = contextQuery.data?.pests ?? [];
+    const inv = contextQuery.data?.inventory ?? [];
 
     const filtered =
       selectedParcelId === "__all__"
@@ -304,17 +338,21 @@ export function AiChat() {
       );
     }
 
+    if (inv.length > 0) {
+      const invSummary = inv
+        .slice(0, 8)
+        .map((it) => `${it.name}: ${it.stock_qty} ${it.unit}`)
+        .join(", ");
+      lines.push(`Insumos disponibles en bodega del agricultor: ${invSummary}`);
+    }
+
     if (alerts.length > 0) {
-      lines.push(
-        `Alertas activas: ${alerts.map((a: any) => `${a.kind}: ${a.title}`).join(" | ")}`
-      );
+      lines.push(`Alertas activas: ${alerts.map((a: any) => `${a.kind}: ${a.title}`).join(" | ")}`);
     }
 
     if (pests.length > 0) {
       lines.push(
-        `Incidentes sanitarios recientes: ${pests
-          .map((inc: any) => `${inc.pest_name} (${inc.severity})`)
-          .join(" | ")}`
+        `Incidentes sanitarios recientes: ${pests.map((inc: any) => `${inc.pest_name} (${inc.severity})`).join(" | ")}`
       );
     }
 
@@ -323,8 +361,38 @@ export function AiChat() {
 
   const handleQuickAction = (action: ChatQuickAction) => {
     trackClarityChatEvent("chat_quick_action_used");
-    if (action.kind === "calendar") navigate({ to: "/calendar" });
-    if (action.kind === "inventory") navigate({ to: "/inventory" });
+
+    if (action.kind === "calendar") {
+      const prefill = action.calendarPrefill;
+      navigate({
+        to: "/calendar",
+        search: {
+          openNew: true,
+          title: prefill?.title,
+          description: prefill?.description,
+          cropId: prefill?.cropId,
+          itemId: prefill?.itemId,
+          itemQuery: prefill?.itemQuery,
+          qty: prefill?.qty,
+        },
+      });
+      return;
+    }
+
+    if (action.kind === "inventory") {
+      const filter = action.inventoryFilter;
+      navigate({
+        to: "/inventory",
+        search: {
+          q: filter?.q,
+          category: filter?.category,
+          lowStock: filter?.lowStock,
+          addName: filter?.addName,
+          addCategory: filter?.addCategory,
+          addUnit: filter?.addUnit,
+        },
+      });
+    }
   };
 
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -339,7 +407,7 @@ export function AiChat() {
       const dataUrl = await compressLeafImage(file);
       setAttachedImage(dataUrl);
       if (!input.trim()) {
-        setInput("Analiza esta foto de hoja e indícame posible diagnóstico y manejo paso a paso.");
+        setInput("Analiza esta foto de hoja e indícame diagnóstico y tabla de dosis paso a paso.");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al comprimir imagen.");
@@ -359,7 +427,6 @@ export function AiChat() {
         ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         : null;
 
-    // 1. Dictado nativo gratuito e instantáneo del navegador (Chrome, Edge, Android, Safari)
     if (SpeechRecognitionCtor) {
       try {
         const recognition = new SpeechRecognitionCtor();
@@ -368,9 +435,7 @@ export function AiChat() {
         recognition.maxAlternatives = 1;
         recognition.onresult = (ev: any) => {
           const transcript = ev?.results?.[0]?.[0]?.transcript ?? "";
-          if (transcript) {
-            setInput((prev) => (prev ? `${prev.trim()} ${transcript}` : transcript));
-          }
+          if (transcript) setInput((prev) => (prev ? `${prev.trim()} ${transcript}` : transcript));
         };
         recognition.onerror = () => setRecordingVoice(false);
         recognition.onend = () => setRecordingVoice(false);
@@ -379,11 +444,10 @@ export function AiChat() {
         recognition.start();
         return;
       } catch {
-        // Si falla la API nativa, usar respaldo Whisper gratuito en servidor
+        // Respaldo Whisper
       }
     }
 
-    // 2. Respaldo gratuito vía MediaRecorder -> Groq Whisper Large V3 Turbo
     if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -468,16 +532,12 @@ export function AiChat() {
 
     if (!response.ok) {
       const errJson = await response.json().catch(() => null);
-      if (errJson?.error) {
-        throw new Error(String(errJson.error));
-      }
+      if (errJson?.error) throw new Error(String(errJson.error));
       return null;
     }
 
     const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("text/event-stream") || !response.body) {
-      return null;
-    }
+    if (!contentType.includes("text/event-stream") || !response.body) return null;
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -502,9 +562,7 @@ export function AiChat() {
           fullText += event.token;
           onDelta(fullText);
         }
-        if (event.done) {
-          return fullText;
-        }
+        if (event.done) return fullText;
       }
     }
 
@@ -562,15 +620,10 @@ export function AiChat() {
         (partialText) => {
           if (!streamedAdded) {
             streamedAdded = true;
-            setMessages((prev) => [
-              ...prev,
-              { role: "assistant", content: partialText, isStreaming: true },
-            ]);
+            setMessages((prev) => [...prev, { role: "assistant", content: partialText, isStreaming: true }]);
           } else {
             setMessages((prev) =>
-              prev.map((m, idx) =>
-                idx === prev.length - 1 ? { ...m, content: partialText } : m
-              )
+              prev.map((m, idx) => (idx === prev.length - 1 ? { ...m, content: partialText } : m))
             );
           }
         }
@@ -598,20 +651,14 @@ export function AiChat() {
         void persistTurnInBackground(messageContent, streamedReply);
       } else {
         const reply = await chatWithGroq({ data: requestPayload });
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: reply, severity: inferSeverity(reply) },
-        ]);
+        setMessages((prev) => [...prev, { role: "assistant", content: reply, severity: inferSeverity(reply) }]);
         void persistTurnInBackground(messageContent, reply);
       }
     } catch (e: any) {
       if (e?.name === "AbortError") return;
       const msg = e instanceof Error ? e.message : e?.message || t("chat.error");
-      if (msg.includes("RATE_LIMIT_EXCEEDED")) {
-        trackClarityChatEvent("chat_rate_limited");
-      } else {
-        trackClarityChatEvent("chat_error_boundary");
-      }
+      if (msg.includes("RATE_LIMIT_EXCEEDED")) trackClarityChatEvent("chat_rate_limited");
+      else trackClarityChatEvent("chat_error_boundary");
 
       if (msg.includes("AI_NOT_CONFIGURED")) {
         setMessages((prev) => [
@@ -639,20 +686,14 @@ export function AiChat() {
     }
   };
 
-  const quickActions: ChatQuickAction[] = [
-    { id: "cal", label: "Agendar labor en Calendario", kind: "calendar" },
-    { id: "inv", label: "Ver insumos en Inventario", kind: "inventory" },
-  ];
-
   const isGeneratingStream = messages[messages.length - 1]?.isStreaming === true;
 
   return (
     <section
       data-testid="chat-screen"
       aria-label={t("chat.title")}
-      className="flex h-[calc(100dvh-13.5rem)] min-h-[480px] sm:h-[640px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+      className="flex h-[calc(100dvh-13.5rem)] min-h-[480px] sm:h-[650px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
     >
-      {/* Cabecera responsiva con selector de parcela y botón de nueva consulta */}
       <div className="flex flex-col gap-2.5 border-b border-border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5">
@@ -664,7 +705,7 @@ export function AiChat() {
                 Asistente Agronómico SIGIC
               </h2>
               <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                <Leaf className="size-3 text-primary" aria-hidden="true" /> Multi-modelo rápido · Voz y foto de hoja
+                <Leaf className="size-3 text-primary" aria-hidden="true" /> Conectado con Calendario e Inventario
               </p>
             </div>
           </div>
@@ -687,7 +728,7 @@ export function AiChat() {
             <SelectTrigger
               aria-label="Seleccionar parcela para contexto agronómico"
               data-testid="chat-parcel-selector"
-              className="h-10 w-full text-xs sm:w-[220px]"
+              className="h-10 w-full text-xs sm:w-[225px]"
             >
               <MapPin className="mr-1.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
               <SelectValue placeholder="Todas mis parcelas" />
@@ -717,7 +758,6 @@ export function AiChat() {
         </div>
       </div>
 
-      {/* Historial accesible con máscara de privacidad para Clarity */}
       <div
         ref={scrollContainerRef}
         data-testid="chat-messages-log"
@@ -727,51 +767,64 @@ export function AiChat() {
         data-clarity-mask="true"
         className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-4"
       >
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`flex gap-2.5 sm:gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            {m.role === "assistant" && (
-              <div className="mt-0.5 hidden size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary sm:grid">
-                <Bot className="size-4" aria-hidden="true" />
-              </div>
-            )}
+        {messages.map((m, i) => {
+          const prevUserPrompt = i > 0 && messages[i - 1]?.role === "user" ? messages[i - 1].content : "";
+          const dynamicActions =
+            m.role === "assistant" && !m.isError && i > 0 && !m.isStreaming
+              ? extractStructuredActionsFromAiReply({
+                  replyContent: m.content,
+                  userPrompt: prevUserPrompt,
+                  selectedParcel: activeParcelForCalc,
+                  inventory: contextQuery.data?.inventory ?? [],
+                })
+              : [];
+
+          return (
             <div
-              className={`max-w-[94%] sm:max-w-[85%] rounded-2xl px-3.5 py-3 text-sm leading-relaxed ${
-                m.role === "user"
-                  ? "rounded-br-none bg-primary text-primary-foreground shadow-xs"
-                  : m.isError
-                    ? "rounded-bl-none border border-destructive/25 bg-destructive/10 text-destructive"
-                    : "rounded-bl-none border border-border/60 bg-muted/70 text-foreground shadow-xs"
-              }`}
+              key={i}
+              className={`flex gap-2.5 sm:gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              {m.imagePreview && (
-                <img
-                  src={m.imagePreview}
-                  alt="Muestra foliar adjunta"
-                  className="mb-2 max-h-40 rounded-lg border border-white/20 object-cover"
-                />
+              {m.role === "assistant" && (
+                <div className="mt-0.5 hidden size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary sm:grid">
+                  <Bot className="size-4" aria-hidden="true" />
+                </div>
               )}
-              {m.role === "assistant" && !m.isError ? (
-                <MarkdownMessage
-                  content={m.content}
-                  severity={m.severity}
-                  quickActions={i > 0 && !m.isStreaming ? quickActions : []}
-                  onQuickAction={handleQuickAction}
-                  compact={m.isStreaming}
-                />
-              ) : (
-                <p className="whitespace-pre-line">{m.content}</p>
+              <div
+                className={`max-w-[94%] sm:max-w-[85%] rounded-2xl px-3.5 py-3 text-sm leading-relaxed ${
+                  m.role === "user"
+                    ? "rounded-br-none bg-primary text-primary-foreground shadow-xs"
+                    : m.isError
+                      ? "rounded-bl-none border border-destructive/25 bg-destructive/10 text-destructive"
+                      : "rounded-bl-none border border-border/60 bg-muted/70 text-foreground shadow-xs"
+                }`}
+              >
+                {m.imagePreview && (
+                  <img
+                    src={m.imagePreview}
+                    alt="Muestra foliar adjunta"
+                    className="mb-2 max-h-40 rounded-lg border border-white/20 object-cover"
+                  />
+                )}
+                {m.role === "assistant" && !m.isError ? (
+                  <MarkdownMessage
+                    content={m.content}
+                    severity={m.severity}
+                    quickActions={dynamicActions}
+                    onQuickAction={handleQuickAction}
+                    compact={m.isStreaming}
+                  />
+                ) : (
+                  <p className="whitespace-pre-line">{m.content}</p>
+                )}
+              </div>
+              {m.role === "user" && (
+                <div className="mt-0.5 hidden size-8 shrink-0 place-items-center rounded-full bg-primary/20 text-primary sm:grid">
+                  <User className="size-4" aria-hidden="true" />
+                </div>
               )}
             </div>
-            {m.role === "user" && (
-              <div className="mt-0.5 hidden size-8 shrink-0 place-items-center rounded-full bg-primary/20 text-primary sm:grid">
-                <User className="size-4" aria-hidden="true" />
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
 
         {loading && !isGeneratingStream && (
           <div className="flex items-center gap-3" role="status">
@@ -786,14 +839,13 @@ export function AiChat() {
         )}
       </div>
 
-      {/* Sugerencias rápidas desplazables en móvil */}
       {messages.length <= 2 && (
         <div className="border-t border-border/50 bg-muted/20 px-3 py-2">
           <p className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
-            <Sparkles className="size-3 text-primary" aria-hidden="true" /> Consultas frecuentes:
+            <Sparkles className="size-3 text-primary" aria-hidden="true" /> Sugerencias para tu finca hoy:
           </p>
           <div className="flex gap-1.5 overflow-x-auto pb-1 sm:flex-wrap">
-            {QUICK_QUESTIONS.map((q, idx) => (
+            {smartSuggestions.map((q, idx) => (
               <button
                 key={idx}
                 type="button"
@@ -808,7 +860,6 @@ export function AiChat() {
         </div>
       )}
 
-      {/* Barra de entrada ergonómica con adjunto fotográfico y dictado por voz */}
       <div className="space-y-2 border-t border-border bg-card p-2.5 sm:p-3">
         {attachedImage && (
           <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 p-2">

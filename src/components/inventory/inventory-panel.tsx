@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { Package, Plus, AlertTriangle, Search, Edit3, Trash2, TrendingDown, TrendingUp, BarChart3, List, Grid3X3, Filter, DollarSign, Layers, Shield, Sparkles, CheckCircle2, Loader2, Wrench, Sprout } from "lucide-react";
+import { Package, Plus, AlertTriangle, Search, Edit3, Trash2, TrendingDown, TrendingUp, List, Grid3X3, Filter, DollarSign, Layers, Shield, Sparkles, CheckCircle2, Loader2, History, X } from "lucide-react";
+import { normalizeSearchText } from "@/lib/ai/chat-action-extractor";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { inferCategory } from "@/lib/queries";
@@ -28,13 +29,35 @@ const INVENTORY_PRESETS = [
   { name: "Manguera de Goteo 100m", category: "Herramienta", unit: "UN", minStock: 2, cost: 120000, icon: "💧" },
 ];
 
-export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }) {
+export interface InventoryPanelProps {
+  farmerId?: string;
+  initialQuery?: string;
+  initialCategory?: string;
+  initialLowStock?: boolean;
+  suggestedAdd?: {
+    openImmediately?: boolean;
+    name: string;
+    category?: string;
+    unit?: string;
+  };
+  onClearExternalFilter?: () => void;
+}
+
+export function InventoryPanel({
+  farmerId: propFarmerId,
+  initialQuery,
+  initialCategory,
+  initialLowStock,
+  suggestedAdd,
+  onClearExternalFilter,
+}: InventoryPanelProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [movOpen, setMovOpen] = useState<string | null>(null);
+  const [historyItem, setHistoryItem] = useState<any>(null);
   
   // Detectar si el usuario es técnico (solo lectura)
   const rolesQuery = useQuery({
@@ -78,43 +101,99 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
     if (stockQty === "0") setStockQty(String(p.minStock * 2));
   };
 
-  // Filters & Views
-  const [query, setQuery] = useState("");
-  const [filterCategory, setFilterCategory] = useState("ALL");
+  const [query, setQuery] = useState(initialQuery ?? "");
+  const [filterCategory, setFilterCategory] = useState(initialCategory ?? "ALL");
+  const [onlyLowStock, setOnlyLowStock] = useState(Boolean(initialLowStock));
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState(1);
   const pageSize = 18;
 
+  useEffect(() => {
+    if (initialQuery !== undefined) setQuery(initialQuery);
+  }, [initialQuery]);
+
+  useEffect(() => {
+    if (initialCategory !== undefined) setFilterCategory(initialCategory);
+  }, [initialCategory]);
+
+  useEffect(() => {
+    if (initialLowStock !== undefined) setOnlyLowStock(Boolean(initialLowStock));
+  }, [initialLowStock]);
+
+  useEffect(() => {
+    if (suggestedAdd?.openImmediately && !isReadOnly) {
+      setItemName(suggestedAdd.name);
+      setCategory(suggestedAdd.category || inferCategory(suggestedAdd.name));
+      if (suggestedAdd.unit) setUnit(suggestedAdd.unit);
+      setOpen(true);
+    }
+  }, [suggestedAdd, isReadOnly]);
+
+  const openPrefilledFromSearch = (rawName: string) => {
+    const cleanName = rawName.trim();
+    setItemName(cleanName);
+    setCategory(suggestedAdd?.category || inferCategory(cleanName));
+    setUnit(suggestedAdd?.unit || "KG");
+    setOpen(true);
+  };
+
   const items = useQuery({
     queryKey: ["inventory", propFarmerId],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("No session");
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
+      const { data: s } = await supabase.auth.getSession();
+      const user = s.session?.user ?? (await supabase.auth.getUser()).data.user;
+      if (!user) throw new Error("No session");
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
       const isStaff = (roles ?? []).some((r: any) => ["tecnico", "admin"].includes(r.role));
       let q = (supabase as any).from("inventory_items").select("*");
       if (propFarmerId) q = q.eq("owner_id", propFarmerId);
-      else if (!isStaff) q = q.eq("owner_id", u.user.id);
+      else if (!isStaff) q = q.eq("owner_id", user.id);
       const { data, error } = await q.order("name");
       if (error) throw error;
       const raw = (data ?? []) as any[];
-      return raw.map((i) => ({
-        ...i,
-        category: i.category || inferCategory(i.name),
-      }));
+      return raw.map((i) => {
+        const rawCat = i.category || inferCategory(i.name);
+        return {
+          ...i,
+          category: rawCat === "Pesticida" ? "Plaguicida" : rawCat,
+        };
+      });
     },
   });
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return (items.data ?? []).filter((i) => {
-      const matchesSearch = !q || i.name.toLowerCase().includes(q);
-      const matchesCategory = filterCategory === "ALL" || i.category === filterCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [items.data, query, filterCategory]);
+  const itemHistoryQuery = useQuery({
+    queryKey: ["inventory-kardex", historyItem?.id],
+    queryFn: async () => {
+      if (!historyItem?.id) return [];
+      const { data, error } = await supabase
+        .from("inventory_movements")
+        .select("id, kind, qty, delta, notes, created_at")
+        .eq("item_id", historyItem.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: Boolean(historyItem?.id),
+  });
 
-  useEffect(() => { setPage(1); }, [query, filterCategory]);
+  const filtered = useMemo(() => {
+    const qNorm = normalizeSearchText(query);
+    const qTokens = qNorm ? qNorm.split(" ").filter((t) => t.length >= 2) : [];
+
+    return (items.data ?? []).filter((i) => {
+      const itemNorm = normalizeSearchText(`${i.name} ${i.category || ""}`);
+      const matchesSearch =
+        !qNorm ||
+        itemNorm.includes(qNorm) ||
+        (qTokens.length > 0 && qTokens.every((tok) => itemNorm.includes(tok)));
+      const matchesCategory = filterCategory === "ALL" || i.category === filterCategory;
+      const matchesLowStock = !onlyLowStock || Number(i.stock_qty) <= Number(i.min_stock);
+      return matchesSearch && matchesCategory && matchesLowStock;
+    });
+  }, [items.data, query, filterCategory, onlyLowStock]);
+
+  useEffect(() => { setPage(1); }, [query, filterCategory, onlyLowStock]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page]);
 
@@ -256,9 +335,17 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
             <div className="text-2xl font-bold">{formatCOP(totalValue)}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => setOnlyLowStock((v) => !v)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOnlyLowStock((v) => !v); } }}
+          className={`cursor-pointer transition-all ${onlyLowStock ? "ring-2 ring-destructive border-destructive/50 bg-destructive/5" : "hover:border-destructive/40"}`}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock Bajo</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Stock Bajo {onlyLowStock ? "(Filtrado)" : ""}
+            </CardTitle>
             <AlertTriangle className="size-4 text-destructive" />
           </CardHeader>
           <CardContent>
@@ -287,7 +374,8 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
             <SelectContent>
               <SelectItem value="ALL">Todas las categorías</SelectItem>
               <SelectItem value="Fertilizante">Fertilizante</SelectItem>
-              <SelectItem value="Pesticida">Pesticida</SelectItem>
+              <SelectItem value="Plaguicida">Plaguicida / Fitosanitario</SelectItem>
+              <SelectItem value="Bioinsumo">Bioinsumo / Orgánico</SelectItem>
               <SelectItem value="Semilla">Semilla</SelectItem>
               <SelectItem value="Herramienta">Herramienta</SelectItem>
               <SelectItem value="Combustible">Combustible</SelectItem>
@@ -406,6 +494,7 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                         <SelectContent>
                           <SelectItem value="Fertilizante">🌿 Fertilizante</SelectItem>
                           <SelectItem value="Plaguicida">🛡️ Plaguicida / Fitosanitario</SelectItem>
+                          <SelectItem value="Bioinsumo">🦠 Bioinsumo / Orgánico</SelectItem>
                           <SelectItem value="Semilla">🌱 Semilla o Plántula</SelectItem>
                           <SelectItem value="Herramienta">🔧 Herramienta / Equipo</SelectItem>
                           <SelectItem value="Combustible">⛽ Combustible</SelectItem>
@@ -551,6 +640,57 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
         </div>
       </div>
 
+      {(query.trim() || filterCategory !== "ALL" || onlyLowStock) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/5 px-3.5 py-2.5 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <Sparkles className="size-3.5 text-primary shrink-0" aria-hidden="true" />
+            <span className="font-medium text-foreground">
+              Mostrando {filtered.length} de {items.data?.length ?? 0} insumos
+              {query.trim() ? ` para «${query.trim()}»` : ""}
+              {filterCategory !== "ALL" ? ` · Categoría: ${filterCategory}` : ""}
+              {onlyLowStock ? " · Solo stock bajo" : ""}
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setQuery("");
+              setFilterCategory("ALL");
+              setOnlyLowStock(false);
+              onClearExternalFilter?.();
+            }}
+            className="h-7 px-2 text-xs"
+          >
+            <X className="mr-1 size-3.5" aria-hidden="true" />
+            Limpiar filtro
+          </Button>
+        </div>
+      )}
+
+      {!items.isLoading && filtered.length === 0 && query.trim() && !isReadOnly && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-dashed border-primary/40 bg-card p-5">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">
+              No encontramos «{query.trim()}» registrado en tu inventario
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Puedes agregarlo ahora mismo con sus datos prellenados para llevar control de existencias y costos.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => openPrefilledFromSearch(suggestedAdd?.name || query)}
+            className="gap-1.5 shrink-0"
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            Registrar «{(suggestedAdd?.name || query).trim().slice(0, 28)}» en 1 clic
+          </Button>
+        </div>
+      )}
+
       {/* Content */}
       {viewMode === "list" ? (
         <div className="rounded-md border bg-card">
@@ -684,7 +824,10 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                           </Button>
                         </div>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial Kardex" aria-label={`Historial de ${item.name}`} onClick={() => setHistoryItem(item)}>
+                            <History className="size-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar insumo" aria-label={`Editar ${item.name}`} onClick={() => openEdit(item)}>
                             <Edit3 className="size-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => { if(confirm("¿Eliminar?")) deleteItem.mutate(item.id); }}>
@@ -741,7 +884,8 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Fertilizante">Fertilizante</SelectItem>
-                      <SelectItem value="Pesticida">Pesticida</SelectItem>
+                      <SelectItem value="Plaguicida">Plaguicida / Fitosanitario</SelectItem>
+                      <SelectItem value="Bioinsumo">Bioinsumo / Orgánico</SelectItem>
                       <SelectItem value="Semilla">Semilla</SelectItem>
                       <SelectItem value="Herramienta">Herramienta</SelectItem>
                       <SelectItem value="Combustible">Combustible</SelectItem>
@@ -863,6 +1007,51 @@ export function InventoryPanel({ farmerId: propFarmerId }: { farmerId?: string }
                 </form>
               );
             })()
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(historyItem)} onOpenChange={(o) => { if (!o) setHistoryItem(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="size-4 text-primary" />
+              Kardex de movimientos — {historyItem?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {itemHistoryQuery.isLoading ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Cargando movimientos…</p>
+          ) : (itemHistoryQuery.data ?? []).length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Aún no hay entradas ni salidas registradas para este insumo.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border text-xs">
+              {(itemHistoryQuery.data ?? []).map((mov: any) => {
+                const isExit = mov.kind === "SALIDA" || Number(mov.delta) < 0;
+                return (
+                  <li key={mov.id} className="flex items-start justify-between gap-3 py-2.5">
+                    <div className="space-y-0.5">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          isExit ? "bg-destructive/10 text-destructive" : "bg-success/15 text-success"
+                        }`}
+                      >
+                        {mov.kind}
+                      </span>
+                      {mov.notes && <p className="text-muted-foreground mt-1">{mov.notes}</p>}
+                      <p className="text-[11px] text-muted-foreground">
+                        {new Date(mov.created_at).toLocaleString("es-CO")}
+                      </p>
+                    </div>
+                    <span className={`font-mono text-sm font-bold ${isExit ? "text-destructive" : "text-success"}`}>
+                      {isExit ? "-" : "+"}
+                      {Math.abs(Number(mov.qty))} {historyItem?.unit}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </DialogContent>
       </Dialog>

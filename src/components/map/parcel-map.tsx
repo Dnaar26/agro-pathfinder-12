@@ -7,7 +7,8 @@ import "leaflet-draw/dist/leaflet.draw.css";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Satellite, Map as MapIcon } from "lucide-react";
+import { MapPin, Satellite, Map as MapIcon, LocateFixed } from "lucide-react";
+import { toast } from "sonner";
 
 type ParcelGeometry = { type: "Polygon"; coordinates: number[][][] };
 
@@ -146,6 +147,20 @@ export function ParcelMap({
     onPolygonRef.current?.({ type: "Polygon", coordinates: [] }, 0);
   };
 
+  const handleLocateMe = () => {
+    if (!navigator.geolocation || !mapRef.current) {
+      toast.error("Geolocalización no disponible en este navegador.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        mapRef.current?.flyTo([pos.coords.latitude, pos.coords.longitude], 16, { duration: 1.2 });
+      },
+      () => toast.error("No se pudo obtener tu ubicación actual. Verifica permisos GPS."),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
   return (
     <Card className="overflow-hidden">
       <div className="flex items-center justify-between p-3 border-b border-border">
@@ -155,15 +170,18 @@ export function ParcelMap({
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">{parcels.length} parcelas</Badge>
-          <Button variant="ghost" size="icon" className="size-7" title={isSatellite ? "Vista calle" : "Vista satélite"} onClick={toggleSatellite}>
+          <Button type="button" variant="ghost" size="icon" className="size-8" title="Centrar en mi ubicación GPS" aria-label="Centrar en mi ubicación GPS" onClick={handleLocateMe}>
+            <LocateFixed className="size-4 text-primary" />
+          </Button>
+          <Button type="button" variant="ghost" size="icon" className="size-8" title={isSatellite ? "Vista calle" : "Vista satélite"} aria-label={isSatellite ? "Vista calle" : "Vista satélite"} onClick={toggleSatellite}>
             {isSatellite ? <MapIcon className="size-4" /> : <Satellite className="size-4" />}
           </Button>
           {onPolygonCreated && (
-            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={handleDeletePolygon}>Clear</Button>
+            <Button type="button" variant="ghost" size="sm" className="text-xs h-8" onClick={handleDeletePolygon}>Limpiar trazo</Button>
           )}
         </div>
       </div>
-      <div id="parcel-map" className="h-[400px] w-full" />
+      <div id="parcel-map" className="h-[58dvh] min-h-[360px] sm:h-[440px] w-full" />
     </Card>
   );
 }

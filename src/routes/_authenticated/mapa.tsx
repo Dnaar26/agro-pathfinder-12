@@ -48,10 +48,21 @@ function MapaPage() {
 
   const saveGeometry = useMutation({
     mutationFn: async ({ id, geometry, area }: { id: string; geometry: any; area: number }) => {
-      const { error } = await supabase.from("parcels").update({ geometry: JSON.stringify(geometry), polygon_area_m2: area }).eq("id", id);
+      const updatePayload: Record<string, unknown> = {
+        geometry: JSON.stringify(geometry),
+        polygon_area_m2: area,
+      };
+      if (area > 0) {
+        updatePayload.area_m2 = Math.round(area);
+      }
+      const { error } = await supabase.from("parcels").update(updatePayload as any).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["parcels"] }); toast.success("Geometría guardada"); setPending(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["parcels"] });
+      toast.success("Polígono y área oficial sincronizados");
+      setPending(null);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const deleteParcel = useMutation({

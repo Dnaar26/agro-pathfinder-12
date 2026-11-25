@@ -268,6 +268,69 @@ function Dashboard() {
         <Button asChild variant="outline" size="sm"><Link to="/reports"><BarChart className="size-4 mr-1.5" /> Ver reportes</Link></Button>
       </div>
 
+      {/* Guía interactiva de primeros pasos para cuentas nuevas o en configuración */}
+      {!isStaff && !parcels.isLoading && (filteredParcels.length === 0 || totalCrops === 0 || (invValue.data ?? 0) === 0) && (
+        <Card className="p-4 sm:p-5 border-primary/30 bg-primary/5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Sprout className="size-4 text-primary" /> Guía Rápida de Configuración de tu Finca
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Completa estos 3 pasos para activar alertas climáticas, control de costos y recomendaciones personalizadas por IA.
+              </p>
+            </div>
+            <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
+              {[filteredParcels.length > 0, totalCrops > 0, (invValue.data ?? 0) > 0].filter(Boolean).length} / 3 completados
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+            <Link
+              to="/parcels"
+              className={cn(
+                "flex items-center justify-between rounded-lg border p-3 transition-colors",
+                filteredParcels.length > 0
+                  ? "border-success/30 bg-success/10 text-foreground"
+                  : "border-border bg-card hover:border-primary/40"
+              )}
+            >
+              <span className="font-medium">1. Registrar primera parcela</span>
+              <span className={filteredParcels.length > 0 ? "text-success font-bold" : "text-primary font-semibold"}>
+                {filteredParcels.length > 0 ? "✓ Listo" : "Ir →"}
+              </span>
+            </Link>
+            <Link
+              to="/cultivos"
+              className={cn(
+                "flex items-center justify-between rounded-lg border p-3 transition-colors",
+                totalCrops > 0
+                  ? "border-success/30 bg-success/10 text-foreground"
+                  : "border-border bg-card hover:border-primary/40"
+              )}
+            >
+              <span className="font-medium">2. Sembrar un cultivo</span>
+              <span className={totalCrops > 0 ? "text-success font-bold" : "text-primary font-semibold"}>
+                {totalCrops > 0 ? "✓ Listo" : "Ir →"}
+              </span>
+            </Link>
+            <Link
+              to="/inventory"
+              className={cn(
+                "flex items-center justify-between rounded-lg border p-3 transition-colors",
+                (invValue.data ?? 0) > 0
+                  ? "border-success/30 bg-success/10 text-foreground"
+                  : "border-border bg-card hover:border-primary/40"
+              )}
+            >
+              <span className="font-medium">3. Cargar insumos en bodega</span>
+              <span className={(invValue.data ?? 0) > 0 ? "text-success font-bold" : "text-primary font-semibold"}>
+                {(invValue.data ?? 0) > 0 ? "✓ Listo" : "Ir →"}
+              </span>
+            </Link>
+          </div>
+        </Card>
+      )}
+
       <AiCropAdvisor />
 
       <PredictiveAlerts />

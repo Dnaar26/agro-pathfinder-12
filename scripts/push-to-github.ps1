@@ -1,6 +1,6 @@
 param(
   [string]$BranchName = "main",
-  [string]$CommitMessage = "feat(v9): implement offline field queue, mobile bottom-sheet modals, agenda calendar, realtime alerts, org branding in PDFs, and harvest photos"
+  [string]$CommitMessage = "feat(v10): add idempotent bulk CSV importer for producers, parcels & initial crops in /admin"
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,4 +37,4 @@ if (Test-Path ".env.production") { git reset -- .env.production }
 git commit -m $CommitMessage
 git push -u origin $BranchName
 
-Write-Host "Version v9 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green
+Write-Host "Version v10 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green

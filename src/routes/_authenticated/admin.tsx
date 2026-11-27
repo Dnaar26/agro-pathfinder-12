@@ -14,6 +14,7 @@ import {
   type FarmerSummary,
 } from "@/lib/queries";
 import { setGlobalProducerScope } from "@/components/admin/producer-scope-bar";
+import { BulkCsvImportDialog } from "@/components/admin/bulk-csv-import-dialog";
 import { compressImageFileToDataUrl, fetchOrgBranding, saveOrgBranding } from "@/lib/org-branding";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -480,16 +481,19 @@ function AdminPage() {
               </div>
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs self-end md:self-auto"
-              disabled={filteredFarmers.length === 0}
-              onClick={exportFarmersDirectoryCsv}
-            >
-              <Download className="size-3.5" /> Exportar Directorio CSV
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 self-end md:self-auto">
+              <BulkCsvImportDialog />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                disabled={filteredFarmers.length === 0}
+                onClick={exportFarmersDirectoryCsv}
+              >
+                <Download className="size-3.5" /> Exportar Directorio CSV
+              </Button>
+            </div>
           </Card>
 
           {farmers.isLoading ? (

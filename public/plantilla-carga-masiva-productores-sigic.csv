@@ -1,0 +1,7 @@
+﻿nombre_productor,correo,telefono,nombre_parcela,area_ha,tipo_suelo,latitud,longitud,cultivo_inicial,fecha_siembra,notas
+Hernando Gómez Vargas,hernando.gomez@cooperativa-agro.co,3104567810,Finca El Mirador - Lote Alto,2.5,Franco,1.8538,-76.0507,Café,2026-10-15,"Variedad Castillo resistente a roya, sombra regulada"
+Hernando Gómez Vargas,hernando.gomez@cooperativa-agro.co,3104567810,Finca El Mirador - Lote Bajo,1.2,Franco arcilloso,1.8512,-76.0489,Plátano,2026-11-02,Barrera asociada al cafetal
+Luz Marina Córdoba,luz.cordoba@cooperativa-agro.co,3157894321,Parcela Santa Helena,3.8,Franco,6.1542,-75.3741,Aguacate,2026-09-20,Aguacate Hass con monitoreo BPA activo
+Álvaro Tibaduiza Ruiz,alvaro.tibaduiza@cooperativa-agro.co,3206549870,Vereda San Isidro Lote 1,1.75,Franco arenoso,5.5353,-73.3678,Papa,2026-11-10,Semilla certificada ICA con riego por aspersión
+Yolanda Quiñones Mina,yolanda.quinones@cooperativa-agro.co,3123456789,Parcela La Esperanza,4.0,Arcilloso,1.8056,-78.7647,Cacao,2026-08-12,Clon fino de aroma con drenaje perimetral
+Ramiro Perdomo Polanía,ramiro.perdomo@cooperativa-agro.co,3189871234,Lote Las Brisas,5.5,Limoso,4.1420,-74.8814,Maíz,2026-12-05,Siembra programada ciclo tecnificado

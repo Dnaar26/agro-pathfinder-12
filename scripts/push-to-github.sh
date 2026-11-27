@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BRANCH_NAME="${1:-main}"
-COMMIT_MSG="${2:-feat(v10): add idempotent bulk CSV importer for producers, parcels & initial crops in /admin}"
+COMMIT_MSG="${2:-feat(v11): add bulk CSV warehouse inventory importer with automatic Kardex movements and offline fallback}"
 
 rm -rf ./agro-pathfinder-12-main
 
@@ -18,4 +18,4 @@ git reset -- .env .env.local .env.production 2>/dev/null || true
 
 git commit -m "$COMMIT_MSG"
 git push -u origin "$BRANCH_NAME"
-echo "Version v10 validada y subida a $BRANCH_NAME."
+echo "Version v11 validada y subida a $BRANCH_NAME."

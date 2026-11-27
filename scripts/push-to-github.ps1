@@ -1,6 +1,6 @@
 param(
   [string]$BranchName = "main",
-  [string]$CommitMessage = "feat(v10): add idempotent bulk CSV importer for producers, parcels & initial crops in /admin"
+  [string]$CommitMessage = "feat(v11): add bulk CSV warehouse inventory importer with automatic Kardex movements and offline fallback"
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,4 +37,4 @@ if (Test-Path ".env.production") { git reset -- .env.production }
 git commit -m $CommitMessage
 git push -u origin $BranchName
 
-Write-Host "Version v10 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green
+Write-Host "Version v11 validada y publicada en '$BranchName' exitosamente." -ForegroundColor Green

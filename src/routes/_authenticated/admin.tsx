@@ -15,6 +15,7 @@ import {
 } from "@/lib/queries";
 import { setGlobalProducerScope } from "@/components/admin/producer-scope-bar";
 import { BulkCsvImportDialog } from "@/components/admin/bulk-csv-import-dialog";
+import { BulkInventoryCsvDialog } from "@/components/inventory/bulk-inventory-csv-dialog";
 import { compressImageFileToDataUrl, fetchOrgBranding, saveOrgBranding } from "@/lib/org-branding";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -483,6 +484,7 @@ function AdminPage() {
 
             <div className="flex flex-wrap items-center gap-2 self-end md:self-auto">
               <BulkCsvImportDialog />
+              <BulkInventoryCsvDialog isAdmin buttonLabel="Importar Bodegas CSV" />
               <Button
                 type="button"
                 variant="outline"

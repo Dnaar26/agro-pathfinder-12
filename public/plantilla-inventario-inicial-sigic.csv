@@ -1,0 +1,9 @@
+﻿nombre_insumo,categoria,unidad,stock_inicial,stock_minimo,costo_unitario_cop,correo_productor,notas_kardex
+Urea Agrícola 46%,Fertilizante,KG,200,40,3400,,Inventario inicial de bodega - Lote fertilizantes nitrogenados
+Fertilizante NPK 15-15-15,Fertilizante,SACO,18,4,142000,,Bultos de 50 kg para mantenimiento de cultivos
+Cal Dolomítica Agrícola,Fertilizante,KG,500,100,650,,Enmienda correctiva de acidez y aluminio
+Trichoderma harzianum WP,Bioinsumo,KG,12,3,68000,,Control biológico preventivo de hongos de suelo
+Fungicida Oxicloruro de Cobre,Plaguicida,KG,15,5,39500,,Manejo preventivo de roya y manchas foliares
+Jabón Potásico Agrícola,Bioinsumo,L,20,5,28000,,"Control orgánico de áfidos, mosca blanca y trips"
+Semilla Certificada Maíz Amarillo,Semilla,KG,60,15,24500,,Semilla con registro ICA lote vigente
+Bomba Fumigadora de Espalda 20L,Herramienta,UN,4,1,185000,,Dotación operativa revisada y calibrada

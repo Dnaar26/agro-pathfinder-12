@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { InventoryPanel } from "@/components/inventory/inventory-panel";
 import { DoseCalculatorDialog } from "@/components/inventory/dose-calculator-dialog";
+import { BulkInventoryCsvDialog } from "@/components/inventory/bulk-inventory-csv-dialog";
 import { ProducerScopeBar, useProducerScope } from "@/components/admin/producer-scope-bar";
 
 export type InventorySearchParams = {
@@ -49,7 +50,8 @@ function InventoryPage() {
   const { t } = useTranslation();
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const { isStaff, producerId, setProducerId, groupByFarm, setGroupByFarm, producers } = useProducerScope();
+  const { isStaff, isAdmin, producerId, setProducerId, groupByFarm, setGroupByFarm, producers, activeProducer } = useProducerScope();
+  const isReadOnlyTech = isStaff && !isAdmin;
 
   const clearUrlFilters = () => {
     navigate({ to: "/inventory", search: {}, replace: true });
@@ -65,6 +67,14 @@ function InventoryPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {!isReadOnlyTech && (
+            <BulkInventoryCsvDialog
+              targetOwnerId={producerId || undefined}
+              targetOwnerName={activeProducer?.full_name}
+              isAdmin={isAdmin}
+              buttonLabel="Importar CSV"
+            />
+          )}
           <DoseCalculatorDialog />
         </div>
       </header>

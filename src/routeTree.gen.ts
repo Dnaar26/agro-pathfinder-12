@@ -95,12 +95,11 @@ const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
   path: '/calendar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedCertificacionesRoute =
-  AuthenticatedCertificacionesRouteImport.update({
-    id: '/certificaciones',
-    path: '/certificaciones',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
+const AuthenticatedCertificacionesRoute = AuthenticatedCertificacionesRouteImport.update({
+  id: '/certificaciones',
+  path: '/certificaciones',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
   id: '/chat',
   path: '/chat',

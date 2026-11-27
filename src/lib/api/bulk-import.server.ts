@@ -271,11 +271,8 @@ export const bulkImportProducersServerFn = createServerFn({ method: "POST" })
             .select("id")
             .single();
 
-          if (parcelErr) {
-            throw new Error(parcelErr.message || "Error al crear la parcela");
-          }
-          if (!insertedParcel?.id) {
-            throw new Error("Error al crear la parcela");
+          if (parcelErr || !insertedParcel?.id) {
+            throw new Error(parcelErr?.message || "Error al crear la parcela");
           }
 
           parcelId = insertedParcel.id;
@@ -332,5 +329,283 @@ export const bulkImportProducersServerFn = createServerFn({ method: "POST" })
       createdCrops,
       rowErrors,
       credentials,
+    };
+  });
+
+
+// ============================================================================
+// IMPORTACIÓN MASIVA DE INVENTARIO INICIAL DE BODEGA (POR PRODUCTOR O COOPERATIVA)
+// ============================================================================
+
+const ALLOWED_INVENTORY_CATEGORIES = [
+  "Fertilizante",
+  "Plaguicida",
+  "Bioinsumo",
+  "Semilla",
+  "Herramienta",
+  "Combustible",
+  "Otro",
+] as const;
+
+const ALLOWED_INVENTORY_UNITS = ["KG", "L", "UN", "SACO", "GL", "TON"] as const;
+
+const BulkInventoryRowSchema = z.object({
+  rowNumber: z.number().int().positive(),
+  itemName: z.string().trim().min(2, "Nombre de insumo muy corto").max(120),
+  category: z.enum(ALLOWED_INVENTORY_CATEGORIES),
+  unit: z.enum(ALLOWED_INVENTORY_UNITS),
+  initialStock: z.number().min(0, "El stock no puede ser negativo").max(10_000_000),
+  minStock: z.number().min(0, "El stock mínimo no puede ser negativo").max(10_000_000),
+  unitCostCop: z.number().min(0, "El costo unitario no puede ser negativo").max(1_000_000_000),
+  producerEmail: z.string().trim().toLowerCase().email("Correo de productor inválido").optional().nullable(),
+  notes: z.string().trim().max(500).optional().nullable(),
+});
+
+export const BulkInventoryImportPayloadSchema = z.object({
+  targetOwnerId: z.string().uuid().optional().nullable(),
+  duplicateStrategy: z.enum(["SKIP", "ADD_STOCK"]).default("SKIP"),
+  rows: z.array(BulkInventoryRowSchema).min(1).max(300),
+});
+
+export type BulkInventoryRowInput = z.infer<typeof BulkInventoryRowSchema>;
+
+export interface BulkInventoryImportResult {
+  createdItems: number;
+  updatedItems: number;
+  skippedItems: number;
+  kardexMovementsLogged: number;
+  totalImportedValueCop: number;
+  rowErrors: { rowNumber: number; itemName: string; message: string }[];
+}
+
+async function resolveAuthenticatedCaller(): Promise<{ userId: string; isAdmin: boolean; isReadOnlyTech: boolean }> {
+  const adminDb = getAdminSupabase();
+  const request = getRequest();
+  const authHeader = request?.headers?.get("authorization");
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const publishableKey =
+    process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  let callerId: string | null = null;
+
+  if (authHeader?.startsWith("Bearer ") && supabaseUrl && publishableKey) {
+    const token = authHeader.replace("Bearer ", "").trim();
+    if (token) {
+      const userClient = createClient(supabaseUrl, publishableKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data, error } = await userClient.auth.getUser(token);
+      if (!error && data.user?.id) {
+        callerId = data.user.id;
+      }
+    }
+  }
+
+  if (!callerId) {
+    const cookieUser = await requireCookieUser();
+    callerId = cookieUser.id;
+  }
+
+  const { data: roles } = await adminDb
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", callerId);
+
+  const roleList = (roles ?? []).map((r) => String(r.role));
+  const isAdmin = roleList.includes("admin");
+  const isReadOnlyTech = roleList.includes("tecnico") && !isAdmin;
+
+  return { userId: callerId, isAdmin, isReadOnlyTech };
+}
+
+export const bulkImportInventoryServerFn = createServerFn({ method: "POST" })
+  .validator(BulkInventoryImportPayloadSchema)
+  .handler(async ({ data }): Promise<BulkInventoryImportResult> => {
+    const caller = await resolveAuthenticatedCaller();
+    if (caller.isReadOnlyTech) {
+      throw new Error("No autorizado: el rol Técnico tiene permisos de solo lectura sobre el inventario.");
+    }
+
+    const adminDb = getAdminSupabase();
+
+    // Si hay correos de productores en el CSV y el usuario es Admin, precargar mapa email -> userId
+    const needsEmailLookup = caller.isAdmin && data.rows.some((r) => Boolean(r.producerEmail));
+    const userIdByEmail = new Map<string, string>();
+
+    if (needsEmailLookup) {
+      const usersPageRes = await adminDb.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      for (const u of usersPageRes.data?.users ?? []) {
+        if (u.email) {
+          userIdByEmail.set(u.email.toLowerCase(), u.id);
+        }
+      }
+    }
+
+    // Cache en memoria de ítems actuales por propietario: Map<ownerId, Map<normItemName, { id, stock_qty }>>
+    const ownerInventoryCache = new Map<string, Map<string, { id: string; stock_qty: number }>>();
+
+    async function getOwnerItemsMap(ownerId: string) {
+      const cached = ownerInventoryCache.get(ownerId);
+      if (cached) return cached;
+
+      const { data: existingRows, error } = await adminDb
+        .from("inventory_items")
+        .select("id, name, stock_qty")
+        .eq("owner_id", ownerId);
+
+      if (error) throw new Error(error.message);
+
+      const itemMap = new Map<string, { id: string; stock_qty: number }>();
+      for (const it of existingRows ?? []) {
+        itemMap.set(normalizeLookupText(it.name), {
+          id: it.id,
+          stock_qty: Number(it.stock_qty || 0),
+        });
+      }
+      ownerInventoryCache.set(ownerId, itemMap);
+      return itemMap;
+    }
+
+    let createdItems = 0;
+    let updatedItems = 0;
+    let skippedItems = 0;
+    let kardexMovementsLogged = 0;
+    let totalImportedValueCop = 0;
+    const rowErrors: { rowNumber: number; itemName: string; message: string }[] = [];
+
+    for (const row of data.rows) {
+      try {
+        // Determinar el propietario destino respetando permisos estrictos
+        let ownerId = caller.userId;
+
+        if (caller.isAdmin) {
+          if (row.producerEmail) {
+            const foundByEmail = userIdByEmail.get(row.producerEmail.toLowerCase());
+            if (!foundByEmail) {
+              throw new Error(
+                `No existe ningún productor registrado con el correo ${row.producerEmail}. Impórtalo primero en Padrón CSV.`
+              );
+            }
+            ownerId = foundByEmail;
+          } else if (data.targetOwnerId) {
+            ownerId = data.targetOwnerId;
+          }
+        }
+
+        const itemsMap = await getOwnerItemsMap(ownerId);
+        const normName = normalizeLookupText(row.itemName);
+        const existing = itemsMap.get(normName);
+
+        if (existing) {
+          if (data.duplicateStrategy === "SKIP") {
+            skippedItems++;
+            continue;
+          }
+
+          // Estrategia ADD_STOCK: sumar stock inicial y registrar movimiento ENTRADA en Kardex
+          const addedQty = Math.round(row.initialStock * 100) / 100;
+          const newTotalStock = Math.round((existing.stock_qty + addedQty) * 100) / 100;
+
+          const updatePayload: Record<string, unknown> = {
+            stock_qty: newTotalStock,
+            updated_at: new Date().toISOString(),
+          };
+          if (row.unitCostCop > 0) updatePayload.unit_cost = row.unitCostCop;
+          if (row.minStock >= 0) updatePayload.min_stock = row.minStock;
+
+          const { error: updErr } = await adminDb
+            .from("inventory_items")
+            .update(updatePayload)
+            .eq("id", existing.id);
+
+          if (updErr) throw new Error(updErr.message);
+
+          existing.stock_qty = newTotalStock;
+          updatedItems++;
+          totalImportedValueCop += addedQty * row.unitCostCop;
+
+          if (addedQty > 0) {
+            const { error: movErr } = await adminDb.from("inventory_movements").insert({
+              item_id: existing.id,
+              kind: "ENTRADA",
+              qty: addedQty,
+              notes: row.notes || "Recarga de existencias vía importación CSV",
+            });
+            if (!movErr) kardexMovementsLogged++;
+          }
+          continue;
+        }
+
+        // Crear nuevo insumo en bodega
+        const initialQty = Math.round(row.initialStock * 100) / 100;
+        const insertPayload: Record<string, unknown> = {
+          owner_id: ownerId,
+          name: row.itemName,
+          category: row.category,
+          unit: row.unit,
+          stock_qty: initialQty,
+          min_stock: row.minStock,
+          unit_cost: row.unitCostCop,
+        };
+
+        let insertedId: string | null = null;
+        const { data: insertedRow, error: insErr } = await adminDb
+          .from("inventory_items")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+
+        if (insErr) {
+          // Respaldo seguro si la columna 'category' aún no estuviera migrada en entornos antiguos
+          if (insErr.message?.includes("category") || insErr.code === "PGRST204") {
+            const { category: _c, ...fallbackPayload } = insertPayload;
+            const retry = await adminDb
+              .from("inventory_items")
+              .insert(fallbackPayload)
+              .select("id")
+              .single();
+            if (retry.error || !retry.data?.id) {
+              throw new Error(retry.error?.message || "No se pudo insertar el insumo");
+            }
+            insertedId = retry.data.id;
+          } else {
+            throw new Error(insErr.message);
+          }
+        } else {
+          insertedId = insertedRow?.id ?? null;
+        }
+
+        if (!insertedId) throw new Error("No se obtuvo ID del insumo creado");
+
+        itemsMap.set(normName, { id: insertedId, stock_qty: initialQty });
+        createdItems++;
+        totalImportedValueCop += initialQty * row.unitCostCop;
+
+        if (initialQty > 0) {
+          const { error: movErr } = await adminDb.from("inventory_movements").insert({
+            item_id: insertedId,
+            kind: "ENTRADA",
+            qty: initialQty,
+            notes: row.notes || "Carga inicial de bodega vía CSV",
+          });
+          if (!movErr) kardexMovementsLogged++;
+        }
+      } catch (err: unknown) {
+        rowErrors.push({
+          rowNumber: row.rowNumber,
+          itemName: row.itemName,
+          message: err instanceof Error ? err.message : "Error inesperado al importar insumo",
+        });
+      }
+    }
+
+    return {
+      createdItems,
+      updatedItems,
+      skippedItems,
+      kardexMovementsLogged,
+      totalImportedValueCop: Math.round(totalImportedValueCop),
+      rowErrors,
     };
   });

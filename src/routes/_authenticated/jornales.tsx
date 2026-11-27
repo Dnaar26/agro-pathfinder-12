@@ -6,6 +6,7 @@ import { executeWithOfflineFallback } from "@/lib/services/offline-sync";
 import { getMyRoles, listAllCrops } from "@/lib/queries";
 import { ProducerScopeBar, FarmGroupSection, useProducerScope } from "@/components/admin/producer-scope-bar";
 import { CrewPayrollSheetDialog } from "@/components/labor/crew-payroll-sheet-dialog";
+import { HarvestClosureWizardDialog } from "@/components/harvest/harvest-closure-wizard-dialog";
 import { exportCrewPayrollSheetPdf, exportWorkerVoucherPdf } from "@/lib/pdf-labor-voucher";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -420,6 +421,12 @@ function FieldLaborPage() {
 
           {!isReadOnlyTech && (
             <>
+              <HarvestClosureWizardDialog
+                cropsList={scopedCrops}
+                buttonLabel="Cerrar cosecha + QR"
+                buttonVariant="outline"
+              />
+
               <CrewPayrollSheetDialog
                 crops={scopedCrops}
                 frequentWorkers={frequentWorkers}

@@ -24,6 +24,7 @@ import { format } from "date-fns";
 import { NdviViewer } from "@/components/ndvi/ndvi-viewer";
 import { WeatherForecast } from "@/components/weather/weather-forecast";
 import { BatchQR } from "@/components/traceability/batch-qr";
+import { HarvestClosureWizardDialog } from "@/components/harvest/harvest-closure-wizard-dialog";
 import { exportCostsToExcel } from "@/lib/services/excel-export";
 import { severityClass } from "@/lib/status-styles";
 
@@ -636,6 +637,13 @@ function CropDetail() {
                     Consultar IA
                   </Link>
                 </Button>
+                {canManageCrop && (
+                  <HarvestClosureWizardDialog
+                    fixedCropId={id}
+                    buttonLabel="Cerrar cosecha + Lote QR"
+                    buttonVariant="default"
+                  />
+                )}
               </div>
             </div>
             <Progress value={pct} className="h-2" />
@@ -757,9 +765,17 @@ function CropDetail() {
         </TabsContent>
 
         <TabsContent value="harvests" className="mt-4 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium">Cosechas registradas ({harvests.data?.length ?? 0})</p>
-            {canManageCrop && <Dialog open={harvestOpen} onOpenChange={(v) => { setHarvestOpen(v); if (!v) setEditingHarvest(null); }}>
+            <div className="flex flex-wrap items-center gap-2">
+              {canManageCrop && (
+                <HarvestClosureWizardDialog
+                  fixedCropId={id}
+                  buttonLabel="Conciliar jornales + QR"
+                  buttonVariant="outline"
+                />
+              )}
+              {canManageCrop && <Dialog open={harvestOpen} onOpenChange={(v) => { setHarvestOpen(v); if (!v) setEditingHarvest(null); }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="size-4 mr-1" />Registrar cosecha</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>{editingHarvest ? "Editar cosecha" : "Registrar cosecha"}</DialogTitle></DialogHeader>
@@ -778,6 +794,7 @@ function CropDetail() {
                 </form>
               </DialogContent>
             </Dialog>}
+            </div>
           </div>
           {(harvests.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">Sin cosechas registradas.</p>

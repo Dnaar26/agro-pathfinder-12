@@ -14,6 +14,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sprout, Search, Calendar, MapPin, Plus, Download, CheckSquare, User } from "lucide-react";
 import { ProducerScopeBar, FarmGroupSection, useProducerScope } from "@/components/admin/producer-scope-bar";
+import { HarvestClosureWizardDialog } from "@/components/harvest/harvest-closure-wizard-dialog";
 import { format, addDays, parse } from "date-fns";
 import { toast } from "sonner";
 
@@ -187,7 +188,12 @@ function CultivosPage() {
           <h1 className="text-3xl font-bold">Cultivos</h1>
           <p className="text-sm text-muted-foreground">Todos los cultivos registrados en tus parcelas.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <HarvestClosureWizardDialog
+            cropsList={scopedCrops}
+            buttonLabel="Cerrar cosecha + QR"
+            buttonVariant="outline"
+          />
           <Button variant="outline" size="sm" onClick={exportCSV} disabled={filtered.length === 0}><Download className="size-3.5 mr-1" /> CSV</Button>
           {selectedIds.size > 0 && (
             <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)}><CheckSquare className="size-3.5 mr-1" /> Cambiar estado ({selectedIds.size})</Button>
